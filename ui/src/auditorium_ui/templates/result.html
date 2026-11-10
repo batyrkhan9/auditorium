@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% from "_macros.html" import status as pill, decision, evidence_item, draft_card %}
+{% block title %}{{ result.id }} · {{ manifest.run_id }}{% endblock %}
+{% block content %}
+{% set t = transactions.get(result.transaction_id) %}
+<p class="small"><a href="/">&larr; All results</a></p>
+<h2 style="margin-top:8px">{{ result.check.value }} {{ pill(result.status.value) }}
+  {% for code in result.issue_codes %}<code>{{ code.value }}</code> {% endfor %}</h2>
+<p><strong>{{ result.summary }}</strong></p>
+<p>{{ result.rationale }}</p>
+<dl class="kv">
+  <dt>Result</dt><dd><code>{{ result.id }}</code></dd>
+  <dt>Transaction</dt><dd><code>{{ result.transaction_id }}</code>{% if t %} · {{ t.vendor_name }} · {{ t.amount_cents | money }} · {{ t.kind.value | replace("_", " ") }} dated {{ t.transaction_date }}{% if t.invoice_number %} · invoice {{ t.invoice_number }}{% endif %}{% endif %}</dd>
+  {% if result.recorded_period or result.expected_period %}
+  <dt>Recorded period</dt><dd>{{ result.recorded_period or "not stated" }}</dd>
+  <dt>Expected period</dt><dd>{{ result.expected_period or "not stated" }}</dd>
+  {% endif %}
+</dl>
+
+<h2>Evidence ({{ evidence | length }})</h2>
+{% for e, v in evidence %}{{ evidence_item(e, v, dataset) }}{% endfor %}
+
+{% if drafts %}
+<h2>Follow-up drafts</h2>
+{% for d in drafts %}{{ draft_card(d) }}{% endfor %}
+{% endif %}
+
+<h2 id="signoff">Reviewer sign-off</h2>
+{% set so = signoffs.get(result.id, []) %}
+{% if so %}
+<table>
+  <thead><tr><th>#</th><th>When</th><th>Reviewer</th><th>Decision</th><th>Note</th></tr></thead>
+  <tbody>
+  {% for e in so %}
+  <tr><td class="num"><a href="/log#seq-{{ e.seq }}">{{ e.seq }}</a></td><td class="small">{{ e.ts.strftime("%Y-%m-%d %H:%M:%S UTC") }}</td><td>{{ e.actor_id }}</td><td>{{ decision(e.detail.get("decision")) }}</td><td>{{ e.detail.get("comment") }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted">Nobody has signed off on this result yet.</p>
+{% endif %}
+{% if error %}<div class="banner bad" role="alert">{{ error }}</div>{% endif %}
+{% if chain %}
+<p class="v failed">Sign-off is disabled because the step log's chain is broken.</p>
+{% else %}
+<form method="post" action="/signoff" class="filters">
+  <input type="hidden" name="result_id" value="{{ result.id }}">
+  <label>Your name <input name="reviewer" required autocomplete="name"></label>
+  <label>Decision
+    <select name="decision" required>
+      <option value="accepted">Accepted</option>
+      <option value="disputed">Disputed</option>
+    </select>
+  </label>
+  <label style="flex:1;min-width:240px">Note <input name="note" placeholder="Optional"></label>
+  <button type="submit">Sign off</button>
+</form>
+<p class="small muted">Recorded as a <code>signoff</code> event at the end of the hash-chained step log. It cannot be edited later.</p>
+{% endif %}
+
+<h2>Steps for this result</h2>
+{% if steps %}
+<table>
+  <thead><tr><th>#</th><th>When</th><th>Actor</th><th>Action</th><th>Detail</th></tr></thead>
+  <tbody>
+  {% for e in steps %}
+  <tr><td class="num"><a href="/log#seq-{{ e.seq }}">{{ e.seq }}</a></td><td class="small">{{ e.ts.strftime("%H:%M:%S") }}</td><td>{{ e.actor }}{% if e.actor_id %} <span class="muted small">{{ e.actor_id }}</span>{% endif %}</td><td><code>{{ e.action.value }}</code></td><td class="mono small">{{ e.detail | tojson_compact if e.detail }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted">No log steps mention this result or its transaction.</p>
+{% endif %}
+{% endblock %}

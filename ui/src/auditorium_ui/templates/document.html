@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}{{ document.id }} · {{ manifest.run_id }}{% endblock %}
+{% block content %}
+<p class="small"><a href="javascript:history.back()">&larr; Back</a></p>
+<h2 style="margin-top:8px">Document <code>{{ document.id }}</code></h2>
+<dl class="kv">
+  <dt>Type</dt><dd>{{ document.type.value }} ({{ document.origin }})</dd>
+  <dt>Source</dt><dd>{{ document.source.system.value }} {{ document.source.record_type }} <code>{{ document.source.record_id }}</code></dd>
+  <dt>File</dt><dd><code>{{ document.path }}</code> · {{ document.media_type }} · <a href="/document/file?id={{ document.id | q }}" target="_blank" rel="noopener">open original</a></dd>
+  <dt>sha256</dt><dd><code>{{ document.sha256 }}</code>
+    {% if hash_ok %}<span class="v verified">matches the file</span>{% else %}<span class="v failed">does not match the file</span>{% endif %}</dd>
+</dl>
+{% if read_error %}<div class="banner bad">Could not read the text of this file: {{ read_error }}</div>{% endif %}
+<p class="small muted">The text below is what the contract's text extraction reads, which is what quotes are checked against.</p>
+{% for parts in pages %}
+<h2 id="page-{{ loop.index }}">Page {{ loop.index }}{% if loop.index == focus %} <span class="small muted">(quoted)</span>{% endif %}</h2>
+<pre class="page">{% for text, hit in parts %}{% if hit %}<mark>{{ text }}</mark>{% else %}{{ text }}{% endif %}{% endfor %}</pre>
+{% endfor %}
+{% endblock %}
