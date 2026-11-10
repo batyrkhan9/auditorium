@@ -1,20 +1,26 @@
 """The run viewer: one run folder, its results, the evidence behind them, the log, sign-off.
 
 Reads the run folder on every request, so sign-offs and a run that is still being
-written show up on reload. Evidence is checked with `verify_evidence` when a
-dataset folder is given; without one every item shows as not checked. A run that
-used any live source is not re-checked against the local dataset, because live
-ids need not exist there.
+written show up on reload. Evidence is checked with `verify_evidence` against one
+named basis, and the screen always says which:
+
+1. the run's own snapshot (`sources/`), once it matches the fingerprints the run
+   logged when it fetched the data;
+2. otherwise a local dataset (`--dataset`, or `dataset_path` from run.json when its
+   `dataset_id` matches), but only if every source of the run was local;
+3. otherwise nothing: a live run without a snapshot is "unchecked: live run", and a
+   run with no dataset is "not checked".
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import secrets
 import tempfile
 from collections import Counter, defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import parse_qs, quote, urlsplit
 
@@ -31,13 +37,43 @@ from .demo import DEMO_PREFIX
 
 CHECKS = [check.value for check in c.CheckName]
 STATUSES = [status.value for status in c.CheckStatus]
-LIVE_UNCHECKED = "evidence not re-verified against live sources"
+LIVE_UNCHECKED = "evidence not re-verified: the run used a live source and left no snapshot"
+CHANGED_SINCE_SHOWN = (
+    "This result changed after the page was shown to you, so the sign-off was refused. "
+    "Read it again below, then sign off."
+)
 
 
 @dataclass(frozen=True)
 class Verification:
     state: str  # "verified", "failed", "unchecked" or "live_unchecked"
     reason: str | None = None
+    basis: str | None = None  # "snapshot" or "dataset" when the item was checked
+
+
+@dataclass
+class Basis:
+    """What evidence is checked against, and why. Never just "verified"."""
+
+    kind: str  # "snapshot", "dataset", "live" or "none"
+    sources: c.LocalSources | None = None
+    index: c.SourceIndex | None = None
+    reason: str | None = None
+    detail: str | None = None  # the snapshot folder or the dataset path
+
+
+@dataclass
+class SignoffState:
+    """The latest sign-off of one result, and whether the result still matches it."""
+
+    event: c.LogEvent
+    state: str  # "pinned", "changed" or "unpinned"
+
+
+@dataclass
+class RunSignoff:
+    event: c.LogEvent
+    problems: list[str] = field(default_factory=list)
 
 
 def is_demo(manifest: c.RunManifest) -> bool:
@@ -47,20 +83,40 @@ def is_demo(manifest: c.RunManifest) -> bool:
     )
 
 
-def _read_log(path: Path) -> tuple[list[str], bool]:
-    """The log's complete lines, and whether a half-written last line was left out.
+def _read_log(path: Path) -> tuple[list[str], bool, list[str]]:
+    """The log's readable lines, whether a half-written last line was left out, and damage.
 
-    Only a final line with no newline after it (the agent is mid-write) is
-    tolerated. Any other line that does not parse still raises when parsed.
+    A final line with no newline after it that does not parse is the agent mid-write:
+    it is left out quietly. Any other line that does not read as an event is damage.
+    The page still renders the events before it and says what is wrong, and sign-off
+    is refused, as `LogWriter` itself would refuse it.
     """
     text = path.read_text(encoding="utf-8")
     lines = [line for line in text.splitlines() if line.strip()]
+    partial = False
     if lines and not text.endswith("\n"):
         try:
             c.LogEvent.model_validate_json(lines[-1])
         except ValueError:
-            return lines[:-1], True
-    return lines, False
+            lines, partial = lines[:-1], True
+    for number, line in enumerate(lines, 1):
+        try:
+            c.LogEvent.model_validate_json(line)
+        except ValueError:
+            after = len(lines) - number
+            damage = [f"log line {number} is not a valid event"]
+            if after:
+                damage.append(
+                    f"The {after} line(s) after it are not shown. Damage before the end of a "
+                    "log is not crash damage and is not repaired: treat this log as tampered."
+                )
+            else:
+                damage.append(
+                    "If a crash cut it off: python -m auditorium_contracts repair-log "
+                    f"{path}. Repair keeps the removed line in {path.name}.damaged."
+                )
+            return lines[: number - 1], partial, damage
+    return lines, partial, []
 
 
 def _verify_lines(lines: list[str]) -> list[str]:
@@ -71,20 +127,36 @@ def _verify_lines(lines: list[str]) -> list[str]:
         return c.verify_log(snapshot)
 
 
-def _load_run(root: Path) -> tuple[c.Run, list[str], bool]:
-    """Like `load_run` plus `verify_log`, but a half-written last log line does not stop
-    the page. Returns the run, the chain's problems and whether a line was left out."""
-    lines, partial = _read_log(root / c.LOG)
+@dataclass
+class Loaded:
+    run: c.Run
+    chain: list[str]  # verify_log problems in the lines shown
+    partial: bool  # a half-written last line was left out
+    damage: list[str]  # a line that is not an event; sign-off is refused
+    file_hashes: dict[str, str]  # sha256 of results.jsonl and run.json as read
+
+
+def _load_run(root: Path) -> Loaded:
+    """Like `load_run` plus `verify_log`, but a half-written or damaged log line does not
+    stop the page. Also hashes results.jsonl and run.json from the very bytes parsed, so a
+    run sign-off can pin what the page showed."""
+    lines, partial, damage = _read_log(root / c.LOG)
     log = [c.LogEvent.model_validate_json(line) for line in lines]
 
     def optional(name: str, model) -> tuple:
         return tuple(c.read_jsonl(root / name, model)) if (root / name).is_file() else ()
 
+    manifest_bytes = (root / c.RUN_MANIFEST).read_bytes()
+    results_bytes = (root / c.RESULTS).read_bytes()
     scorecard = root / c.SCORECARD
     run = c.Run(
         root=root,
-        manifest=c.RunManifest.model_validate_json((root / c.RUN_MANIFEST).read_text("utf-8")),
-        results=tuple(c.read_jsonl(root / c.RESULTS, c.CheckResult)),
+        manifest=c.RunManifest.model_validate_json(manifest_bytes),
+        results=tuple(
+            c.CheckResult.model_validate_json(line)
+            for line in results_bytes.decode("utf-8").splitlines()
+            if line.strip()
+        ),
         packets=optional(c.PACKETS, c.EvidencePacket),
         drafts=optional(c.DRAFTS, c.FollowUpDraft),
         log=tuple(log),
@@ -92,7 +164,83 @@ def _load_run(root: Path) -> tuple[c.Run, list[str], bool]:
         if scorecard.is_file()
         else None,
     )
-    return run, _verify_lines(lines), partial
+    hashes = {
+        "results_sha256": hashlib.sha256(results_bytes).hexdigest(),
+        "run_sha256": hashlib.sha256(manifest_bytes).hexdigest(),
+    }
+    return Loaded(run, _verify_lines(lines), partial, damage, hashes)
+
+
+def _snapshot_problems(log: tuple[c.LogEvent, ...], snapshot: c.LocalSources) -> list[str]:
+    """The snapshot against the fingerprints the run logged at fetch time.
+
+    Same rule as the contract's `validate_run`: only `source_call` events with both
+    `call` and `sha256` are fingerprints."""
+    logged = {
+        event.detail["call"]: event.detail["sha256"]
+        for event in log
+        if event.action is c.LogAction.SOURCE_CALL
+        and "call" in event.detail
+        and "sha256" in event.detail
+    }
+    if not logged:
+        return ["the log holds no source fingerprints, so the snapshot cannot be tied to the fetch"]
+    current = c.fingerprint_sources(snapshot)
+    return [
+        f"{call} in the snapshot is not what the run fetched"
+        for call, digest in sorted(current.items())
+        if logged.get(call) != digest
+    ]
+
+
+def _signoffs(run: c.Run, file_hashes: dict[str, str]):
+    """Every sign-off by subject, the latest per result with its state, the latest run
+    sign-off with its problems, and the list of problems for the banner.
+
+    Only the latest sign-off of a result, or of the run, counts, as in `validate_run`.
+    """
+    by_subject: dict[str, list[c.LogEvent]] = defaultdict(list)
+    finished_seq = None
+    for event in run.log:
+        if event.action is c.LogAction.RUN_FINISHED:
+            finished_seq = event.seq
+        if event.action is c.LogAction.SIGNOFF:
+            for subject in event.subject_ids:
+                by_subject[subject].append(event)
+    results = {r.id: r for r in run.results}
+    per_result: dict[str, SignoffState] = {}
+    problems: list[str] = []
+    for result_id, result in results.items():
+        if not by_subject.get(result_id):
+            continue
+        latest = by_subject[result_id][-1]
+        signed = latest.detail.get("result_sha256")
+        if not signed:
+            state = "unpinned"
+        elif signed == c.result_hash(result):
+            state = "pinned"
+        else:
+            state = "changed"
+            problems.append(
+                f"result {result_id}: changed after it was signed off (log line {latest.seq})"
+            )
+        per_result[result_id] = SignoffState(latest, state)
+    run_signoff = None
+    run_events = [
+        e for e in by_subject.get(run.manifest.run_id, []) if e.detail.get("scope") == "run"
+    ]
+    if run_events:
+        latest = run_events[-1]
+        mine: list[str] = []
+        if finished_seq is None or latest.seq < finished_seq:
+            mine.append(f"log line {latest.seq}: the run was signed off before it finished")
+        for key, name in (("results_sha256", c.RESULTS), ("run_sha256", c.RUN_MANIFEST)):
+            pinned = latest.detail.get(key)
+            if pinned and pinned != file_hashes[key]:
+                mine.append(f"{name}: changed after the run was signed off")
+        run_signoff = RunSignoff(latest, mine)
+        problems += mine
+    return by_subject, per_result, run_signoff, problems, finished_seq is not None
 
 
 def _same_origin(request: Request) -> bool:
@@ -155,8 +303,9 @@ class Viewer:
         self.dataset_dir = Path(dataset_dir) if dataset_dir else None
         self.demo = demo
         self.csrf = secrets.token_urlsafe(32)
-        self.sources = c.LocalSources(self.dataset_dir) if self.dataset_dir else None
-        self.index = c.SourceIndex(self.sources) if self.sources else None
+        self._datasets: dict[Path, tuple[c.LocalSources, c.SourceIndex]] = {}
+        if self.dataset_dir:
+            self._local(self.dataset_dir)  # a bad --dataset fails at start, not on a page
         self.env = Environment(
             loader=PackageLoader("auditorium_ui", "templates"),
             autoescape=select_autoescape(["html"]),
@@ -169,27 +318,139 @@ class Viewer:
 
     # -- reading ---------------------------------------------------------------
 
-    def verify(self, evidence, live: bool = False) -> Verification:
-        if live:
-            return Verification("live_unchecked", LIVE_UNCHECKED)
-        if self.index is None:
-            return Verification("unchecked", "no dataset given, so this was not checked")
+    def _local(self, folder: Path) -> tuple[c.LocalSources, c.SourceIndex]:
+        """A dataset folder's sources and index, loaded once per folder."""
+        key = Path(folder).resolve()
+        if key not in self._datasets:
+            sources = c.LocalSources(key)
+            self._datasets[key] = (sources, c.SourceIndex(sources))
+        return self._datasets[key]
+
+    def dataset(self, manifest: c.RunManifest) -> tuple[c.LocalSources | None, str, str | None]:
+        """The local dataset for this run: (sources, where it came from, why none was used).
+
+        `--dataset` wins. Without it, run.json's `dataset_path` is used once the folder's
+        `dataset_id` matches the run's: folders move, and a path alone proves nothing.
+        """
+        wanted = manifest.dataset_id
+        if self.dataset_dir:
+            sources, _ = self._local(self.dataset_dir)
+            found = sources.dataset.manifest.dataset_id
+            if wanted and found != wanted:
+                return (
+                    None,
+                    "--dataset",
+                    f"--dataset {self.dataset_dir} holds dataset {found}, but this run used "
+                    f"{wanted}, so it was not used.",
+                )
+            return sources, "--dataset", None
+        path = manifest.dataset_path
+        origin = "run.json dataset_path"
+        if not path:
+            return None, "", "No --dataset was given and run.json has no dataset_path."
+        if not wanted:
+            return (
+                None,
+                origin,
+                f"run.json names dataset_path {path} but no dataset_id to check it against, "
+                "so it was not used. Pass --dataset to choose one.",
+            )
+        folder = Path(path)
+        if not (folder / "manifest.json").is_file():
+            return (
+                None,
+                origin,
+                f"run.json names dataset_path {path}, which holds no dataset here. "
+                "Pass --dataset to choose one.",
+            )
         try:
-            problem = c.verify_evidence(evidence, self.index)
+            found = c.DatasetManifest.model_validate_json(
+                (folder / "manifest.json").read_text("utf-8")
+            ).dataset_id
+            if found != wanted:
+                return (
+                    None,
+                    origin,
+                    f"run.json names dataset_path {path}, which now holds dataset {found}, "
+                    f"not {wanted}, so it was not used.",
+                )
+            sources, _ = self._local(folder)
+        except (OSError, ValueError) as error:
+            return None, origin, f"dataset_path {path} could not be loaded: {error}"
+        return sources, origin, None
+
+    def basis(
+        self, run: c.Run, dataset: c.LocalSources | None, dataset_note: str | None, live: bool
+    ) -> tuple[Basis, list[str]]:
+        """What evidence is checked against, and any problem with the run's snapshot."""
+        snapshot_problems: list[str] = []
+        folder = self.run_dir / c.SOURCES_SNAPSHOT
+        if folder.is_dir():
+            try:
+                snapshot = c.LocalSources(folder)
+                snapshot_problems = _snapshot_problems(run.log, snapshot)
+            except (OSError, ValueError) as error:
+                snapshot_problems = [f"the snapshot cannot be loaded ({error})"]
+            if not snapshot_problems:
+                # verified_against(root, None) is "snapshot": what the run fetched, unchanged.
+                return (
+                    Basis(
+                        c.verified_against(self.run_dir, None),
+                        snapshot,
+                        c.SourceIndex(snapshot),
+                        detail=str(folder),
+                    ),
+                    [],
+                )
+        if live:
+            return Basis("live", reason=LIVE_UNCHECKED), snapshot_problems
+        if dataset is not None:
+            # verified_against(root, sources) says "the sources given": here, this dataset.
+            return (
+                Basis(
+                    "dataset",
+                    dataset,
+                    self._local(dataset.dataset.root)[1],
+                    detail=f"{dataset.dataset.manifest.dataset_id} at {dataset.dataset.root}",
+                ),
+                snapshot_problems,
+            )
+        reason = dataset_note or "no dataset given, so this was not checked"
+        return Basis("none", reason=reason), snapshot_problems
+
+    @staticmethod
+    def verify(evidence, basis: Basis) -> Verification:
+        if basis.kind == "live":
+            return Verification("live_unchecked", basis.reason)
+        if basis.index is None:
+            return Verification("unchecked", basis.reason)
+        try:
+            problem = c.verify_evidence(evidence, basis.index)
         except Exception as error:  # a broken source file must not hide the item
             problem = f"could not check: {error}"
-        return Verification("failed", problem) if problem else Verification("verified")
+        if problem:
+            return Verification("failed", problem, basis.kind)
+        return Verification("verified", basis=basis.kind)
+
+    def _where(self, loaded: Loaded) -> tuple[c.LocalSources | None, str, str | None, Basis, list]:
+        manifest = loaded.run.manifest
+        live = any(source.mode == "live" for source in manifest.sources)
+        dataset, dataset_from, dataset_note = self.dataset(manifest)
+        basis, snapshot_problems = self.basis(loaded.run, dataset, dataset_note, live)
+        return dataset, dataset_from, dataset_note, basis, snapshot_problems
 
     def context(self) -> dict:
-        run, chain, log_partial = _load_run(self.run_dir)
-        live = any(source.mode == "live" for source in run.manifest.sources)
-        signoffs: dict[str, list[c.LogEvent]] = defaultdict(list)
+        loaded = _load_run(self.run_dir)
+        run = loaded.run
+        manifest = run.manifest
+        live = any(source.mode == "live" for source in manifest.sources)
+        dataset, dataset_from, dataset_note, basis, snapshot_problems = self._where(loaded)
+        signoffs, signoff_state, run_signoff, signoff_problems, finished_logged = _signoffs(
+            run, loaded.file_hashes
+        )
         logged_status: dict[str, str] = {}
         for event in run.log:
-            if event.action is c.LogAction.SIGNOFF:
-                for subject in event.subject_ids:
-                    signoffs[subject].append(event)
-            elif event.action is c.LogAction.CHECK_RECORDED and "status" in event.detail:
+            if event.action is c.LogAction.CHECK_RECORDED and "status" in event.detail:
                 for subject in event.subject_ids:
                     logged_status[subject] = str(event.detail["status"])
         # A result whose status differs from the one its check_recorded event logged
@@ -200,29 +461,44 @@ class Viewer:
             if r.id in logged_status and logged_status[r.id] != r.status.value
         }
         verifications = {
-            result.id: [self.verify(evidence, live) for evidence in result.evidence]
+            result.id: [self.verify(evidence, basis) for evidence in result.evidence]
             for result in run.results
         }
         failed = sum(v.state == "failed" for vs in verifications.values() for v in vs)
-        unchecked = sum(v.state == "unchecked" for vs in verifications.values() for v in vs)
-        transactions = {}
-        if self.sources:
-            transactions = {t.id: t for t in self.sources.transactions()}
+        # Records shown beside a result come from the basis; a live run's ids need not
+        # exist in a local dataset, so without a snapshot it shows ids only.
+        records = basis.sources or (dataset if not live else None)
+        transactions = {t.id: t for t in records.transactions()} if records else {}
+        in_progress = manifest.finished_at is None or loaded.partial
+        blocked = in_progress or bool(loaded.chain) or bool(loaded.damage)
         return {
             "run": run,
-            "manifest": run.manifest,
-            "chain": chain,
+            "manifest": manifest,
+            "chain": loaded.chain,
+            "log_damage": loaded.damage,
             "signoffs": signoffs,
+            "signoff_state": signoff_state,
+            "run_signoff": run_signoff,
+            "signoff_problems": signoff_problems,
             "verifications": verifications,
             "evidence_failed": failed,
-            "evidence_unchecked": unchecked,
             "transactions": transactions,
-            "dataset": self.sources.dataset if self.sources else None,
-            "demo": self.demo or is_demo(run.manifest),
+            "basis": basis,
+            "doc_sources": basis.sources is not None,
+            "dataset": dataset.dataset if dataset else None,
+            "dataset_from": dataset_from,
+            "dataset_note": dataset_note,
+            "snapshot_problems": snapshot_problems,
+            "demo": self.demo or is_demo(manifest),
+            "synthetic": [s.system.value for s in manifest.sources if s.synthetic],
             "live": live,
             "drift": drift,
-            "log_partial": log_partial,
-            "in_progress": run.manifest.finished_at is None or log_partial,
+            "log_partial": loaded.partial,
+            "in_progress": in_progress,
+            "can_sign": not blocked,
+            "can_sign_run": not blocked and finished_logged,
+            "finished_logged": finished_logged,
+            "file_hashes": loaded.file_hashes,
             "csrf": self.csrf,
         }
 
@@ -249,18 +525,18 @@ class Viewer:
             name: Counter(r.status.value for r in ctx["run"].results if r.check.value == name)
             for name in CHECKS
         }
-        signed = sum(1 for r in ctx["run"].results if ctx["signoffs"].get(r.id))
         return self.render(
             "results.html",
             page="results",
             rows=rows,
             counts=counts,
             matrix=matrix,
-            signed=signed,
+            signed=len(ctx["signoff_state"]),
             status=status,
             check=check,
             checks=CHECKS,
             statuses=STATUSES,
+            error=request.query_params.get("error"),
             **ctx,
         )
 
@@ -280,6 +556,8 @@ class Viewer:
             "result.html",
             page="results",
             result=result,
+            # Taken now, from the result this page shows: the sign-off pins exactly this.
+            shown_hash=c.result_hash(result),
             evidence=list(zip(result.evidence, ctx["verifications"][result.id], strict=True)),
             steps=steps,
             drafts=drafts,
@@ -290,7 +568,7 @@ class Viewer:
     async def packets(self, request: Request) -> Response:
         ctx = self.context()
         packets = [
-            (packet, [(item, self.verify(item.evidence, ctx["live"])) for item in packet.items])
+            (packet, [(item, self.verify(item.evidence, ctx["basis"])) for item in packet.items])
             for packet in ctx["run"].packets
         ]
         sample = None
@@ -305,47 +583,128 @@ class Viewer:
         return self.render("drafts.html", page="drafts", **self.context())
 
     async def log(self, request: Request) -> Response:
-        return self.render("log.html", page="log", **self.context())
+        ctx = self.context()
+        # The contract's own verdict on the whole folder. Only on this page: it re-reads
+        # every document. It needs a complete log, and a snapshot or local sources.
+        validation, validated_against = None, None
+        if not (ctx["log_partial"] or ctx["log_damage"]) and ctx["basis"].sources is not None:
+            given = None if ctx["basis"].kind == "snapshot" else ctx["basis"].sources
+            validation = c.validate_run(self.run_dir, given)
+            validated_against = ctx["basis"].kind
+        return self.render(
+            "log.html",
+            page="log",
+            validation=validation,
+            validated_against=validated_against,
+            **ctx,
+        )
 
-    async def signoff(self, request: Request) -> Response:
-        form = {k: v[0].strip() for k, v in parse_qs((await request.body()).decode()).items()}
+    # -- sign-off --------------------------------------------------------------
+
+    def _forged(self, request: Request, form: dict) -> Response | None:
         if not _same_origin(request) or not secrets.compare_digest(form.get("csrf", ""), self.csrf):
             return self.render(
                 "error.html",
                 status_code=403,
                 message="Sign-off refused: the form did not come from this page. Reload and try again.",
             )
+        return None
+
+    @staticmethod
+    def _signing_problem(loaded: Loaded, reviewer: str, decision: str) -> str | None:
+        if loaded.run.manifest.finished_at is None or loaded.partial:
+            # The contract's file lock makes a concurrent append safe, but a reviewer
+            # signs what the agent has finished, not a run that is still moving.
+            return "The run is still in progress. Sign-off opens once it has finished."
+        if loaded.damage:
+            return "The step log is damaged, so a sign-off cannot be added to it. " + " ".join(
+                loaded.damage
+            )
+        if loaded.chain:
+            return "The log's chain is broken, so a sign-off cannot be added to it."
+        if not reviewer:
+            return "Enter your name to sign off."
+        if decision not in ("accepted", "disputed"):
+            return "Choose accepted or disputed."
+        return None
+
+    async def signoff(self, request: Request) -> Response:
+        form = {k: v[0].strip() for k, v in parse_qs((await request.body()).decode()).items()}
+        forged = self._forged(request, form)
+        if forged:
+            return forged
         result_id = form.get("result_id", "")
         back = f"/result?id={quote(result_id, safe='')}"
-        run, chain, log_partial = _load_run(self.run_dir)
-        if result_id not in {r.id for r in run.results}:
+        loaded = _load_run(self.run_dir)
+        current = next((r for r in loaded.run.results if r.id == result_id), None)
+        if current is None:
             return self.not_found(f"result {result_id}")
         reviewer, decision = form.get("reviewer", ""), form.get("decision", "")
-        problem = None
-        if run.manifest.finished_at is None or log_partial:
-            # The agent's LogWriter keeps seq and the last hash in memory; appending
-            # now would fork the chain.
-            problem = "The run is still in progress. Sign-off opens once it has finished."
-        elif not reviewer:
-            problem = "Enter your name to sign off."
-        elif decision not in ("accepted", "disputed"):
-            problem = "Choose accepted or disputed."
-        elif chain:
-            problem = "The log's chain is broken, so a sign-off cannot be added to it."
+        shown = form.get("result_sha256", "")
+        problem = self._signing_problem(loaded, reviewer, decision)
+        if problem is None and not shown:
+            problem = (
+                "The form did not say which version of the result you read. Reload and try again."
+            )
+        if problem is None:
+            writer = c.LogWriter(self.run_dir / c.LOG, loaded.run.manifest.run_id)
+            try:
+                writer.sign_off(
+                    reviewer,
+                    result_id,
+                    decision,
+                    form.get("note", ""),
+                    result=current,
+                    result_sha256=shown,
+                )
+            except c.LogDamaged as error:
+                problem = f"Sign-off refused: {error}"
+            except ValueError:
+                problem = CHANGED_SINCE_SHOWN
         if problem:
             return RedirectResponse(f"{back}&error={quote(problem)}#signoff", status_code=303)
-        writer = c.LogWriter(self.run_dir / c.LOG, run.manifest.run_id)
-        writer.sign_off(reviewer, result_id, decision, form.get("note", ""))
         return RedirectResponse(f"{back}#signoff", status_code=303)
 
+    async def signoff_run(self, request: Request) -> Response:
+        form = {k: v[0].strip() for k, v in parse_qs((await request.body()).decode()).items()}
+        forged = self._forged(request, form)
+        if forged:
+            return forged
+        loaded = _load_run(self.run_dir)
+        reviewer, decision = form.get("reviewer", ""), form.get("decision", "")
+        problem = self._signing_problem(loaded, reviewer, decision)
+        finished = any(e.action is c.LogAction.RUN_FINISHED for e in loaded.run.log)
+        if problem is None and not finished:
+            problem = "The log has no run_finished event yet, so the run cannot be signed off."
+        if problem is None and any(
+            form.get(key, "") != digest for key, digest in loaded.file_hashes.items()
+        ):
+            problem = (
+                "The results or run.json changed after the page was shown to you, so the "
+                "sign-off was refused. Read the run again, then sign off."
+            )
+        if problem is None:
+            writer = c.LogWriter(self.run_dir / c.LOG, loaded.run.manifest.run_id)
+            try:
+                writer.sign_off_run(reviewer, decision, form.get("note", ""))
+            except c.LogDamaged as error:
+                problem = f"Sign-off refused: {error}"
+        if problem:
+            return RedirectResponse(f"/?error={quote(problem)}#run-signoff", status_code=303)
+        return RedirectResponse("/#run-signoff", status_code=303)
+
+    # -- documents -------------------------------------------------------------
+
     def _document(self, request: Request) -> tuple[c.Document, Path] | None:
-        if not self.sources:
+        """A document from the basis: the run's snapshot or a matching local dataset."""
+        basis = self._where(_load_run(self.run_dir))[3]
+        if basis.sources is None:
             return None
         doc_id = request.query_params.get("id", "")
-        document = next((d for d in self.sources.documents() if d.id == doc_id), None)
+        document = next((d for d in basis.sources.documents() if d.id == doc_id), None)
         if document is None:
             return None
-        root = self.dataset_dir.resolve()
+        root = basis.sources.dataset.root.resolve()
         file = (root / document.path).resolve()
         if not file.is_relative_to(root) or not file.is_file():
             return None
@@ -354,7 +713,9 @@ class Viewer:
     async def document(self, request: Request) -> Response:
         found = self._document(request)
         if found is None:
-            return self.not_found("document (start the viewer with --dataset to open documents)")
+            return self.not_found(
+                "document (documents open from the run's snapshot or a matching local dataset)"
+            )
         document, file = found
         try:
             pages = list(c.page_texts(file))
@@ -409,6 +770,7 @@ class Viewer:
                 Route("/document", self.document),
                 Route("/document/file", self.document_file),
                 Route("/signoff", self.signoff, methods=["POST"]),
+                Route("/signoff-run", self.signoff_run, methods=["POST"]),
             ],
         )
 

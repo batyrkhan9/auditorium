@@ -7,13 +7,13 @@
 {%- endmacro %}
 
 {% macro verification(v) -%}
-{% if v.state == "verified" %}<span class="v verified" title="verify_evidence found it in the sources">Verified</span>
-{% elif v.state == "failed" %}<span class="v failed">Not verified</span>
+{% if v.state == "verified" %}<span class="v verified" data-basis="{{ v.basis }}" title="verify_evidence found it in the {{ v.basis }}">Verified against {{ v.basis }}</span>
+{% elif v.state == "failed" %}<span class="v failed" data-basis="{{ v.basis }}">Not verified against {{ v.basis }}</span>
 {% elif v.state == "live_unchecked" %}<span class="v live_unchecked">Unchecked: live run</span>
 {% else %}<span class="v unchecked">Not checked</span>{% endif %}
 {%- endmacro %}
 
-{% macro evidence_item(e, v, dataset, role=None) -%}
+{% macro evidence_item(e, v, doc_sources, role=None) -%}
 <div class="evidence {{ v.state }}" data-kind="{{ e.kind }}" data-verification="{{ v.state }}">
   <div class="head">
     <span class="kind">{{ e.kind }}{% if role %} · {{ role | replace("_", " ") }}{% endif %}</span>
@@ -22,7 +22,7 @@
   {% if e.kind == "document" %}
     <dl class="kv">
       <dt>Document</dt><dd><code>{{ e.document_id }}</code>, page {{ e.page }}
-        {% if dataset %} · <a href="/document?id={{ e.document_id | q }}&page={{ e.page }}&quote={{ e.quote | q }}">open with quote highlighted</a>
+        {% if doc_sources %} · <a href="/document?id={{ e.document_id | q }}&page={{ e.page }}&quote={{ e.quote | q }}">open with quote highlighted</a>
         · <a href="/document/file?id={{ e.document_id | q }}" target="_blank" rel="noopener">original file</a>{% endif %}</dd>
     </dl>
     <blockquote>{{ e.quote }}</blockquote>

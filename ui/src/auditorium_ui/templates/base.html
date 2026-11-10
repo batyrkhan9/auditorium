@@ -29,6 +29,7 @@ header.run h1 { font-size: 18px; margin: 0 0 6px; display: flex; gap: 10px; alig
 .badge.live { background: #0f5323; color: #fff; }
 .badge.local { background: var(--review-bg); color: var(--review-ink); border: 1px solid #d4a72c; }
 .badge.mode { background: var(--ink); color: #fff; }
+.badge.synthetic { background: #ede7ff; color: #3b2475; border: 1px solid #8463d6; }
 .badge.draft { background: var(--review-bg); color: var(--review-ink); border: 1px solid #d4a72c; }
 nav.tabs { display: flex; gap: 4px; margin-top: 6px; }
 nav.tabs a { padding: 8px 12px; text-decoration: none; color: var(--muted); border-bottom: 2px solid transparent; }
@@ -103,6 +104,7 @@ button { background: var(--accent); color: #fff; border-color: var(--accent); cu
       <span class="source" data-system="{{ s.system.value }}" data-mode="{{ s.mode }}">
         <strong>{{ s.system.value }}</strong>
         <span class="badge {{ s.mode }}">{{ "Live" if s.mode == "live" else "Local" }}</span>
+        {% if s.synthetic %}<span class="badge synthetic" data-synthetic-source>Synthetic</span>{% endif %}
         <span class="muted">{{ s.detail }}</span>
       </span>
       {% endfor %}
@@ -117,7 +119,18 @@ button { background: var(--accent); color: #fff; border-color: var(--accent); cu
 </header>
 <main>
   {% if demo %}
-  <div class="banner demo" role="note">DEMO DATA. Synthetic company, records and run made up to show the screen. Every source is a local file. Nothing here is a real audit.</div>
+  <div class="banner demo" role="note" data-demo>DEMO RUN. The results, log and drafts were made up by the screen's demo builder to show the screen, not produced by the agent. Every source is a local file. Nothing here is a real audit.</div>
+  {% endif %}
+  {% if synthetic %}
+  <div class="banner demo" role="note" data-synthetic="{{ synthetic | join(' ') }}"><strong>Synthetic data.</strong> {{ synthetic | length }} of {{ manifest.sources | length }} source(s) hold made-up records ({{ synthetic | join(", ") }}). No real company is described here.</div>
+  {% endif %}
+  {% if log_damage %}
+  <div class="banner bad" role="alert" data-log="damaged"><strong>The step log is damaged.</strong> {{ log_damage | join(" ") }} Sign-off is disabled.</div>
+  {% endif %}
+  {% if signoff_problems %}
+  <div class="banner bad" role="alert" data-signoff-problems="{{ signoff_problems | length }}"><strong>{{ signoff_problems | length }} sign-off problem(s).</strong>
+    <ul style="margin:4px 0 0">{% for p in signoff_problems %}<li>{{ p }}</li>{% endfor %}</ul>
+  </div>
   {% endif %}
   {% if log_partial %}
   <div class="banner warn" role="status" data-run="in-progress"><strong>Run in progress: the step log could not be read fully.</strong> Its last line is still being written, so it is left out below. Reload to see it. Sign-off is disabled until the run has finished.</div>
@@ -130,13 +143,25 @@ button { background: var(--accent); color: #fff; border-color: var(--accent); cu
   {% if chain %}
   <div class="banner bad" role="alert"><strong>Step log chain is broken.</strong> {{ chain | length }} problem(s); see the <a href="/log">step log</a>. Sign-off is disabled.</div>
   {% endif %}
-  {% if evidence_failed %}
-  <div class="banner bad" role="alert"><strong>{{ evidence_failed }} evidence item(s) did not verify</strong> against the sources. A check whose evidence cannot be found is not a result. They are marked "Not verified" below.</div>
+  {% if snapshot_problems %}
+  <div class="banner bad" role="alert" data-snapshot="untrusted"><strong>The run's snapshot was not used.</strong> It does not match the fingerprints the run logged when it fetched the data:
+    <ul style="margin:4px 0 0">{% for p in snapshot_problems %}<li>{{ p }}</li>{% endfor %}</ul>
+  </div>
   {% endif %}
-  {% if live %}
-  <div class="banner warn" role="note" data-evidence="live-unchecked"><strong>Live run: evidence not re-checked.</strong> At least one source was live, so its records and documents need not exist in a local dataset. Evidence is shown as "Unchecked: live run" rather than compared with local files.</div>
-  {% elif not dataset %}
-  <div class="banner warn" role="note"><strong>Evidence not checked.</strong> No dataset folder was given, so quotes and record values were not compared with the sources. Start with <code>--dataset &lt;dir&gt;</code> to check them and open documents.</div>
+  {% if evidence_failed %}
+  <div class="banner bad" role="alert"><strong>{{ evidence_failed }} evidence item(s) did not verify</strong> against the {{ basis.kind }}. A check whose evidence cannot be found is not a result. They are marked "Not verified" below.</div>
+  {% endif %}
+  {% if basis.kind == "snapshot" %}
+  <div class="banner ok" role="note" data-evidence="snapshot"><strong>Evidence checked against the run's snapshot</strong> (<code>sources/</code>), which matches the fingerprints the run logged when it fetched the data. That shows the evidence matches what the run fetched. It does not show the fetch itself was honest; only the live sources can.</div>
+  {% elif basis.kind == "dataset" %}
+  <div class="banner ok" role="note" data-evidence="dataset"><strong>Evidence checked against the local dataset</strong> <code>{{ basis.detail }}</code> (from {{ dataset_from }}). Every source of this run was local, so the dataset is what it read.</div>
+  {% elif basis.kind == "live" %}
+  <div class="banner warn" role="note" data-evidence="live-unchecked"><strong>Live run: evidence not re-checked.</strong> At least one source was live and the run folder has no usable snapshot, so its records and documents need not exist in a local dataset. Evidence is shown as "Unchecked: live run" rather than compared with local files.</div>
+  {% else %}
+  <div class="banner warn" role="note" data-evidence="unchecked"><strong>Evidence not checked.</strong> {{ basis.reason }} Quotes and record values were not compared with any source. Start with <code>--dataset &lt;dir&gt;</code> to check them and open documents.</div>
+  {% endif %}
+  {% if dataset_note and basis.kind != "none" %}
+  <div class="banner warn" role="note" data-dataset-note>{{ dataset_note }}</div>
   {% endif %}
   {% block content %}{% endblock %}
 </main>

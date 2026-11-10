@@ -2,8 +2,16 @@
 
 Everything here is made up and written through the contract models, then checked
 with `validate_dataset` and `validate_run`. Every source is a local file and the
-manifest says so. The run and dataset ids start with `demo-`, which is how the
-screen knows to label it as demo data even when it is opened without --demo.
+manifest says so. The dataset says it is synthetic, so every source does too. The
+run and dataset ids start with `demo-`, which is how the screen knows the results
+themselves are made up (a demo run, not an agent run) even without --demo.
+
+Both runs log the sources' fingerprints right after `run_started` and record
+`dataset_path`. The preflight run also saves a snapshot (`sources/`), so its
+evidence is verified against the snapshot; the sample run has none, so its
+evidence is verified against the dataset. The preflight run carries one pinned
+sign-off by a made-up reviewer, so a signed result shows as such.
+
 It includes the pitch example: a $12,000 consulting bill for December work,
 recorded in January, flagged as the wrong period.
 """
@@ -103,6 +111,7 @@ def build_dataset(root: Path) -> Path:
             fiscal_year_start=date(2025, 1, 1),
             fiscal_year_end=date(2025, 12, 31),
             coverage_end=date(2026, 2, 28),
+            synthetic=True,
             description="Synthetic demo data for the UI. Not a real company.",
         ),
     )
@@ -407,6 +416,7 @@ def _manifest(run_id: str, mode: str, sources: c.LocalSources, sample_id: str | 
         period_start=date(2025, 1, 1),
         period_end=date(2025, 12, 31),
         dataset_id=DATASET_ID,
+        dataset_path=str(sources.dataset.root.resolve()),
         sample_id=sample_id,
         sources=described,
         models=["claude-sonnet-5-5"],
@@ -421,15 +431,13 @@ def _write_log(
     ts = START
     step = timedelta(seconds=7)
     log.append("system", c.LogAction.RUN_STARTED, actor_id="auditorium-demo", ts=ts)
-    for file, records in (
-        ("transactions.jsonl", sources.transactions()),
-        ("ledger.jsonl", sources.ledger_entries()),
-    ):
+    # The same events `log_source_fingerprints` writes, with the demo's clock instead
+    # of now, so the log reads in order. A test checks they match what it would write.
+    for call, digest in c.fingerprint_sources(sources).items():
         log.append(
             "agent",
             c.LogAction.SOURCE_CALL,
-            actor_id="local-dataset",
-            detail={"mode": "local", "dataset": DATASET_ID, "read": file, "returned": len(records)},
+            detail={"call": call, "sha256": digest},
             ts=(ts := ts + step),
         )
     for result in results:
@@ -473,6 +481,20 @@ def _write_log(
     log.append("system", c.LogAction.RUN_FINISHED, ts=ts + step)
 
 
+def _demo_signoff(run_dir: Path, run_id: str, results: list[c.CheckResult]) -> None:
+    """One sign-off pinned to the result it covers, the way the screen records one."""
+    receipt = next(r for r in results if r.id == "ramp:bill:b_1001#receipt")
+    c.LogWriter(run_dir / c.LOG, run_id).sign_off(
+        "Demo reviewer",
+        receipt.id,
+        "accepted",
+        "Made-up sign-off, part of the demo.",
+        ts=START + timedelta(minutes=30),
+        result=receipt,
+        result_sha256=c.result_hash(receipt),
+    )
+
+
 def _delta_draft(run_id: str) -> c.FollowUpDraft:
     return c.FollowUpDraft(
         id=f"{run_id}:draft:1",
@@ -495,6 +517,8 @@ def build_preflight_run(run_dir: Path, sources: c.LocalSources) -> Path:
     c.write_jsonl(run_dir / c.RESULTS, results)
     c.write_jsonl(run_dir / c.DRAFTS, drafts)
     _write_log(run_dir, PREFLIGHT_RUN_ID, sources, results, drafts, [])
+    c.snapshot_sources(sources, run_dir / c.SOURCES_SNAPSHOT, sources.dataset.manifest)
+    _demo_signoff(run_dir, PREFLIGHT_RUN_ID, results)
     return run_dir
 
 
@@ -587,4 +611,9 @@ def build_demo(root: Path) -> tuple[Path, Path, Path]:
         problems = c.validate_run(run, sources)
         if problems:
             raise ValueError(f"demo run {run.name} is invalid: {problems}")
+    problems = c.validate_run(runs[0])  # against its own snapshot
+    if problems:
+        raise ValueError(
+            f"demo run {runs[0].name} does not verify against its snapshot: {problems}"
+        )
     return dataset, runs[0], runs[1]

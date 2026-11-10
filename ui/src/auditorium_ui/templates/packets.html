@@ -19,7 +19,7 @@
     <ul style="margin:4px 0 0">{% for m in packet.missing %}<li>{{ m }}</li>{% endfor %}</ul>
   </div>
   {% endif %}
-  {% for item, v in items %}{{ evidence_item(item.evidence, v, dataset, role=item.role) }}{% else %}<p class="muted">No evidence items.</p>{% endfor %}
+  {% for item, v in items %}{{ evidence_item(item.evidence, v, doc_sources, role=item.role) }}{% else %}<p class="muted">No evidence items.</p>{% endfor %}
 </section>
 {% else %}
 <p class="muted">This run has no evidence packets. Packets are produced in sample mode.</p>

@@ -7,8 +7,20 @@
 <div class="banner bad" role="alert" data-chain="broken"><strong>Chain broken.</strong> A line was edited, removed or added out of order.
   <ul style="margin:4px 0 0">{% for p in chain %}<li>{{ p }}</li>{% endfor %}</ul>
 </div>
+{% elif log_damage %}
+<div class="banner bad" role="alert" data-chain="damaged"><strong>Damaged.</strong> The {{ run.log | length }} events before the damage follow each other; the rest cannot be read. {{ log_damage | join(" ") }}</div>
 {% else %}
 <div class="banner ok" data-chain="intact"><strong>Chain intact.</strong> All {{ run.log | length }} events follow each other: each stores the hash of the one before it, checked with <code>verify_log</code>.</div>
+{% endif %}
+<h2>Whole-run check</h2>
+{% if validation is none %}
+<p class="muted small" data-validation="skipped">{% if log_partial or log_damage %}<code>validate_run</code> was not run: it needs a complete log.{% else %}<code>validate_run</code> was not run: there is no usable snapshot and no matching local dataset to check against.{% endif %}</p>
+{% elif validation %}
+<div class="banner bad" role="alert" data-validation="{{ validation | length }}"><strong><code>validate_run</code> against the {{ validated_against }} found {{ validation | length }} problem(s).</strong>
+  <ul style="margin:4px 0 0">{% for p in validation %}<li>{{ p }}</li>{% endfor %}</ul>
+</div>
+{% else %}
+<div class="banner ok" data-validation="0"><code>validate_run</code> against the {{ validated_against }} found no problems: log chain, {% if validated_against == "snapshot" %}snapshot fingerprints, {% endif %}evidence, links and sign-offs.</div>
 {% endif %}
 <table>
   <thead><tr><th>#</th><th>When (UTC)</th><th>Actor</th><th>Action</th><th>Subjects</th><th>Detail</th><th>Hash</th></tr></thead>
@@ -18,7 +30,7 @@
     <td class="num">{{ e.seq }}</td>
     <td class="small">{{ e.ts.strftime("%Y-%m-%d %H:%M:%S") }}</td>
     <td>{{ e.actor }}{% if e.actor_id %}<br><span class="muted small">{{ e.actor_id }}</span>{% endif %}</td>
-    <td><code>{{ e.action.value }}</code>{% if e.action.value == "signoff" %}<br>{{ decision(e.detail.get("decision")) }}{% endif %}</td>
+    <td><code>{{ e.action.value }}</code>{% if e.action.value == "signoff" %}<br>{{ decision(e.detail.get("decision")) }}{% if e.detail.get("scope") == "run" %} <span class="small muted">whole run</span>{% endif %}{% endif %}</td>
     <td class="small">{% for s in e.subject_ids %}{% if "#" in s %}<a href="/result?id={{ s | q }}"><code>{{ s }}</code></a>{% else %}<code>{{ s }}</code>{% endif %}<br>{% endfor %}</td>
     <td class="mono small">{{ e.detail | tojson_compact if e.detail }}</td>
     <td class="mono small hash" title="prev {{ e.prev_hash }}&#10;this {{ e.hash }}">{{ e.hash[:12] }}</td>

@@ -21,7 +21,10 @@ def main(argv: list[str] | None = None) -> None:
     )
     parser.add_argument("run_dir", nargs="?", type=Path, help="The run folder (has run.json).")
     parser.add_argument(
-        "--dataset", type=Path, help="The dataset folder, to check evidence and open documents."
+        "--dataset",
+        type=Path,
+        help="The dataset folder, to check evidence and open documents. Default: run.json's "
+        "dataset_path, if its dataset_id matches. A snapshot in the run folder is used first.",
     )
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--host", default="127.0.0.1")

@@ -21,7 +21,7 @@
 </dl>
 
 <h2>Evidence ({{ evidence | length }})</h2>
-{% for e, v in evidence %}{{ evidence_item(e, v, dataset) }}{% endfor %}
+{% for e, v in evidence %}{{ evidence_item(e, v, doc_sources) }}{% endfor %}
 
 {% if drafts %}
 <h2>Follow-up drafts</h2>
@@ -30,20 +30,31 @@
 
 <h2 id="signoff">Reviewer sign-off</h2>
 {% set so = signoffs.get(result.id, []) %}
+{% set st = signoff_state.get(result.id) %}
 {% if so %}
+{% if st.state == "pinned" %}
+<p class="v verified" data-signoff-state="pinned">The latest sign-off still matches this result: it pins the result's hash as the reviewer saw it.</p>
+{% elif st.state == "changed" %}
+<div class="banner bad" role="alert" data-signoff-state="changed"><strong>Changed after it was signed off.</strong> This result is not what the reviewer signed at log line {{ st.event.seq }}. That sign-off no longer covers it; sign off again once it has been reviewed.</div>
+{% else %}
+<p class="v unchecked" data-signoff-state="unpinned">The latest sign-off does not record which version of the result was signed (made before contract 0.2), so whether the result changed since cannot be told.</p>
+{% endif %}
 <table>
-  <thead><tr><th>#</th><th>When</th><th>Reviewer</th><th>Decision</th><th>Note</th></tr></thead>
+  <thead><tr><th>#</th><th>When</th><th>Reviewer</th><th>Decision</th><th>Note</th><th>Signed result</th></tr></thead>
   <tbody>
   {% for e in so %}
-  <tr><td class="num"><a href="/log#seq-{{ e.seq }}">{{ e.seq }}</a></td><td class="small">{{ e.ts.strftime("%Y-%m-%d %H:%M:%S UTC") }}</td><td>{{ e.actor_id }}</td><td>{{ decision(e.detail.get("decision")) }}</td><td>{{ e.detail.get("comment") }}</td></tr>
+  <tr><td class="num"><a href="/log#seq-{{ e.seq }}">{{ e.seq }}</a></td><td class="small">{{ e.ts.strftime("%Y-%m-%d %H:%M:%S UTC") }}</td><td>{{ e.actor_id }}</td><td>{{ decision(e.detail.get("decision")) }}</td><td>{{ e.detail.get("comment") }}</td><td class="mono small hash">{{ (e.detail.get("result_sha256") or "not pinned")[:12] }}</td></tr>
   {% endfor %}
   </tbody>
 </table>
+{% if so | length > 1 %}<p class="small muted">Only the latest sign-off counts.</p>{% endif %}
 {% else %}
 <p class="muted">Nobody has signed off on this result yet.</p>
 {% endif %}
-{% if error %}<div class="banner bad" role="alert">{{ error }}</div>{% endif %}
-{% if chain %}
+{% if error %}<div class="banner bad" role="alert" data-signoff-error>{{ error }}</div>{% endif %}
+{% if log_damage %}
+<p class="v failed" data-signoff="damaged">Sign-off is disabled because the step log is damaged.</p>
+{% elif chain %}
 <p class="v failed">Sign-off is disabled because the step log's chain is broken.</p>
 {% elif in_progress %}
 <p class="v unchecked" data-signoff="in-progress">Run in progress. Sign-off is disabled until the run has finished, so a sign-off cannot interleave with the agent's own log writes.</p>
@@ -54,6 +65,7 @@
 <form method="post" action="/signoff" class="filters">
   <input type="hidden" name="csrf" value="{{ csrf }}">
   <input type="hidden" name="result_id" value="{{ result.id }}">
+  <input type="hidden" name="result_sha256" value="{{ shown_hash }}">
   <label>Your name <input name="reviewer" required autocomplete="name"></label>
   <label>Decision
     <select name="decision" required>
@@ -64,7 +76,7 @@
   <label style="flex:1;min-width:240px">Note <input name="note" placeholder="Optional"></label>
   <button type="submit">Sign off</button>
 </form>
-<p class="small muted">Recorded as a <code>signoff</code> event at the end of the hash-chained step log. It cannot be edited later.</p>
+<p class="small muted">Recorded as a <code>signoff</code> event at the end of the hash-chained step log, pinned to this version of the result (<code class="hash">{{ shown_hash[:12] }}</code>). If the result changes before you submit, the sign-off is refused. It cannot be edited later.</p>
 {% endif %}
 
 <h2>Steps for this result</h2>
