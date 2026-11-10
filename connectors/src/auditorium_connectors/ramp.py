@@ -20,12 +20,14 @@ from __future__ import annotations
 import hashlib
 import json
 import mimetypes
+import re
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Protocol
 
+import httpx
 from auditorium_contracts import (
     Approval,
     Document,
@@ -46,6 +48,19 @@ from .fallback import LocalFallback
 
 # Card transaction states that are not spend.
 SKIPPED_STATES = {"DECLINED", "ERROR"}
+
+# Bills that are not spend. Ramp's spec gives Bill.status only OPEN or PAID; a deleted
+# bill shows status_summary ARCHIVED, and a provisional DraftBill has status DRAFT.
+# The spec has no voided status.
+SKIPPED_BILL_STATUSES = {"DRAFT"}
+SKIPPED_BILL_SUMMARIES = {"ARCHIVED"}
+
+# Only these HTTP statuses say the server refused us. Others, like the 405 a
+# streamable HTTP server may answer to the optional GET stream, are routine.
+REFUSAL_STATUSES = {401, 403}
+
+# A Ramp id becomes part of a cache file name, so it may hold nothing else.
+SAFE_ID = re.compile(r"[A-Za-z0-9_-]+")
 
 
 class RampUnavailable(Exception):
@@ -98,25 +113,82 @@ class RampClient(Protocol):
     def fetch(self) -> RampPayloads: ...
 
 
+# Keys that say a response holds only part of the records.
+CONTINUATION_KEYS = (
+    "next",
+    "next_cursor",
+    "next_page_cursor",
+    "cursor",
+    "has_more",
+    "truncated",
+    "is_truncated",
+)
+COUNT_KEYS = ("total", "total_count", "totalCount", "count")
+
+
 def records_from(payload: Any, tool: str) -> list[dict[str, Any]]:
-    """The list of records in a tool response. Refuses a response with more pages."""
+    """The list of records in a tool response. Refuses a response that is not all of them."""
     if isinstance(payload, list):
         return payload
     if not isinstance(payload, dict):
         raise RampUnavailable(f"tool {tool} returned {type(payload).__name__}, not records")
+    records = next(
+        (
+            payload[key]
+            for key in ("data", "result", "results", "items")
+            if isinstance(payload.get(key), list)
+        ),
+        None,
+    )
+    if records is None:
+        raise RampUnavailable(f"tool {tool} returned no record list (keys: {sorted(payload)})")
+    # Reading only the first page would silently drop records.
     page = payload.get("page")
-    if (
-        (isinstance(page, dict) and page.get("next"))
-        or payload.get("next_cursor")
-        or payload.get("next_page_cursor")
-        or payload.get("has_more")
-    ):
-        # Reading only the first page would silently drop records.
-        raise RampUnavailable(f"tool {tool} returned more than one page; pagination not built")
-    for key in ("data", "result", "results", "items"):
-        if isinstance(payload.get(key), list):
-            return payload[key]
-    raise RampUnavailable(f"tool {tool} returned no record list (keys: {sorted(payload)})")
+    for where in (payload, page if isinstance(page, dict) else {}):
+        marker = next((key for key in CONTINUATION_KEYS if where.get(key)), None)
+        if marker:
+            raise RampUnavailable(
+                f"tool {tool} returned more than one page ({marker}); pagination not built"
+            )
+        for key in COUNT_KEYS:
+            total = where.get(key)
+            if isinstance(total, int) and not isinstance(total, bool) and total > len(records):
+                raise RampUnavailable(
+                    f"tool {tool} returned {len(records)} of {total} records; pagination not built"
+                )
+    return records
+
+
+def approval_chains(
+    entity_type: str, requested: list[str], chains: list[dict[str, Any]]
+) -> dict[str, dict[str, Any]]:
+    """Chains keyed by entity id. Refuses an answer that leaves out a requested id,
+    which would otherwise read as "no approvals"."""
+    found = {chain["entity_id"]: chain for chain in chains}
+    missing = [entity_id for entity_id in requested if entity_id not in found]
+    if missing:
+        raise RampUnavailable(
+            f"no approval chain returned for {len(missing)} {entity_type} id(s), first {missing[0]}"
+        )
+    return found
+
+
+def refusal_recorder(refused: list[str]) -> Callable[[Any], Any]:
+    """An httpx response hook that notes an authentication refusal, which the SDK hides."""
+
+    async def note_refusal(response: Any) -> None:
+        if response.status_code in REFUSAL_STATUSES:
+            await response.aread()
+            refused.append(f"HTTP {response.status_code}: {response.text[:200]}")
+
+    return note_refusal
+
+
+def _innermost(error: BaseException) -> BaseException:
+    """The first leaf of the exception groups anyio raises."""
+    while isinstance(error, BaseExceptionGroup) and error.exceptions:
+        error = error.exceptions[0]
+    return error
 
 
 def tool_payload(result: Any, tool: str) -> Any:
@@ -154,6 +226,10 @@ class McpRampClient:
         try:
             return anyio.run(self._fetch, refused)
         except Exception as error:
+            cause = _innermost(error)
+            if isinstance(cause, RampUnavailable):
+                # Our own reason is the right one; a refusal noted earlier is not.
+                raise cause from None
             # The SDK hides the HTTP status (a 401 reads "Server returned an error response").
             if refused:
                 raise RampUnavailable(refused[0]) from error
@@ -164,14 +240,9 @@ class McpRampClient:
         from mcp.client.streamable_http import streamable_http_client
         from mcp.shared._httpx_utils import create_mcp_http_client
 
-        async def note_refusal(response: Any) -> None:
-            if response.status_code >= 400:
-                await response.aread()
-                refused.append(f"HTTP {response.status_code}: {response.text[:200]}")
-
         headers = {"Authorization": f"Bearer {self._token}"}
         async with create_mcp_http_client(headers=headers) as http:
-            http.event_hooks["response"].append(note_refusal)
+            http.event_hooks["response"].append(refusal_recorder(refused))
             async with streamable_http_client(self.url, http_client=http) as streams:
                 async with ClientSession(streams[0], streams[1]) as session:
                     await session.initialize()
@@ -196,10 +267,10 @@ class McpRampClient:
                         ids = [item["id"] for item in items]
                         for start in range(0, len(ids), self.approvals_batch):
                             batch = ids[start : start + self.approvals_batch]
-                            for chain in await load(
+                            chains = await load(
                                 "approvals", entity_type=entity_type, entity_ids=batch
-                            ):
-                                approvals[chain["entity_id"]] = chain
+                            )
+                            approvals.update(approval_chains(entity_type, batch, chains))
                     return RampPayloads(
                         transactions=transactions,
                         bills=bills,
@@ -429,12 +500,25 @@ Downloader = Callable[[str, Path], str]
 
 
 def http_download(url: str, dest: Path) -> str:
-    import httpx
-
     response = httpx.get(url, follow_redirects=True, timeout=60)
     response.raise_for_status()
     dest.write_bytes(response.content)
     return response.headers.get("content-type", "application/octet-stream").split(";")[0].strip()
+
+
+def _download_failure(error: Exception) -> str:
+    """Why a download failed, without the URL: Ramp's are presigned and carry a signature."""
+    if isinstance(error, httpx.HTTPStatusError):
+        return f"HTTP {error.response.status_code}"
+    return type(error).__name__
+
+
+def _is_document(media_type: str, path: Path) -> bool:
+    """A PDF or an image. A 200 login page is neither."""
+    if media_type == "application/pdf":
+        with path.open("rb") as file:
+            return file.read(5) == b"%PDF-"
+    return media_type.startswith("image/")
 
 
 # --- the Sources implementation -------------------------------------------------
@@ -464,7 +548,12 @@ class RampSources:
             map_card_transaction(t, approvals.get(t["id"]))
             for t in payloads.transactions
             if t.get("state") not in SKIPPED_STATES
-        ] + [map_bill(b, approvals.get(b["id"])) for b in payloads.bills]
+        ] + [
+            map_bill(b, approvals.get(b["id"]))
+            for b in payloads.bills
+            if b.get("status") not in SKIPPED_BILL_STATUSES
+            and b.get("status_summary") not in SKIPPED_BILL_SUMMARIES
+        ]
         departments = {d["id"]: d["name"] for d in payloads.departments if d.get("id")}
         self._people = [map_user(u, departments) for u in payloads.users]
         self._documents = {d.id: d for d in self._download(remote_files(payloads), download)}
@@ -480,8 +569,21 @@ class RampSources:
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         documents = []
         for file in files:
+            what = f"{file.source.record_type} {file.source.record_id}"
+            if not SAFE_ID.fullmatch(file.source.record_id):
+                raise RampUnavailable(
+                    f"{file.source.record_type} id {file.source.record_id!r} is not a plain id"
+                )
             part = self.cache_dir / f"{file.source.record_type}-{file.source.record_id}.part"
-            media_type = download(file.url, part)
+            try:
+                media_type = download(file.url, part)
+            except Exception as error:
+                raise RampUnavailable(
+                    f"could not download {what}: {_download_failure(error)}"
+                ) from None
+            if not _is_document(media_type, part):
+                part.unlink(missing_ok=True)
+                raise RampUnavailable(f"{what} is not a PDF or an image (served as {media_type})")
             extension = mimetypes.guess_extension(media_type) or ".bin"
             name = f"{file.source.record_type}-{file.source.record_id}{extension}"
             part.replace(self.cache_dir / name)
@@ -526,11 +628,15 @@ class RampSources:
         return self.local.policy()
 
 
+# The query string and fragment of a URL, where presigned URLs keep their signature.
+_URL_QUERY = re.compile(r"(https?://[^\s?#'\"]+)[?#][^\s'\"]*")
+
+
 def _reason(error: BaseException) -> str:
-    """One line from an error, looking inside the exception groups anyio raises."""
-    while isinstance(error, BaseExceptionGroup) and error.exceptions:
-        error = error.exceptions[0]
-    return f"{type(error).__name__}: {error}"[:500]
+    """One line from an error, looking inside the exception groups anyio raises.
+    URLs lose their query strings, so a presigned signature never reaches a report."""
+    error = _innermost(error)
+    return _URL_QUERY.sub(r"\1", f"{type(error).__name__}: {error}")[:500]
 
 
 def connect_ramp(

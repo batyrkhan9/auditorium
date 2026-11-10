@@ -33,8 +33,13 @@ token. Nothing is ever reported live unless it loaded completely.
 **Not verified yet.** No MCP payload has been seen. The mapper follows Ramp's
 Developer API OpenAPI spec, the tool names in `DEFAULT_TOOLS` are guesses (only
 `GetAllReducedUsers` is named in Ramp's docs), and the test fixtures are
-synthetic. A missing tool, a second page of results, or a receipt that Ramp names
-but does not return all fail the connection rather than silently drop records.
+synthetic. A missing tool, a second page of results (or a total larger than what
+came back), an approval chain left out of the answer, or a receipt that Ramp names
+but does not return all fail the connection rather than silently drop records. A
+downloaded file must be a PDF or an image, and a failure reason never carries a
+URL's query string (Ramp's file URLs are presigned). Archived (deleted) and draft
+bills are not spend. The spec gives `Bill.status` only `OPEN` or `PAID`, so there
+is no voided status to exclude.
 
 **Contract mismatches to raise as a `contract-change`.**
 1. `Person.role`: Ramp's `role` is a permission level (`BUSINESS_ADMIN`), not a

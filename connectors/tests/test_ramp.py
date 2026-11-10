@@ -10,7 +10,9 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from types import SimpleNamespace
 
+import anyio
 import auditorium_contracts as c
+import httpx
 import pytest
 from auditorium_connectors import LocalFallback, RampSources, connect_ramp, connect_sources
 from auditorium_connectors.ramp import (
@@ -18,10 +20,12 @@ from auditorium_connectors.ramp import (
     RampMappingError,
     RampPayloads,
     RampUnavailable,
+    approval_chains,
     map_bill,
     map_card_transaction,
     map_user,
     records_from,
+    refusal_recorder,
     tool_payload,
 )
 
@@ -46,9 +50,51 @@ class FixtureClient:
         return self.result
 
 
+def minimal_pdf(text: str) -> bytes:
+    """A one-page PDF whose text layer holds `text`, as pypdf reads it."""
+    stream = f"BT /F1 12 Tf 72 720 Td ({text}) Tj ET".encode()
+    objects = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
+        b"/Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+        b"<< /Length %d >>\nstream\n%s\nendstream" % (len(stream), stream),
+    ]
+    out = bytearray(b"%PDF-1.4\n")
+    offsets = []
+    for number, body in enumerate(objects, start=1):
+        offsets.append(len(out))
+        out += b"%d 0 obj\n%s\nendobj\n" % (number, body)
+    xref = len(out)
+    out += b"xref\n0 %d\n0000000000 65535 f \n" % (len(objects) + 1)
+    out += b"".join(b"%010d 00000 n \n" % offset for offset in offsets)
+    out += b"trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n" % (
+        len(objects) + 1,
+        xref,
+    )
+    return bytes(out)
+
+
 def fake_download(url: str, dest: Path) -> str:
-    dest.write_text(f"file behind {url}\n")
+    dest.write_bytes(minimal_pdf(f"file behind {url}"))
     return "application/pdf"
+
+
+def html_download(url: str, dest: Path) -> str:
+    dest.write_text("<html>Sign in to Ramp</html>")
+    return "text/html"
+
+
+def connect_with(tmp_path: Path, client, download=fake_download):
+    return connect_ramp(
+        build_local(tmp_path / "dataset"),
+        url="https://demo-mcp.ramp.com/mcp",
+        token="t",
+        cache_dir=tmp_path / "cache",
+        client=client,
+        download=download,
+    )
 
 
 def build_local(root: Path) -> c.LocalSources:
@@ -219,6 +265,73 @@ def test_a_second_page_is_refused_rather_than_dropped():
         records_from({"data": [{"id": "x"}], "page": {"next": "https://next"}}, "T")
 
 
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"data": [{"id": "x"}], "total": 2},
+        {"data": [{"id": "x"}], "page": {"total_count": 40}},
+        {"data": [{"id": "x"}], "cursor": "abc"},
+        {"items": [{"id": "x"}], "truncated": True},
+    ],
+)
+def test_a_partial_response_is_refused(payload):
+    with pytest.raises(RampUnavailable, match="pagination not built"):
+        records_from(payload, "T")
+
+
+def test_a_complete_response_with_a_count_is_read():
+    assert records_from({"data": [{"id": "x"}], "total": 1, "truncated": False}, "T") == [
+        {"id": "x"}
+    ]
+
+
+def test_an_approval_chain_left_out_is_refused_not_read_as_no_approvals():
+    chains = [{"entity_id": "a"}]
+    assert approval_chains("TRANSACTION", ["a"], chains) == {"a": {"entity_id": "a"}}
+    with pytest.raises(RampUnavailable, match="no approval chain returned for 1 TRANSACTION"):
+        approval_chains("TRANSACTION", ["a", "b"], chains)
+
+
+def test_only_auth_refusals_are_recorded():
+    refused: list[str] = []
+    note = refusal_recorder(refused)
+    request = httpx.Request("GET", "https://demo-mcp.ramp.com/mcp")
+
+    async def run():
+        await note(httpx.Response(405, text="Method Not Allowed", request=request))
+        await note(httpx.Response(500, text="boom", request=request))
+        await note(httpx.Response(401, text="invalid_token", request=request))
+
+    anyio.run(run)
+    assert refused == ["HTTP 401: invalid_token"]
+
+
+@pytest.mark.parametrize("grouped", [False, True])
+def test_our_own_reason_is_not_replaced_by_an_earlier_refusal(grouped):
+    client = McpRampClient("https://demo-mcp.ramp.com/mcp", "t")
+
+    async def fetch(refused):
+        refused.append("HTTP 403: forbidden")
+        error = RampUnavailable("tool GetBills returned more than one page")
+        raise ExceptionGroup("task group", [error]) if grouped else error
+
+    client._fetch = fetch
+    with pytest.raises(RampUnavailable, match="more than one page"):
+        client.fetch()
+
+
+def test_an_sdk_error_after_a_refusal_reports_the_refusal():
+    client = McpRampClient("https://demo-mcp.ramp.com/mcp", "t")
+
+    async def fetch(refused):
+        refused.append("HTTP 401: invalid_token")
+        raise ExceptionGroup("task group", [RuntimeError("Server returned an error response")])
+
+    client._fetch = fetch
+    with pytest.raises(RampUnavailable, match="HTTP 401"):
+        client.fetch()
+
+
 # --- sources and fallback ----------------------------------------------------------
 
 
@@ -254,6 +367,7 @@ def test_ramp_sources_serves_ramp_live_and_the_rest_locally(tmp_path):
     path = sources.document_file(invoice.id)
     assert path.suffix == ".pdf"
     assert c.sha256_file(path) == invoice.sha256
+    assert c.quote_on_page(path, 1, "file behind https://example.invalid/presigned/att-500")
     assert sources.document_file("bank:stmt:2025-12").is_file()
 
     assert [e.id for e in sources.ledger_entries()] == ["qbo:Bill:147"]
@@ -299,6 +413,63 @@ def test_failure_falls_back_to_local_and_says_why(tmp_path, url, token, client, 
     assert sources.transactions() == local.transactions()
 
 
+SIGNED = "https://ramp-files.example/r-900.pdf?X-Amz-Signature=deadbeef&X-Amz-Credential=AKIA"
+
+
+def test_a_failed_download_names_the_record_and_never_the_signed_url(tmp_path):
+    receipt = {**FIXTURE["receipts"][0], "receipt_url": SIGNED}
+
+    def refuse(url: str, dest: Path) -> str:
+        response = httpx.Response(403, request=httpx.Request("GET", url))
+        response.raise_for_status()
+        return "application/pdf"
+
+    sources = connect_with(tmp_path, FixtureClient(payloads(receipts=[receipt])), refuse)
+    detail = {use.system: use for use in sources.describe()}["ramp"].detail
+    assert isinstance(sources, LocalFallback)
+    assert "could not download receipt r-900: HTTP 403" in detail
+    assert "deadbeef" not in detail and "AKIA" not in detail and "ramp-files" not in detail
+
+
+def test_urls_in_a_reason_lose_their_query_string(tmp_path):
+    error = RampUnavailable(f"tool GetReceipts failed: see {SIGNED} for details")
+    detail = {u.system: u for u in connect_with(tmp_path, FixtureClient(error)).describe()}
+    assert "https://ramp-files.example/r-900.pdf for details" in detail["ramp"].detail
+    assert "deadbeef" not in detail["ramp"].detail
+
+
+@pytest.mark.parametrize(
+    "download",
+    [
+        html_download,
+        # A login page that claims to be a PDF.
+        lambda url, dest: html_download(url, dest) and "application/pdf",
+    ],
+)
+def test_a_body_that_is_not_a_pdf_or_image_is_refused(tmp_path, download):
+    sources = connect_with(tmp_path, FixtureClient(payloads()), download)
+    assert isinstance(sources, LocalFallback)
+    detail = {u.system: u for u in sources.describe()}["ramp"].detail
+    assert "not a PDF or an image" in detail
+
+
+def test_an_id_that_is_not_plain_never_becomes_a_path(tmp_path):
+    receipt = {**FIXTURE["receipts"][0], "id": "../../escaped"}
+    sources = connect_with(tmp_path, FixtureClient(payloads(receipts=[receipt])))
+    assert isinstance(sources, LocalFallback)
+    assert "is not a plain id" in {u.system: u for u in sources.describe()}["ramp"].detail
+    assert not list(tmp_path.rglob("*escaped*"))
+
+
+@pytest.mark.parametrize(
+    "change", [{"status_summary": "ARCHIVED"}, {"status": "DRAFT", "status_summary": None}]
+)
+def test_deleted_and_draft_bills_are_not_spend(tmp_path, change):
+    sources = connect_with(tmp_path, FixtureClient(payloads(bills=[{**BILL, **change}])))
+    assert isinstance(sources, RampSources)
+    assert f"ramp:bill:{BILL['id']}" not in [t.id for t in sources.transactions()]
+
+
 def test_connect_sources_without_ramp_settings_is_local(tmp_path, monkeypatch):
     build_local(tmp_path / "dataset")
     monkeypatch.delenv("RAMP_MCP_URL", raising=False)
@@ -333,7 +504,14 @@ def test_connect_sources_without_credentials_is_local_for_every_system(tmp_path,
     os.environ.get("AUDITORIUM_LIVE_RAMP") != "1",
     reason="live Ramp test: set AUDITORIUM_LIVE_RAMP=1, RAMP_MCP_URL and RAMP_MCP_TOKEN",
 )
-def test_live_ramp_loads():
-    client = McpRampClient(os.environ["RAMP_MCP_URL"], os.environ["RAMP_MCP_TOKEN"])
-    result = client.fetch()
-    assert result.transactions or result.bills
+def test_live_ramp_loads(tmp_path):
+    sources = connect_ramp(
+        build_local(tmp_path / "dataset"),
+        url=os.environ["RAMP_MCP_URL"],
+        token=os.environ["RAMP_MCP_TOKEN"],
+        cache_dir=tmp_path / "cache",
+    )
+    uses = {use.system: use for use in sources.describe()}
+    assert isinstance(sources, RampSources), uses["ramp"].detail
+    assert uses["ramp"].mode == "live"
+    assert sources.transactions()
