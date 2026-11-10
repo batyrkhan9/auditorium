@@ -713,6 +713,68 @@ def test_connect_sources_without_credentials_is_local_for_every_system(tmp_path,
     assert sources.policy() == local.policy()
 
 
+def connect_sources_over(tmp_path, monkeypatch, dataset_transactions):
+    """connect_sources with MCP answering the fixture payloads (Air Canada, dinner,
+    snack, one bill) and a dataset holding `dataset_transactions`."""
+    build_local(tmp_path / "dataset")
+    c.write_jsonl(tmp_path / "dataset" / "transactions.jsonl", dataset_transactions)
+    for name in (
+        "RAMP_CLIENT_ID",
+        "RAMP_CLIENT_SECRET",
+        *(k for k in os.environ if k.startswith("QBO_")),
+    ):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("RAMP_MCP_URL", "https://demo-mcp.ramp.com/mcp")
+    monkeypatch.setenv("RAMP_MCP_TOKEN", "t")
+    monkeypatch.setattr(
+        "auditorium_connectors.connect_ramp",
+        lambda local, **kw: connect_ramp(
+            local, **kw, client=FixtureClient(payloads()), download=fake_download
+        ),
+    )
+    return connect_sources(tmp_path / "dataset", cache_dir=tmp_path / "cache")
+
+
+def other_company(txn: c.SpendTransaction, ramp_id: str) -> c.SpendTransaction:
+    return txn.model_copy(
+        update={
+            "id": f"ramp:transaction:{ramp_id}",
+            "source": c.SourceRef(system="ramp", record_type="transaction", record_id=ramp_id),
+        }
+    )
+
+
+def test_ramp_holding_none_of_the_dataset_falls_back_to_the_dataset(tmp_path, monkeypatch):
+    mine = [other_company(map_card_transaction(AIR_CANADA), f"copperline-{n}") for n in range(3)]
+    sources = connect_sources_over(tmp_path, monkeypatch, mine)
+    use = next(u for u in sources.describe() if u.system is c.SourceSystem.RAMP)
+    assert use.mode == "local"
+    assert (
+        "Ramp holds a different company (0 of 3 Ramp transactions of dataset tiny found "
+        "among 4 read from Ramp); using the dataset"
+    ) in use.detail
+    assert "Ramp path: MCP" in use.detail
+    assert sources.transactions() == mine
+
+
+def test_ramp_holding_part_of_the_dataset_stays_live_and_counts_the_gap(tmp_path, monkeypatch):
+    shared = map_card_transaction(AIR_CANADA)
+    mine = [shared, other_company(shared, "copperline-1")]
+    sources = connect_sources_over(tmp_path, monkeypatch, mine)
+    use = next(u for u in sources.describe() if u.system is c.SourceSystem.RAMP)
+    assert use.mode == "live"
+    assert (
+        "dataset tiny: 1 of 2 Ramp transactions missing, 3 Ramp transactions not from the dataset"
+    ) in use.detail
+    assert shared.id in {t.id for t in sources.transactions()}
+
+
+def test_a_dataset_without_ramp_transactions_does_not_judge_ramp(tmp_path, monkeypatch):
+    sources = connect_sources_over(tmp_path, monkeypatch, [])
+    use = next(u for u in sources.describe() if u.system is c.SourceSystem.RAMP)
+    assert use.mode == "live" and "dataset tiny" not in use.detail
+
+
 @pytest.mark.skipif(
     os.environ.get("AUDITORIUM_LIVE_RAMP") != "1",
     reason="live Ramp test: set AUDITORIUM_LIVE_RAMP=1, RAMP_MCP_URL and RAMP_MCP_TOKEN",

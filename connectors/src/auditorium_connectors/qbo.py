@@ -749,7 +749,11 @@ def main(argv: list[str] | None = None) -> int:
     fetch.add_argument("--fallback", type=Path, help="dataset folder to use if QBO is not live")
     load = commands.add_parser("load", help="push a dataset's ledger.jsonl into the sandbox")
     load.add_argument("dataset", type=Path)
-    load.add_argument("--dry-run", action="store_true", help="plan offline, send nothing")
+    load.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="plan offline: read nothing from QuickBooks, send nothing",
+    )
     args = parser.parse_args(argv)
 
     try:
@@ -763,7 +767,11 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         plans, skipped = plan_dataset(args.dataset)
         if args.dry_run:
-            print(f"would load {len(plans)}, skip {len(skipped)}")
+            # Offline: QuickBooks is not read, so this cannot know what is already there.
+            print(
+                f"plan: {len(plans)} entries, skip {len(skipped)}; QuickBooks not checked "
+                "(a real load skips entries already stamped as loaded)"
+            )
             for entry_id, reason in skipped.items():
                 print(f"  skip {entry_id}: {reason}")
             return 0

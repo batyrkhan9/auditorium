@@ -652,4 +652,5 @@ def test_cli_dry_run_needs_no_credentials(tmp_path, capsys):
     write_dataset(dataset, [entry(), entry(id="qbo:Bill:empty", lines=[])])
     assert qbo.main(["load", str(dataset), "--dry-run"]) == 0
     out = capsys.readouterr().out
-    assert "would load 1, skip 1" in out
+    assert "plan: 1 entries, skip 1; QuickBooks not checked" in out
+    assert "would load" not in out

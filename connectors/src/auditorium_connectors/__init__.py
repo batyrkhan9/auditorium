@@ -100,7 +100,41 @@ def connect_sources(dataset_root: Path | str, cache_dir: Path | str | None = Non
         note = f"Developer API not used: {' and '.join(unset)} not set"
         if mcp_url:
             note = f"Ramp path: MCP (RAMP_MCP_URL is set); {note}"
+    ramp, coverage = _ramp_for_dataset(ramp, local)
+    if coverage:
+        note = f"{coverage}; {note}"
     return ConnectedSources(ramp, QboLedger(fallback=dataset_root), ramp_note=note)
+
+
+def _ramp_for_dataset(ramp: Sources, local: LocalSources) -> tuple[Sources, str]:
+    """Live Ramp only if it holds the dataset's Ramp transactions, matched by Ramp id.
+
+    None of them there: Ramp holds another company, and checking the dataset's ledger
+    against it would flag every transaction, so the dataset is used instead. Some of
+    them there: Ramp stays live and the returned note says how many are missing.
+    See connectors/decisions/2026-11-10-ramp-must-match-dataset.md.
+    """
+    if isinstance(ramp, LocalFallback):
+        return ramp, ""
+    wanted = {
+        (t.source.record_type, t.source.record_id)
+        for t in local.transactions()
+        if t.source.system is SourceSystem.RAMP
+    }
+    if not wanted:
+        return ramp, ""
+    found = {(t.source.record_type, t.source.record_id) for t in ramp.transactions()}
+    dataset_id = local.dataset.manifest.dataset_id
+    if not wanted & found:
+        reason = (
+            f"Ramp holds a different company (0 of {len(wanted)} Ramp transactions of "
+            f"dataset {dataset_id} found among {len(found)} read from Ramp); using the dataset"
+        )
+        return LocalFallback(local, {SourceSystem.RAMP: reason}), ""
+    return ramp, (
+        f"dataset {dataset_id}: {len(wanted - found)} of {len(wanted)} Ramp transactions "
+        f"missing, {len(found - wanted)} Ramp transactions not from the dataset"
+    )
 
 
 __all__ = [
