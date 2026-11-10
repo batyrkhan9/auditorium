@@ -1,0 +1,6 @@
+# Everything under sealed/ is encrypted with git-crypt. See docs/SEALED.md.
+sealed/** filter=git-crypt diff=git-crypt
+sealed/README.md !filter !diff
+
+*.pdf binary
+uv.lock linguist-generated=true

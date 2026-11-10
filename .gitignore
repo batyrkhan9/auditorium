@@ -1,0 +1,29 @@
+# Secrets. Names go in .env.example, values never go in git.
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*token*.json
+.auditorium/
+
+# Python
+.venv/
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+dist/
+build/
+
+# Node
+node_modules/
+
+# Agent run output. Commit a run only on purpose, under an area's own folder.
+/runs/
+
+# Local
+.DS_Store
+.claude/settings.local.json
+.claude/worktrees/

@@ -1,0 +1,180 @@
+#!/usr/bin/env python3
+"""The shared task board. It is this repo's GitHub issues, read and written with gh.
+
+    scripts/board [status] [--area AREA]     requests, in progress, open, recently done
+    scripts/board add AREA "Title" [--body TEXT]
+    scripts/board claim NUMBER               mark a task as yours, in progress
+    scripts/board done NUMBER [--note TEXT]  close it
+    scripts/board request AREA "Title" [--body TEXT]   ask another area for something
+    scripts/board labels                     create the labels (once per repo)
+
+Labels: area:<name>, in-progress, request, blocked, contract-change.
+Never put anything from sealed/ in a title, body or note. Issues are public.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import repo_rules as rr  # noqa: E402
+
+ROOT = rr.repo_root(Path.cwd())
+LABELS = {
+    "in-progress": ("fbca04", "Someone has claimed this and is working on it"),
+    "request": ("d93f0b", "One area asking another for something"),
+    "blocked": ("b60205", "Waiting on something else"),
+    "contract-change": ("5319e7", "Changes the shared data format; both humans agree"),
+}
+
+
+def gh(*args, check=True):
+    try:
+        out = subprocess.run(["gh", *args], cwd=str(ROOT), capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.SubprocessError) as error:
+        sys.exit(f"board: could not run gh ({error}). Install it and run 'gh auth login'.")
+    if out.returncode != 0 and check:
+        sys.exit(f"board: gh {' '.join(args[:2])} failed: {out.stderr.strip()}")
+    return out.stdout.strip()
+
+
+def label_names(issue):
+    return [label["name"] for label in issue["labels"]]
+
+
+def area_of(issue):
+    for name in label_names(issue):
+        if name.startswith("area:"):
+            return name[5:]
+    return "?"
+
+
+def line(issue, who=False):
+    text = f"  #{issue['number']} [{area_of(issue)}] {issue['title']}"
+    if who:
+        names = ", ".join(a["login"] for a in issue["assignees"]) or "unassigned"
+        text += f"  ({names})"
+    if "blocked" in label_names(issue):
+        text += "  BLOCKED"
+    return text
+
+
+def cmd_status(args):
+    fields = "number,title,labels,assignees"
+    issues = json.loads(gh("issue", "list", "--state", "open", "--limit", "200", "--json", fields))
+    closed = json.loads(gh("issue", "list", "--state", "closed", "--limit", "8", "--json", fields))
+    area = None if args.area in (None, "all") else args.area
+    mine = [i for i in issues if area and area_of(i) == area]
+
+    out = [f"BOARD ({len(issues)} open)" + (f", your area: {area}" if area else "")]
+    if area:
+        requests = [i for i in mine if "request" in label_names(i)]
+        out.append(f"Requests waiting on {area}:")
+        out += [line(i) for i in requests] or ["  none"]
+    out.append("In progress, all areas:")
+    out += [line(i, who=True) for i in issues if "in-progress" in label_names(i)] or ["  nothing claimed"]
+    unclaimed = [i for i in (mine if area else issues) if "in-progress" not in label_names(i)]
+    out.append(f"Open and unclaimed{f' in {area}' if area else ''}:")
+    out += [line(i) for i in unclaimed[:15]] or ["  none"]
+    if len(unclaimed) > 15:
+        out.append(f"  ... and {len(unclaimed) - 15} more (scripts/board status --area {area or 'all'})")
+    out.append("Recently done:")
+    out += [line(i) for i in closed] or ["  nothing yet"]
+    branches = gh("api", "repos/{owner}/{repo}/branches", "--jq", ".[].name", check=False).split()
+    live = [b for b in branches if b != "main"]
+    if live:
+        out.append("Branches on GitHub: " + ", ".join(live))
+    print("\n".join(out))
+
+
+def body_with_origin(body):
+    rules = rr.load_rules(ROOT)
+    branch = rr.current_branch(ROOT)
+    origin = rr.branch_area(branch, rules) or "no area"
+    return f"{body or ''}\n\nFrom: {rr.person(ROOT) or 'unknown'}, area {origin}, branch `{branch}`".strip()
+
+
+def create(area, title, body, labels):
+    rules = rr.load_rules(ROOT)
+    if area not in rules["areas"]:
+        sys.exit(f"board: unknown area '{area}'. Areas: {rr.area_names(rules)}")
+    args = ["issue", "create", "--title", title, "--body", body_with_origin(body)]
+    for label in [f"area:{area}", *labels]:
+        args += ["--label", label]
+    print(gh(*args))
+
+
+def cmd_add(args):
+    create(args.area, args.title, args.body, [])
+
+
+def cmd_request(args):
+    create(args.area, args.title, args.body, ["request"])
+
+
+def cmd_claim(args):
+    issue = json.loads(gh("issue", "view", args.number, "--json", "number,title,labels,assignees"))
+    if "in-progress" in label_names(issue):
+        names = ", ".join(a["login"] for a in issue["assignees"]) or "someone"
+        sys.exit(f"board: #{args.number} is already claimed by {names}. Pick another task.")
+    gh("issue", "edit", args.number, "--add-label", "in-progress", "--add-assignee", "@me")
+    gh("issue", "comment", args.number, "--body", f"Claimed on branch `{rr.current_branch(ROOT)}`.")
+    print(f"Claimed #{args.number}: {issue['title']}")
+
+
+def cmd_done(args):
+    gh("issue", "edit", args.number, "--remove-label", "in-progress", check=False)
+    close = ["issue", "close", args.number]
+    if args.note:
+        close += ["--comment", args.note]
+    gh(*close)
+    print(f"Closed #{args.number}")
+
+
+def cmd_labels(_args):
+    rules = rr.load_rules(ROOT)
+    for area, info in rules["areas"].items():
+        gh("label", "create", f"area:{area}", "--color", "0e8a16", "--description", info["summary"], "--force")
+    for name, (color, description) in LABELS.items():
+        gh("label", "create", name, "--color", color, "--description", description, "--force")
+    print("Labels are in place.")
+
+
+def main():
+    if ROOT is None:
+        sys.exit("board: run this inside the Auditorium repo")
+    parser = argparse.ArgumentParser(prog="scripts/board", description=__doc__.split("\n\n")[0])
+    sub = parser.add_subparsers(dest="command")
+    status = sub.add_parser("status")
+    status.add_argument("--area")
+    status.set_defaults(run=cmd_status)
+    for name, run in (("add", cmd_add), ("request", cmd_request)):
+        p = sub.add_parser(name)
+        p.add_argument("area")
+        p.add_argument("title")
+        p.add_argument("--body")
+        p.set_defaults(run=run)
+    claim = sub.add_parser("claim")
+    claim.add_argument("number")
+    claim.set_defaults(run=cmd_claim)
+    done = sub.add_parser("done")
+    done.add_argument("number")
+    done.add_argument("--note")
+    done.set_defaults(run=cmd_done)
+    sub.add_parser("labels").set_defaults(run=cmd_labels)
+
+    args = parser.parse_args()
+    if args.command is None:
+        rules = rr.load_rules(ROOT)
+        args = argparse.Namespace(area=rr.branch_area(rr.current_branch(ROOT), rules))
+        cmd_status(args)
+    else:
+        args.run(args)
+
+
+if __name__ == "__main__":
+    main()

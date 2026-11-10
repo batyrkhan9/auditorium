@@ -1,0 +1,10 @@
+# Mirrors ownership.json. Shared paths belong to both.
+*            @batyrkhan9 @Marstronix218
+/agent/      @batyrkhan9
+/data/       @batyrkhan9
+/sealed/datagen/     @batyrkhan9
+/sealed/answer_key/  @batyrkhan9
+/connectors/ @Marstronix218
+/evals/      @Marstronix218
+/sealed/eval/        @Marstronix218
+/ui/         @Marstronix218

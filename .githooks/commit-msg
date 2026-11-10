@@ -1,0 +1,3 @@
+#!/bin/sh
+# The only authors are Batyrkhan and Noriaki: no Claude attribution, known author email.
+exec python3 "$(git rev-parse --show-toplevel)/scripts/checks.py" commit-msg "$1"

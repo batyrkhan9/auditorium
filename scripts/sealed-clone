@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# Create the sealed clone: a second checkout, next to this one, that holds the
+# git-crypt key and can therefore read sealed/. A human runs this once per
+# machine. Sessions never do.
+#
+#   scripts/sealed-clone [keyfile] [destination]
+#
+# Defaults: keyfile ~/.auditorium/sealed.key, destination ../auditorium-sealed
+set -euo pipefail
+
+here="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
+key="${1:-$HOME/.auditorium/sealed.key}"
+dest="${2:-$(dirname "$here")/auditorium-sealed}"
+
+if [ ! -f "$key" ]; then
+  echo "No key file at $key."
+  echo "Batyrkhan holds it and sends it privately. It never goes through the repo,"
+  echo "an issue, or a shared channel. Save it, then: scripts/sealed-clone <keyfile>"
+  exit 1
+fi
+if ! command -v git-crypt >/dev/null 2>&1; then
+  echo "git-crypt is not installed. Run: brew install git-crypt"
+  exit 1
+fi
+if [ -e "$dest" ]; then
+  echo "$dest already exists. Remove it or pass another destination."
+  exit 1
+fi
+
+git clone "$(git -C "$here" remote get-url origin)" "$dest"
+cd "$dest"
+git-crypt unlock "$key"
+
+person="$(git -C "$here" config --get auditorium.person || true)"
+if [ -n "$person" ]; then
+  scripts/setup "$person"
+fi
+
+echo
+echo "Sealed clone ready: $dest"
+echo "Open that folder only for data/ and evals/ sessions. Build the agent, the"
+echo "connectors and the screen in $here, which cannot read the answer key."

@@ -1,0 +1,95 @@
+{
+  "$defs": {
+    "LogAction": {
+      "enum": [
+        "run_started",
+        "source_call",
+        "document_read",
+        "model_call",
+        "check_recorded",
+        "packet_assembled",
+        "draft_created",
+        "signoff",
+        "note",
+        "error",
+        "run_finished"
+      ],
+      "title": "LogAction",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "action": {
+      "$ref": "#/$defs/LogAction"
+    },
+    "actor": {
+      "enum": [
+        "agent",
+        "reviewer",
+        "system"
+      ],
+      "title": "Actor",
+      "type": "string"
+    },
+    "actor_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Model id, tool name, or the reviewer's name.",
+      "title": "Actor Id"
+    },
+    "detail": {
+      "additionalProperties": true,
+      "title": "Detail",
+      "type": "object"
+    },
+    "hash": {
+      "title": "Hash",
+      "type": "string"
+    },
+    "prev_hash": {
+      "title": "Prev Hash",
+      "type": "string"
+    },
+    "run_id": {
+      "title": "Run Id",
+      "type": "string"
+    },
+    "seq": {
+      "minimum": 1,
+      "title": "Seq",
+      "type": "integer"
+    },
+    "subject_ids": {
+      "description": "Transactions, results, documents this step concerns.",
+      "items": {
+        "type": "string"
+      },
+      "title": "Subject Ids",
+      "type": "array"
+    },
+    "ts": {
+      "format": "date-time",
+      "title": "Ts",
+      "type": "string"
+    }
+  },
+  "required": [
+    "seq",
+    "ts",
+    "run_id",
+    "actor",
+    "action",
+    "prev_hash",
+    "hash"
+  ],
+  "title": "LogEvent",
+  "type": "object"
+}

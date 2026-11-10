@@ -1,0 +1,118 @@
+{
+  "$defs": {
+    "SampleItem": {
+      "additionalProperties": false,
+      "description": "One line of an auditor's selection, as the auditor wrote it. No internal ids.",
+      "properties": {
+        "amount_cents": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Amount Cents"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "line": {
+          "title": "Line",
+          "type": "integer"
+        },
+        "reference": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reference"
+        },
+        "transaction_date": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Transaction Date"
+        },
+        "vendor_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Vendor Name"
+        }
+      },
+      "required": [
+        "line",
+        "description"
+      ],
+      "title": "SampleItem",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "The transactions an auditor picked to test.",
+  "properties": {
+    "auditor": {
+      "title": "Auditor",
+      "type": "string"
+    },
+    "document_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "The request as received, if it was a file.",
+      "title": "Document Id"
+    },
+    "id": {
+      "title": "Id",
+      "type": "string"
+    },
+    "items": {
+      "items": {
+        "$ref": "#/$defs/SampleItem"
+      },
+      "title": "Items",
+      "type": "array"
+    },
+    "received_on": {
+      "format": "date",
+      "title": "Received On",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "auditor",
+    "received_on",
+    "items"
+  ],
+  "title": "SampleRequest",
+  "type": "object"
+}

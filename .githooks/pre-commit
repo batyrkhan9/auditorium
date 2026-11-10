@@ -1,0 +1,3 @@
+#!/bin/sh
+# Ownership, sealed-file encryption and secret checks on what is staged.
+exec python3 "$(git rev-parse --show-toplevel)/scripts/checks.py" precommit

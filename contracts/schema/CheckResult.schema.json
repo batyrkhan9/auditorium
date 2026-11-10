@@ -1,0 +1,309 @@
+{
+  "$defs": {
+    "CheckName": {
+      "enum": [
+        "receipt",
+        "approval",
+        "ledger_match",
+        "period"
+      ],
+      "title": "CheckName",
+      "type": "string"
+    },
+    "CheckStatus": {
+      "enum": [
+        "pass",
+        "fail",
+        "needs_review",
+        "not_applicable"
+      ],
+      "title": "CheckStatus",
+      "type": "string"
+    },
+    "DocumentEvidence": {
+      "additionalProperties": false,
+      "description": "Words on a page. Verified by finding `quote` in the text of that page.",
+      "properties": {
+        "document_id": {
+          "title": "Document Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "document",
+          "default": "document",
+          "title": "Kind",
+          "type": "string"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "What this shows.",
+          "title": "Note"
+        },
+        "page": {
+          "description": "1-based.",
+          "minimum": 1,
+          "title": "Page",
+          "type": "integer"
+        },
+        "quote": {
+          "description": "Copied from the page, not paraphrased.",
+          "minLength": 1,
+          "title": "Quote",
+          "type": "string"
+        }
+      },
+      "required": [
+        "document_id",
+        "page",
+        "quote"
+      ],
+      "title": "DocumentEvidence",
+      "type": "object"
+    },
+    "IssueCode": {
+      "description": "Why a check failed. Each code belongs to the check its name starts with.\n\nThis list was written from the four checks in the PRD, before any mistake was\nplanted. It says nothing about which mistakes the test data contains.",
+      "enum": [
+        "receipt_missing",
+        "receipt_mismatch",
+        "approval_missing",
+        "approval_wrong_approver",
+        "approval_after_the_fact",
+        "ledger_match_missing",
+        "ledger_match_amount",
+        "ledger_match_vendor",
+        "ledger_match_duplicate",
+        "period_wrong",
+        "other"
+      ],
+      "title": "IssueCode",
+      "type": "string"
+    },
+    "RecordEvidence": {
+      "additionalProperties": false,
+      "description": "A field of a source record. Verified by reading that field and comparing.",
+      "properties": {
+        "field": {
+          "description": "Dotted path into the record, e.g. 'txn_date', 'lines.0.account'.",
+          "title": "Field",
+          "type": "string"
+        },
+        "kind": {
+          "const": "record",
+          "default": "record",
+          "title": "Kind",
+          "type": "string"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        },
+        "record_id": {
+          "title": "Record Id",
+          "type": "string"
+        },
+        "record_type": {
+          "enum": [
+            "transaction",
+            "ledger_entry",
+            "document",
+            "person",
+            "policy"
+          ],
+          "title": "Record Type",
+          "type": "string"
+        },
+        "value": {
+          "description": "The value read. Strings as they are, anything else as JSON.",
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "record_type",
+        "record_id",
+        "field",
+        "value"
+      ],
+      "title": "RecordEvidence",
+      "type": "object"
+    },
+    "SearchEvidence": {
+      "additionalProperties": false,
+      "description": "A search and what it returned. This is how absence is shown.\n\nThe ids it returned are verified. That nothing else matched cannot be\nverified from the output alone, so the log must hold the search itself.",
+      "properties": {
+        "kind": {
+          "const": "search",
+          "default": "search",
+          "title": "Kind",
+          "type": "string"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        },
+        "query": {
+          "description": "What was searched for, in words a reviewer can re-run.",
+          "title": "Query",
+          "type": "string"
+        },
+        "result_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Result Ids",
+          "type": "array"
+        },
+        "system": {
+          "$ref": "#/$defs/SourceSystem"
+        }
+      },
+      "required": [
+        "system",
+        "query"
+      ],
+      "title": "SearchEvidence",
+      "type": "object"
+    },
+    "SourceSystem": {
+      "enum": [
+        "ramp",
+        "qbo",
+        "bank",
+        "auditor",
+        "company"
+      ],
+      "title": "SourceSystem",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "The outcome of one check on one transaction.",
+  "properties": {
+    "check": {
+      "$ref": "#/$defs/CheckName"
+    },
+    "evidence": {
+      "items": {
+        "discriminator": {
+          "mapping": {
+            "document": "#/$defs/DocumentEvidence",
+            "record": "#/$defs/RecordEvidence",
+            "search": "#/$defs/SearchEvidence"
+          },
+          "propertyName": "kind"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/$defs/DocumentEvidence"
+          },
+          {
+            "$ref": "#/$defs/RecordEvidence"
+          },
+          {
+            "$ref": "#/$defs/SearchEvidence"
+          }
+        ]
+      },
+      "minItems": 1,
+      "title": "Evidence",
+      "type": "array"
+    },
+    "expected_period": {
+      "anyOf": [
+        {
+          "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Period check: the period the evidence says it belongs to.",
+      "title": "Expected Period"
+    },
+    "id": {
+      "description": "result_id(transaction_id, check).",
+      "title": "Id",
+      "type": "string"
+    },
+    "issue_codes": {
+      "items": {
+        "$ref": "#/$defs/IssueCode"
+      },
+      "title": "Issue Codes",
+      "type": "array"
+    },
+    "rationale": {
+      "description": "How the evidence leads to the status.",
+      "title": "Rationale",
+      "type": "string"
+    },
+    "recorded_period": {
+      "anyOf": [
+        {
+          "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Period check: the period the books put it in.",
+      "title": "Recorded Period"
+    },
+    "run_id": {
+      "title": "Run Id",
+      "type": "string"
+    },
+    "status": {
+      "$ref": "#/$defs/CheckStatus"
+    },
+    "summary": {
+      "description": "One sentence an auditor can read on its own.",
+      "title": "Summary",
+      "type": "string"
+    },
+    "transaction_id": {
+      "title": "Transaction Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "run_id",
+    "transaction_id",
+    "check",
+    "status",
+    "summary",
+    "rationale",
+    "evidence"
+  ],
+  "title": "CheckResult",
+  "type": "object"
+}

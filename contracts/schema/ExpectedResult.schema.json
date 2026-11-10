@@ -1,0 +1,66 @@
+{
+  "$defs": {
+    "CheckName": {
+      "enum": [
+        "receipt",
+        "approval",
+        "ledger_match",
+        "period"
+      ],
+      "title": "CheckName",
+      "type": "string"
+    },
+    "IssueCode": {
+      "description": "Why a check failed. Each code belongs to the check its name starts with.\n\nThis list was written from the four checks in the PRD, before any mistake was\nplanted. It says nothing about which mistakes the test data contains.",
+      "enum": [
+        "receipt_missing",
+        "receipt_mismatch",
+        "approval_missing",
+        "approval_wrong_approver",
+        "approval_after_the_fact",
+        "ledger_match_missing",
+        "ledger_match_amount",
+        "ledger_match_vendor",
+        "ledger_match_duplicate",
+        "period_wrong",
+        "other"
+      ],
+      "title": "IssueCode",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "One line of the answer key. The key has a line for every transaction and check.",
+  "properties": {
+    "check": {
+      "$ref": "#/$defs/CheckName"
+    },
+    "issue_codes": {
+      "items": {
+        "$ref": "#/$defs/IssueCode"
+      },
+      "title": "Issue Codes",
+      "type": "array"
+    },
+    "status": {
+      "enum": [
+        "pass",
+        "fail",
+        "not_applicable"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "transaction_id": {
+      "title": "Transaction Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "transaction_id",
+    "check",
+    "status"
+  ],
+  "title": "ExpectedResult",
+  "type": "object"
+}

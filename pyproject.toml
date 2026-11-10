@@ -1,0 +1,31 @@
+[project]
+name = "auditorium"
+version = "0.0.0"
+description = "An AI agent that gets a company's spending ready for its audit"
+requires-python = ">=3.12"
+dependencies = []
+
+[dependency-groups]
+dev = ["pytest>=8", "ruff>=0.6"]
+
+[tool.uv]
+package = false
+
+# One workspace, one lockfile, one environment. Each area owns its own
+# pyproject.toml and adds its own dependencies there. sealed/ is encrypted in
+# the build clone, so its projects stand alone and are not members.
+[tool.uv.workspace]
+members = ["contracts", "agent", "connectors", "evals", "ui"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["sealed", "scripts", ".claude"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501", "UP047"]
+
+[tool.pytest.ini_options]
+addopts = "--import-mode=importlib"
+norecursedirs = ["sealed", "runs", "data", "node_modules", ".venv", ".git"]

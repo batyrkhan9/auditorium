@@ -1,0 +1,248 @@
+{
+  "$defs": {
+    "Approval": {
+      "additionalProperties": false,
+      "properties": {
+        "approver_id": {
+          "description": "Person.id of whoever decided.",
+          "title": "Approver Id",
+          "type": "string"
+        },
+        "decided_at": {
+          "format": "date-time",
+          "title": "Decided At",
+          "type": "string"
+        },
+        "decision": {
+          "enum": [
+            "approved",
+            "rejected"
+          ],
+          "title": "Decision",
+          "type": "string"
+        }
+      },
+      "required": [
+        "approver_id",
+        "decision",
+        "decided_at"
+      ],
+      "title": "Approval",
+      "type": "object"
+    },
+    "SourceRef": {
+      "additionalProperties": false,
+      "description": "Where a record or document lives in its home system.",
+      "properties": {
+        "record_id": {
+          "title": "Record Id",
+          "type": "string"
+        },
+        "record_type": {
+          "description": "The home system's own name for it, e.g. 'bill', 'Bill'.",
+          "title": "Record Type",
+          "type": "string"
+        },
+        "system": {
+          "$ref": "#/$defs/SourceSystem"
+        }
+      },
+      "required": [
+        "system",
+        "record_type",
+        "record_id"
+      ],
+      "title": "SourceRef",
+      "type": "object"
+    },
+    "SourceSystem": {
+      "enum": [
+        "ramp",
+        "qbo",
+        "bank",
+        "auditor",
+        "company"
+      ],
+      "title": "SourceSystem",
+      "type": "string"
+    },
+    "TransactionKind": {
+      "enum": [
+        "card_expense",
+        "vendor_bill"
+      ],
+      "title": "TransactionKind",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "One card expense or vendor bill, as the card platform (Ramp) holds it.",
+  "properties": {
+    "accounting_date": {
+      "anyOf": [
+        {
+          "format": "date",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "The date Ramp assigned for the books.",
+      "title": "Accounting Date"
+    },
+    "amount_cents": {
+      "description": "Positive is money spent. Negative is a refund or credit.",
+      "title": "Amount Cents",
+      "type": "integer"
+    },
+    "approvals": {
+      "items": {
+        "$ref": "#/$defs/Approval"
+      },
+      "title": "Approvals",
+      "type": "array"
+    },
+    "category": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "The accounting category coded in Ramp.",
+      "title": "Category"
+    },
+    "department": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Department"
+    },
+    "document_ids": {
+      "description": "Receipts or invoices attached in Ramp.",
+      "items": {
+        "type": "string"
+      },
+      "title": "Document Ids",
+      "type": "array"
+    },
+    "due_date": {
+      "anyOf": [
+        {
+          "format": "date",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Due Date"
+    },
+    "id": {
+      "title": "Id",
+      "type": "string"
+    },
+    "invoice_number": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Invoice Number"
+    },
+    "kind": {
+      "$ref": "#/$defs/TransactionKind"
+    },
+    "memo": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Memo"
+    },
+    "paid_date": {
+      "anyOf": [
+        {
+          "format": "date",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Paid Date"
+    },
+    "raw": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "The record as the source returned it.",
+      "title": "Raw"
+    },
+    "source": {
+      "$ref": "#/$defs/SourceRef"
+    },
+    "spender_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Person.id of the cardholder or requester.",
+      "title": "Spender Id"
+    },
+    "transaction_date": {
+      "description": "Card: the purchase date. Bill: the invoice date.",
+      "format": "date",
+      "title": "Transaction Date",
+      "type": "string"
+    },
+    "vendor_name": {
+      "title": "Vendor Name",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "kind",
+    "source",
+    "vendor_name",
+    "amount_cents",
+    "transaction_date"
+  ],
+  "title": "SpendTransaction",
+  "type": "object"
+}

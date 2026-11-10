@@ -1,0 +1,153 @@
+{
+  "$defs": {
+    "SourceSystem": {
+      "enum": [
+        "ramp",
+        "qbo",
+        "bank",
+        "auditor",
+        "company"
+      ],
+      "title": "SourceSystem",
+      "type": "string"
+    },
+    "SourceUse": {
+      "additionalProperties": false,
+      "description": "Whether a source was really connected for this run. This is the honesty field.",
+      "properties": {
+        "detail": {
+          "description": "The endpoint or the dataset path that was used.",
+          "title": "Detail",
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "live",
+            "local"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "system": {
+          "$ref": "#/$defs/SourceSystem"
+        }
+      },
+      "required": [
+        "system",
+        "mode",
+        "detail"
+      ],
+      "title": "SourceUse",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": {
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "dataset_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Dataset Id"
+    },
+    "finished_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Finished At"
+    },
+    "git_commit": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Git Commit"
+    },
+    "mode": {
+      "enum": [
+        "preflight",
+        "sample"
+      ],
+      "title": "Mode",
+      "type": "string"
+    },
+    "models": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Models",
+      "type": "array"
+    },
+    "period_end": {
+      "format": "date",
+      "title": "Period End",
+      "type": "string"
+    },
+    "period_start": {
+      "description": "First day of the period under audit.",
+      "format": "date",
+      "title": "Period Start",
+      "type": "string"
+    },
+    "run_id": {
+      "title": "Run Id",
+      "type": "string"
+    },
+    "sample_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Sample Id"
+    },
+    "sources": {
+      "items": {
+        "$ref": "#/$defs/SourceUse"
+      },
+      "title": "Sources",
+      "type": "array"
+    },
+    "started_at": {
+      "format": "date-time",
+      "title": "Started At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "run_id",
+    "mode",
+    "started_at",
+    "period_start",
+    "period_end",
+    "sources",
+    "contract_version"
+  ],
+  "title": "RunManifest",
+  "type": "object"
+}

@@ -1,0 +1,55 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "company_name": {
+      "title": "Company Name",
+      "type": "string"
+    },
+    "contract_version": {
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "coverage_end": {
+      "description": "Records run through this date. It is after the fiscal year end, because cut-off testing needs the weeks that follow it.",
+      "format": "date",
+      "title": "Coverage End",
+      "type": "string"
+    },
+    "dataset_id": {
+      "title": "Dataset Id",
+      "type": "string"
+    },
+    "description": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Description"
+    },
+    "fiscal_year_end": {
+      "format": "date",
+      "title": "Fiscal Year End",
+      "type": "string"
+    },
+    "fiscal_year_start": {
+      "format": "date",
+      "title": "Fiscal Year Start",
+      "type": "string"
+    }
+  },
+  "required": [
+    "dataset_id",
+    "company_name",
+    "contract_version",
+    "fiscal_year_start",
+    "fiscal_year_end",
+    "coverage_end"
+  ],
+  "title": "DatasetManifest",
+  "type": "object"
+}

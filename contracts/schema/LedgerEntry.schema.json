@@ -1,0 +1,193 @@
+{
+  "$defs": {
+    "LedgerEntryType": {
+      "enum": [
+        "bill",
+        "expense",
+        "bill_payment",
+        "journal_entry",
+        "vendor_credit",
+        "other"
+      ],
+      "title": "LedgerEntryType",
+      "type": "string"
+    },
+    "LedgerLine": {
+      "additionalProperties": false,
+      "properties": {
+        "account": {
+          "title": "Account",
+          "type": "string"
+        },
+        "amount_cents": {
+          "minimum": 0,
+          "title": "Amount Cents",
+          "type": "integer"
+        },
+        "department": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Department"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "side": {
+          "enum": [
+            "debit",
+            "credit"
+          ],
+          "title": "Side",
+          "type": "string"
+        }
+      },
+      "required": [
+        "account",
+        "side",
+        "amount_cents"
+      ],
+      "title": "LedgerLine",
+      "type": "object"
+    },
+    "SourceRef": {
+      "additionalProperties": false,
+      "description": "Where a record or document lives in its home system.",
+      "properties": {
+        "record_id": {
+          "title": "Record Id",
+          "type": "string"
+        },
+        "record_type": {
+          "description": "The home system's own name for it, e.g. 'bill', 'Bill'.",
+          "title": "Record Type",
+          "type": "string"
+        },
+        "system": {
+          "$ref": "#/$defs/SourceSystem"
+        }
+      },
+      "required": [
+        "system",
+        "record_type",
+        "record_id"
+      ],
+      "title": "SourceRef",
+      "type": "object"
+    },
+    "SourceSystem": {
+      "enum": [
+        "ramp",
+        "qbo",
+        "bank",
+        "auditor",
+        "company"
+      ],
+      "title": "SourceSystem",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "One entry in the accounting system (QuickBooks). `txn_date` sets its period.",
+  "properties": {
+    "doc_number": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Doc Number"
+    },
+    "entry_type": {
+      "$ref": "#/$defs/LedgerEntryType"
+    },
+    "id": {
+      "title": "Id",
+      "type": "string"
+    },
+    "lines": {
+      "items": {
+        "$ref": "#/$defs/LedgerLine"
+      },
+      "title": "Lines",
+      "type": "array"
+    },
+    "memo": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Memo"
+    },
+    "raw": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Raw"
+    },
+    "source": {
+      "$ref": "#/$defs/SourceRef"
+    },
+    "total_cents": {
+      "title": "Total Cents",
+      "type": "integer"
+    },
+    "txn_date": {
+      "format": "date",
+      "title": "Txn Date",
+      "type": "string"
+    },
+    "vendor_name": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Vendor Name"
+    }
+  },
+  "required": [
+    "id",
+    "source",
+    "entry_type",
+    "txn_date",
+    "total_cents"
+  ],
+  "title": "LedgerEntry",
+  "type": "object"
+}

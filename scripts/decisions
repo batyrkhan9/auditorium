@@ -1,0 +1,44 @@
+#!/usr/bin/env python3
+"""List every recorded decision, newest first. Use it to prepare for the live Q&A.
+
+    scripts/decisions            all areas
+    scripts/decisions agent      one area
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def title(path):
+    try:
+        for text in path.read_text().splitlines():
+            if text.startswith("# "):
+                return text[2:].strip()
+    except (OSError, UnicodeDecodeError):
+        return "(sealed: readable only in the sealed clone)"
+    return path.stem
+
+
+def main():
+    only = sys.argv[1] if len(sys.argv) > 1 else None
+    rows = []
+    for path in ROOT.glob("**/decisions/*.md"):
+        rel = path.relative_to(ROOT)
+        if ".venv" in rel.parts or "node_modules" in rel.parts or path.name == "README.md":
+            continue
+        area = "shared" if rel.parts[0] == "decisions" else "/".join(rel.parts[:-2])
+        if only and not area.startswith(only):
+            continue
+        rows.append((path.name[:10], area, title(path), str(rel)))
+    for date, area, text, rel in sorted(rows, reverse=True):
+        print(f"{date}  {area:<16} {text}\n            {rel}")
+    if not rows:
+        print("No decisions recorded yet.")
+
+
+if __name__ == "__main__":
+    main()

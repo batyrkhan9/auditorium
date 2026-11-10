@@ -1,0 +1,280 @@
+{
+  "$defs": {
+    "DocumentEvidence": {
+      "additionalProperties": false,
+      "description": "Words on a page. Verified by finding `quote` in the text of that page.",
+      "properties": {
+        "document_id": {
+          "title": "Document Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "document",
+          "default": "document",
+          "title": "Kind",
+          "type": "string"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "What this shows.",
+          "title": "Note"
+        },
+        "page": {
+          "description": "1-based.",
+          "minimum": 1,
+          "title": "Page",
+          "type": "integer"
+        },
+        "quote": {
+          "description": "Copied from the page, not paraphrased.",
+          "minLength": 1,
+          "title": "Quote",
+          "type": "string"
+        }
+      },
+      "required": [
+        "document_id",
+        "page",
+        "quote"
+      ],
+      "title": "DocumentEvidence",
+      "type": "object"
+    },
+    "PacketItem": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence": {
+          "discriminator": {
+            "mapping": {
+              "document": "#/$defs/DocumentEvidence",
+              "record": "#/$defs/RecordEvidence",
+              "search": "#/$defs/SearchEvidence"
+            },
+            "propertyName": "kind"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/DocumentEvidence"
+            },
+            {
+              "$ref": "#/$defs/RecordEvidence"
+            },
+            {
+              "$ref": "#/$defs/SearchEvidence"
+            }
+          ],
+          "title": "Evidence"
+        },
+        "role": {
+          "enum": [
+            "receipt_or_invoice",
+            "approval",
+            "ledger_entry",
+            "payment",
+            "policy",
+            "other"
+          ],
+          "title": "Role",
+          "type": "string"
+        }
+      },
+      "required": [
+        "role",
+        "evidence"
+      ],
+      "title": "PacketItem",
+      "type": "object"
+    },
+    "RecordEvidence": {
+      "additionalProperties": false,
+      "description": "A field of a source record. Verified by reading that field and comparing.",
+      "properties": {
+        "field": {
+          "description": "Dotted path into the record, e.g. 'txn_date', 'lines.0.account'.",
+          "title": "Field",
+          "type": "string"
+        },
+        "kind": {
+          "const": "record",
+          "default": "record",
+          "title": "Kind",
+          "type": "string"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        },
+        "record_id": {
+          "title": "Record Id",
+          "type": "string"
+        },
+        "record_type": {
+          "enum": [
+            "transaction",
+            "ledger_entry",
+            "document",
+            "person",
+            "policy"
+          ],
+          "title": "Record Type",
+          "type": "string"
+        },
+        "value": {
+          "description": "The value read. Strings as they are, anything else as JSON.",
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "record_type",
+        "record_id",
+        "field",
+        "value"
+      ],
+      "title": "RecordEvidence",
+      "type": "object"
+    },
+    "SearchEvidence": {
+      "additionalProperties": false,
+      "description": "A search and what it returned. This is how absence is shown.\n\nThe ids it returned are verified. That nothing else matched cannot be\nverified from the output alone, so the log must hold the search itself.",
+      "properties": {
+        "kind": {
+          "const": "search",
+          "default": "search",
+          "title": "Kind",
+          "type": "string"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        },
+        "query": {
+          "description": "What was searched for, in words a reviewer can re-run.",
+          "title": "Query",
+          "type": "string"
+        },
+        "result_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Result Ids",
+          "type": "array"
+        },
+        "system": {
+          "$ref": "#/$defs/SourceSystem"
+        }
+      },
+      "required": [
+        "system",
+        "query"
+      ],
+      "title": "SearchEvidence",
+      "type": "object"
+    },
+    "SourceSystem": {
+      "enum": [
+        "ramp",
+        "qbo",
+        "bank",
+        "auditor",
+        "company"
+      ],
+      "title": "SourceSystem",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Everything lined up for one transaction the auditor picked.",
+  "properties": {
+    "draft_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Draft Ids",
+      "type": "array"
+    },
+    "id": {
+      "title": "Id",
+      "type": "string"
+    },
+    "items": {
+      "items": {
+        "$ref": "#/$defs/PacketItem"
+      },
+      "title": "Items",
+      "type": "array"
+    },
+    "missing": {
+      "description": "What could not be found.",
+      "items": {
+        "type": "string"
+      },
+      "title": "Missing",
+      "type": "array"
+    },
+    "result_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Result Ids",
+      "type": "array"
+    },
+    "run_id": {
+      "title": "Run Id",
+      "type": "string"
+    },
+    "sample_id": {
+      "title": "Sample Id",
+      "type": "string"
+    },
+    "sample_line": {
+      "title": "Sample Line",
+      "type": "integer"
+    },
+    "transaction_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "None if the line could not be matched.",
+      "title": "Transaction Id"
+    }
+  },
+  "required": [
+    "id",
+    "run_id",
+    "sample_id",
+    "sample_line"
+  ],
+  "title": "EvidencePacket",
+  "type": "object"
+}

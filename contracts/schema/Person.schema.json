@@ -1,0 +1,68 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "department": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Department"
+    },
+    "email": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Email"
+    },
+    "id": {
+      "title": "Id",
+      "type": "string"
+    },
+    "manager_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Manager Id"
+    },
+    "name": {
+      "title": "Name",
+      "type": "string"
+    },
+    "role": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Job role, e.g. 'cfo'. Approval rules match on it.",
+      "title": "Role"
+    }
+  },
+  "required": [
+    "id",
+    "name"
+  ],
+  "title": "Person",
+  "type": "object"
+}

@@ -1,0 +1,110 @@
+{
+  "$defs": {
+    "ApprovalRule": {
+      "additionalProperties": false,
+      "properties": {
+        "approver_role": {
+          "description": "'manager' means the spender's manager (Person.manager_id). Anything else is matched against Person.role.",
+          "title": "Approver Role",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "kinds": {
+          "items": {
+            "$ref": "#/$defs/TransactionKind"
+          },
+          "title": "Kinds",
+          "type": "array"
+        },
+        "min_amount_cents": {
+          "description": "The rule applies at or above this amount.",
+          "title": "Min Amount Cents",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "description",
+        "kinds",
+        "min_amount_cents",
+        "approver_role"
+      ],
+      "title": "ApprovalRule",
+      "type": "object"
+    },
+    "TransactionKind": {
+      "enum": [
+        "card_expense",
+        "vendor_bill"
+      ],
+      "title": "TransactionKind",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "The company's own rules. The receipt and approval checks are judged against these.",
+  "properties": {
+    "approval_rules": {
+      "items": {
+        "$ref": "#/$defs/ApprovalRule"
+      },
+      "title": "Approval Rules",
+      "type": "array"
+    },
+    "document_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "The written policy, if there is one.",
+      "title": "Document Id"
+    },
+    "effective_from": {
+      "format": "date",
+      "title": "Effective From",
+      "type": "string"
+    },
+    "effective_to": {
+      "anyOf": [
+        {
+          "format": "date",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Effective To"
+    },
+    "id": {
+      "title": "Id",
+      "type": "string"
+    },
+    "receipt_required_from_cents": {
+      "description": "A card expense at or above this needs a receipt. A vendor bill always needs its invoice.",
+      "title": "Receipt Required From Cents",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "id",
+    "effective_from",
+    "receipt_required_from_cents",
+    "approval_rules"
+  ],
+  "title": "SpendPolicy",
+  "type": "object"
+}

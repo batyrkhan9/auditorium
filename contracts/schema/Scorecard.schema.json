@@ -1,0 +1,111 @@
+{
+  "$defs": {
+    "CheckName": {
+      "enum": [
+        "receipt",
+        "approval",
+        "ledger_match",
+        "period"
+      ],
+      "title": "CheckName",
+      "type": "string"
+    },
+    "CheckScore": {
+      "additionalProperties": false,
+      "description": "Counts for one check. 'Positive' means the agent said fail.",
+      "properties": {
+        "false_negative": {
+          "default": 0,
+          "title": "False Negative",
+          "type": "integer"
+        },
+        "false_positive": {
+          "default": 0,
+          "title": "False Positive",
+          "type": "integer"
+        },
+        "needs_review": {
+          "default": 0,
+          "title": "Needs Review",
+          "type": "integer"
+        },
+        "true_negative": {
+          "default": 0,
+          "title": "True Negative",
+          "type": "integer"
+        },
+        "true_positive": {
+          "default": 0,
+          "title": "True Positive",
+          "type": "integer"
+        }
+      },
+      "title": "CheckScore",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Aggregate scores for a run. It is safe to show to anyone: no transaction ids.",
+  "properties": {
+    "answer_key_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Answer Key Sha256",
+      "type": "string"
+    },
+    "dataset_id": {
+      "title": "Dataset Id",
+      "type": "string"
+    },
+    "evidence_total": {
+      "title": "Evidence Total",
+      "type": "integer"
+    },
+    "evidence_unverified": {
+      "description": "Evidence that did not resolve to a real document or record. Must be 0.",
+      "title": "Evidence Unverified",
+      "type": "integer"
+    },
+    "notes": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Notes"
+    },
+    "per_check": {
+      "additionalProperties": {
+        "$ref": "#/$defs/CheckScore"
+      },
+      "propertyNames": {
+        "$ref": "#/$defs/CheckName"
+      },
+      "title": "Per Check",
+      "type": "object"
+    },
+    "run_id": {
+      "title": "Run Id",
+      "type": "string"
+    },
+    "scored_at": {
+      "format": "date-time",
+      "title": "Scored At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "run_id",
+    "dataset_id",
+    "answer_key_sha256",
+    "scored_at",
+    "per_check",
+    "evidence_total",
+    "evidence_unverified"
+  ],
+  "title": "Scorecard",
+  "type": "object"
+}

@@ -1,0 +1,22 @@
+name: ci
+on: push
+jobs:
+  rules:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: python3 scripts/checks.py sealed
+      - run: python3 scripts/checks.py authors
+      - run: python3 scripts/checks.py secrets
+      - run: python3 scripts/checks.py ownership
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --all-packages
+      - run: uv run ruff check .
+      - run: uv run pytest
+      - run: uv run python -m auditorium_contracts export-schema --check

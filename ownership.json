@@ -1,0 +1,58 @@
+{
+  "people": {
+    "batyrkhan": {
+      "name": "Batyrkhan",
+      "github": "batyrkhan9",
+      "emails": [
+        "kanash.b05@gmail.com",
+        "174427345+batyrkhan9@users.noreply.github.com"
+      ]
+    },
+    "noriaki": {
+      "name": "Noriaki Kishida",
+      "github": "Marstronix218",
+      "emails": [
+        "166908507+Marstronix218@users.noreply.github.com"
+      ]
+    }
+  },
+  "areas": {
+    "agent": {
+      "owner": "batyrkhan",
+      "clone": "build",
+      "paths": ["agent/"],
+      "summary": "The audit agent: four checks, sample requests, drafts, the log"
+    },
+    "data": {
+      "owner": "batyrkhan",
+      "clone": "sealed",
+      "paths": ["data/", "sealed/datagen/", "sealed/answer_key/"],
+      "summary": "The fake company, the planted mistakes, the answer key"
+    },
+    "connectors": {
+      "owner": "noriaki",
+      "clone": "build",
+      "paths": ["connectors/"],
+      "summary": "Ramp and QuickBooks connections, loading data into QuickBooks"
+    },
+    "evals": {
+      "owner": "noriaki",
+      "clone": "sealed",
+      "paths": ["evals/", "sealed/eval/"],
+      "summary": "The test that scores the agent"
+    },
+    "ui": {
+      "owner": "noriaki",
+      "clone": "build",
+      "paths": ["ui/"],
+      "summary": "The screen"
+    },
+    "shared": {
+      "owner": "both",
+      "clone": "build",
+      "paths": [],
+      "summary": "Everything else: contracts/, docs/, scripts/, root files"
+    }
+  },
+  "anyone": ["uv.lock"]
+}

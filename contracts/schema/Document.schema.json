@@ -1,0 +1,114 @@
+{
+  "$defs": {
+    "DocumentType": {
+      "enum": [
+        "receipt",
+        "invoice",
+        "bank_statement",
+        "pbc_list",
+        "sample_request",
+        "policy",
+        "contract",
+        "other"
+      ],
+      "title": "DocumentType",
+      "type": "string"
+    },
+    "SourceRef": {
+      "additionalProperties": false,
+      "description": "Where a record or document lives in its home system.",
+      "properties": {
+        "record_id": {
+          "title": "Record Id",
+          "type": "string"
+        },
+        "record_type": {
+          "description": "The home system's own name for it, e.g. 'bill', 'Bill'.",
+          "title": "Record Type",
+          "type": "string"
+        },
+        "system": {
+          "$ref": "#/$defs/SourceSystem"
+        }
+      },
+      "required": [
+        "system",
+        "record_type",
+        "record_id"
+      ],
+      "title": "SourceRef",
+      "type": "object"
+    },
+    "SourceSystem": {
+      "enum": [
+        "ramp",
+        "qbo",
+        "bank",
+        "auditor",
+        "company"
+      ],
+      "title": "SourceSystem",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "A file. `type` is what the source called it, which is not proof of what it is.",
+  "properties": {
+    "filename": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Filename"
+    },
+    "id": {
+      "title": "Id",
+      "type": "string"
+    },
+    "media_type": {
+      "default": "application/pdf",
+      "title": "Media Type",
+      "type": "string"
+    },
+    "origin": {
+      "description": "External: produced outside the company (vendor, bank, auditor). AU-C 500 treats external evidence as more reliable.",
+      "enum": [
+        "external",
+        "internal"
+      ],
+      "title": "Origin",
+      "type": "string"
+    },
+    "path": {
+      "description": "POSIX path to the file, relative to the dataset folder.",
+      "title": "Path",
+      "type": "string"
+    },
+    "sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Sha256",
+      "type": "string"
+    },
+    "source": {
+      "$ref": "#/$defs/SourceRef"
+    },
+    "type": {
+      "$ref": "#/$defs/DocumentType"
+    }
+  },
+  "required": [
+    "id",
+    "type",
+    "source",
+    "origin",
+    "path",
+    "sha256"
+  ],
+  "title": "Document",
+  "type": "object"
+}
