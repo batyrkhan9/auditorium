@@ -107,8 +107,11 @@ def connect_sources(dataset_root: Path | str, cache_dir: Path | str | None = Non
 
 
 def _ramp_for_dataset(ramp: Sources, local: LocalSources) -> tuple[Sources, str]:
-    """Live Ramp only if it holds the dataset's Ramp transactions, matched by Ramp id.
+    """Live Ramp only if it holds the dataset's Ramp transactions.
 
+    Bills the loader stamped from this dataset there (ramp_loader.py): those bills are
+    served live and the rest from the dataset; see
+    connectors/decisions/2026-11-10-ramp-bill-loader.md. Otherwise matched by Ramp id.
     None of them there: Ramp holds another company, and checking the dataset's ledger
     against it would flag every transaction, so the dataset is used instead. Some of
     them there: Ramp stays live and the returned note says how many are missing.
@@ -116,6 +119,11 @@ def _ramp_for_dataset(ramp: Sources, local: LocalSources) -> tuple[Sources, str]
     """
     if isinstance(ramp, LocalFallback):
         return ramp, ""
+    # Imported here so `python -m auditorium_connectors.ramp_loader` runs it only once.
+    from .ramp_loader import LoadedBillsSources, stamped_bills
+
+    if isinstance(ramp, RampSources) and stamped_bills(ramp, local):
+        return LoadedBillsSources(ramp, local), ""
     wanted = {
         (t.source.record_type, t.source.record_id)
         for t in local.transactions()

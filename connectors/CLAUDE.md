@@ -36,5 +36,18 @@ answers 404 for is left off its transaction and named in `describe()`; see
 `https://demo-api.ramp.com`), then MCP, then local. See
 `decisions/2026-11-10-ramp-developer-api.md`. Live test: `AUDITORIUM_LIVE_RAMP_API=1`.
 
+## Ramp bill loader (sandbox only, dry run by default)
+
+`ramp_loader.py` creates the dataset's bills in the Ramp sandbox, stamped
+`auditorium-ref: <id>` in the memo. Do not run `--write` until the PRD change on
+`shared/ramp-sandbox-writes` is agreed. With stamped bills in Ramp, `connect_sources`
+serves them live and card transactions from the dataset. See
+`decisions/2026-11-10-ramp-bill-loader.md`.
+
+```
+uv run --env-file .env python -m auditorium_connectors.ramp_loader <dataset_dir>   # read-only check
+uv run --env-file .env python -m auditorium_connectors.ramp_loader <dataset_dir> --write
+```
+
 Record decisions in `connectors/decisions/YYYY-MM-DD-short-title.md`: what, what else was
 considered, why, what would change our mind. Root rules: ../CLAUDE.md.
