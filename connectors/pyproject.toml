@@ -3,7 +3,7 @@ name = "auditorium-connectors"
 version = "0.0.0"
 description = "Ramp and QuickBooks connections behind the contract's Sources interface."
 requires-python = ">=3.12"
-dependencies = ["auditorium-contracts"]
+dependencies = ["auditorium-contracts", "mcp>=1.9", "httpx>=0.27"]
 
 [tool.uv.sources]
 auditorium-contracts = { workspace = true }
