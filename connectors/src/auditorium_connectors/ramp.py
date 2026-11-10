@@ -13,6 +13,10 @@ Three parts:
 
 `connect_ramp` returns a `RampSources` when everything loads, and otherwise a
 `LocalFallback` whose `describe()` says why Ramp was not live.
+
+A server that names itself `STANDIN_SERVER_NAME` in its MCP `initialize` answer is
+our own stand-in (`ramp_standin.py`), not Ramp. Its records go through the same
+client and mapping, but `describe()` reports Ramp as `local`.
 """
 
 from __future__ import annotations
@@ -62,6 +66,9 @@ REFUSAL_STATUSES = {401, 403}
 # A Ramp id becomes part of a cache file name, so it may hold nothing else.
 SAFE_ID = re.compile(r"[A-Za-z0-9_-]+")
 
+# The `serverInfo.name` our local stand-in for Ramp's MCP server gives in `initialize`.
+STANDIN_SERVER_NAME = "auditorium-ramp-standin"
+
 
 class RampUnavailable(Exception):
     """Ramp could not be read completely. The caller falls back to local data."""
@@ -107,6 +114,8 @@ class RampPayloads:
     departments: list[dict[str, Any]]
     # Keyed by the Ramp id of the transaction or bill under approval.
     approvals: dict[str, dict[str, Any]]
+    # The `serverInfo` the MCP server sent in `initialize` (name, version, ...).
+    server: dict[str, Any] | None = None
 
 
 class RampClient(Protocol):
@@ -245,7 +254,8 @@ class McpRampClient:
             http.event_hooks["response"].append(refusal_recorder(refused))
             async with streamable_http_client(self.url, http_client=http) as streams:
                 async with ClientSession(streams[0], streams[1]) as session:
-                    await session.initialize()
+                    initialized = await session.initialize()
+                    server = initialized.server_info.model_dump(mode="json", exclude_none=True)
                     offered = await self._tool_names(session)
                     missing = sorted(
                         key for key, call in self.tools.items() if call.name not in offered
@@ -278,6 +288,7 @@ class McpRampClient:
                         users=await load("users"),
                         departments=await load("departments"),
                         approvals=approvals,
+                        server=server,
                     )
 
     @staticmethod
@@ -563,6 +574,7 @@ class RampSources:
         self.endpoint = endpoint
         self.local = local
         self.cache_dir = Path(cache_dir)
+        self.server = dict(payloads.server or {})
         approvals = payloads.approvals
         self._transactions = [
             map_card_transaction(t, approvals.get(t["id"]))
@@ -620,9 +632,25 @@ class RampSources:
             )
         return documents
 
+    @property
+    def is_standin(self) -> bool:
+        """True when the server said it is our stand-in. Decided from what the server
+        sent, not from a setting, so a stand-in can't be configured into "live"."""
+        return self.server.get("name") == STANDIN_SERVER_NAME
+
     def describe(self) -> list[SourceUse]:
-        live = SourceUse(system=SourceSystem.RAMP, mode="live", detail=f"Ramp MCP {self.endpoint}")
-        return [live] + [
+        if self.is_standin:
+            served = self.server.get("description") or "dataset not stated"
+            ramp = SourceUse(
+                system=SourceSystem.RAMP,
+                mode="local",
+                detail=f"Ramp stand-in MCP server at {self.endpoint}, {served}; not Ramp",
+            )
+        else:
+            ramp = SourceUse(
+                system=SourceSystem.RAMP, mode="live", detail=f"Ramp MCP {self.endpoint}"
+            )
+        return [ramp] + [
             use for use in self.local.describe() if use.system is not SourceSystem.RAMP
         ]
 

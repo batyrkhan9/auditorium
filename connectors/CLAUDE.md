@@ -13,5 +13,18 @@ server), and loading the dataset into QuickBooks.
   `describe()` as `mode: local`. Never pretend a source was live.
 - First task: the researched Ramp demo URL returned 404 on 2026-11-09 (see README).
 
+## Ramp stand-in (no Ramp login yet)
+
+`ramp_standin.py` serves a dataset folder as a local MCP server in Ramp's payload
+shapes. It is not Ramp, and `describe()` reports Ramp as `local` when connected to it.
+See `decisions/2026-11-10-ramp-standin.md`.
+
+```
+uv run python -m auditorium_connectors.ramp_standin <dataset_dir> [--port 8765] [--host 127.0.0.1]
+RAMP_MCP_URL=http://127.0.0.1:8765/mcp RAMP_MCP_TOKEN=anything   # any token is accepted
+```
+
+Ramp documents must be PDFs or images, or the connector refuses them and falls back.
+
 Record decisions in `connectors/decisions/YYYY-MM-DD-short-title.md`: what, what else was
 considered, why, what would change our mind. Root rules: ../CLAUDE.md.
