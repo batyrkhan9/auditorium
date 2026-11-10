@@ -683,8 +683,8 @@ def test_deleted_and_draft_bills_are_not_spend(tmp_path, change):
 
 def test_connect_sources_without_ramp_settings_is_local(tmp_path, monkeypatch):
     build_local(tmp_path / "dataset")
-    monkeypatch.delenv("RAMP_MCP_URL", raising=False)
-    monkeypatch.delenv("RAMP_MCP_TOKEN", raising=False)
+    for name in ("RAMP_MCP_URL", "RAMP_MCP_TOKEN", "RAMP_CLIENT_ID", "RAMP_CLIENT_SECRET"):
+        monkeypatch.delenv(name, raising=False)
     sources = connect_sources(tmp_path / "dataset", cache_dir=tmp_path / "cache")
     assert all(use.mode == "local" for use in sources.describe())
 
@@ -694,6 +694,8 @@ def test_connect_sources_without_credentials_is_local_for_every_system(tmp_path,
     for name in (
         "RAMP_MCP_URL",
         "RAMP_MCP_TOKEN",
+        "RAMP_CLIENT_ID",
+        "RAMP_CLIENT_SECRET",
         *(k for k in os.environ if k.startswith("QBO_")),
     ):
         monkeypatch.delenv(name, raising=False)

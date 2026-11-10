@@ -722,8 +722,11 @@ class RampSources:
         ]
         reports_to = managers(payloads.org_charts)
         self._people = [map_user(u, reports_to.get(u["id"])) for u in payloads.users]
-        self._documents = {d.id: d for d in self._download(remote_files(payloads), download)}
+        self._attach_documents(remote_files(payloads), download)
 
+    def _attach_documents(self, files: list[RemoteFile], download: Downloader) -> None:
+        """Downloads `files`, and refuses a transaction naming a file Ramp did not return."""
+        self._documents = {d.id: d for d in self._download(files, download)}
         for txn in self._transactions:
             for document_id in txn.document_ids:
                 if document_id not in self._documents:

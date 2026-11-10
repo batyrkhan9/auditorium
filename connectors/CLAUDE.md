@@ -26,5 +26,12 @@ RAMP_MCP_URL=http://127.0.0.1:8765/mcp RAMP_MCP_TOKEN=anything   # any token is 
 
 Ramp documents must be PDFs or images, or the connector refuses them and falls back.
 
+## Ramp Developer API (unattended, with approvals)
+
+`ramp_api.py` reads Ramp with client credentials. `connect_sources` prefers it when
+`RAMP_CLIENT_ID` and `RAMP_CLIENT_SECRET` are set (`RAMP_API_URL`, default
+`https://demo-api.ramp.com`), then MCP, then local. See
+`decisions/2026-11-10-ramp-developer-api.md`. Live test: `AUDITORIUM_LIVE_RAMP_API=1`.
+
 Record decisions in `connectors/decisions/YYYY-MM-DD-short-title.md`: what, what else was
 considered, why, what would change our mind. Root rules: ../CLAUDE.md.

@@ -253,6 +253,8 @@ def test_the_standin_is_reported_local_and_never_live(connected, standin):
 def test_connect_sources_against_the_standin_says_local(dataset, standin, tmp_path, monkeypatch):
     monkeypatch.setenv("RAMP_MCP_URL", standin)
     monkeypatch.setenv("RAMP_MCP_TOKEN", "anything")
+    monkeypatch.delenv("RAMP_CLIENT_ID", raising=False)
+    monkeypatch.delenv("RAMP_CLIENT_SECRET", raising=False)
     for name in [k for k in os.environ if k.startswith("QBO_")]:
         monkeypatch.delenv(name)
     sources = connect_sources(dataset, cache_dir=tmp_path / "cache")
