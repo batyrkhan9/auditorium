@@ -14,6 +14,7 @@ from auditorium_contracts import (
     SourceIndex,
     Sources,
     SourceSystem,
+    SpendPolicy,
     SpendTransaction,
     page_texts,
 )
@@ -30,6 +31,7 @@ class Books:
     transactions: list[SpendTransaction]
     ledger: list[LedgerEntry]
     documents: dict[str, Document]
+    policy: SpendPolicy
     index: SourceIndex
     matches: dict[str, Match]  # transaction id -> its ledger entry, paired one-to-one
 
@@ -52,6 +54,7 @@ class Books:
             transactions=transactions,
             ledger=ledger,
             documents={d.id: d for d in documents},
+            policy=sources.policy(),
             index=SourceIndex(sources),
             matches=match_ledger(transactions, ledger),
         )

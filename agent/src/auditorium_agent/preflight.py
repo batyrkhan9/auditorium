@@ -23,9 +23,9 @@ from auditorium_contracts import (
 )
 
 from .books import Books
-from .checks import check_ledger_match, check_period
+from .checks import check_ledger_match, check_period, check_receipt
 
-CHECKS = (check_ledger_match, check_period)
+CHECKS = (check_receipt, check_ledger_match, check_period)
 
 
 def _git_commit() -> str | None:

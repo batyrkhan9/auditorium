@@ -46,17 +46,12 @@ def test_sample_results(tmp_path):
         for r in results
         if r.check.value == "ledger_match"
     }
-    assert found == {
-        "b_1001": ("pass", []),
-        "b_1002": ("pass", []),
-        "b_1003": ("pass", []),
-        "b_1004": ("pass", []),
-        "b_1005": ("pass", []),
+    assert {key: value for key, value in found.items() if value[0] != "pass"} == {
         "b_1006": ("fail", ["ledger_match_amount"]),
         "b_1007": ("fail", ["ledger_match_duplicate"]),
-        "c_2001": ("pass", []),
         "c_2002": ("fail", ["ledger_match_missing"]),
     }
+    assert len(found) == len(sources.transactions())
 
 
 def test_recurring_bills_each_keep_their_own_entry():

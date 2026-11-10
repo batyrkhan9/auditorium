@@ -23,17 +23,15 @@ def run(tmp_path):
 
 def test_sample_statuses(tmp_path):
     sources, by_txn = run(tmp_path)
-    assert {txn: r.status.value for txn, r in by_txn.items()} == {
+    statuses = {txn: r.status.value for txn, r in by_txn.items()}
+    assert {txn: status for txn, status in statuses.items() if status != "pass"} == {
         "ramp:bill:b_1001": "fail",  # the pitch example
-        "ramp:bill:b_1002": "pass",  # December work, accrued in December
-        "ramp:bill:b_1003": "pass",
         "ramp:bill:b_1004": "needs_review",  # no service period, recorded just after year end
-        "ramp:bill:b_1005": "pass",
-        "ramp:bill:b_1006": "pass",  # the amount is wrong in the books, the period is not
-        "ramp:bill:b_1007": "pass",
-        "ramp:card:c_2001": "pass",
         "ramp:card:c_2002": "not_applicable",  # not in the books at all
     }
+    # December work accrued in December, and a wrong amount in the books, are not period errors.
+    assert statuses["ramp:bill:b_1002"] == statuses["ramp:bill:b_1006"] == "pass"
+    assert len(statuses) == len(sources.transactions())
     assert validate_run(tmp_path / "run", sources) == []
 
 

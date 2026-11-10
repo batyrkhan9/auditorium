@@ -69,6 +69,26 @@ CASES = [
         key="c_2002", vendor="Figma", cents=54_000, day=date(2025, 9, 12), booked=None,
         text="Figma, Inc.\nReceipt\nDate: September 12, 2025\nProfessional plan\nTotal: $540.00\n",
     ),
+    dict(  # Over the receipt threshold with nothing attached.
+        key="c_2003", vendor="Hotel Kabuki", cents=31_240, day=date(2025, 7, 22),
+        booked=date(2025, 7, 22), text=None,
+    ),
+    dict(  # Under the receipt threshold, so no receipt is needed.
+        key="c_2004", vendor="Blue Bottle Coffee", cents=1_875, day=date(2025, 5, 6),
+        booked=date(2025, 5, 6), text=None,
+    ),
+    dict(  # The receipt shows the meal; the card was charged the meal plus a tip.
+        key="c_2005", vendor="Trattoria Lucca", cents=23_000, day=date(2025, 6, 18),
+        booked=date(2025, 6, 18),
+        text="Trattoria Lucca\nDate: June 18, 2025\nTable 12, 4 guests\nSubtotal: $183.50\n"
+        "Tax: $16.50\nTotal: $200.00\n",
+    ),
+    dict(  # Somebody attached another vendor's invoice.
+        key="b_1008", vendor="Meridian Analytics", cents=640_000, day=date(2025, 4, 9),
+        invoice="M-204", booked=date(2025, 4, 9),
+        text="Kestrel Print Shop\nInvoice 5512\nInvoice date: March 30, 2025\n" + BILL_TO
+        + "Conference banners\nTotal: $310.00\n",
+    ),
 ]  # fmt: skip
 
 
@@ -81,19 +101,20 @@ def main():
         source = c.SourceRef(
             system="ramp", record_type="bill" if is_bill else "transaction", record_id=key
         )
-        path = ROOT / "documents" / f"{key}.txt"
-        path.write_text(case["text"])
-        documents.append(
-            c.Document(
-                id=f"doc_{key}",
-                type="invoice" if is_bill else "receipt",
-                source=source,
-                origin="external",
-                path=f"documents/{key}.txt",
-                media_type="text/plain",
-                sha256=c.sha256_file(path),
+        if case["text"]:
+            path = ROOT / "documents" / f"{key}.txt"
+            path.write_text(case["text"])
+            documents.append(
+                c.Document(
+                    id=f"doc_{key}",
+                    type="invoice" if is_bill else "receipt",
+                    source=source,
+                    origin="external",
+                    path=f"documents/{key}.txt",
+                    media_type="text/plain",
+                    sha256=c.sha256_file(path),
+                )
             )
-        )
         transactions.append(
             c.SpendTransaction(
                 id=f"ramp:{'bill' if is_bill else 'card'}:{key}",
@@ -104,7 +125,7 @@ def main():
                 transaction_date=case["day"],
                 invoice_number=case.get("invoice"),
                 spender_id="p_eng",
-                document_ids=[f"doc_{key}"],
+                document_ids=[f"doc_{key}"] if case["text"] else [],
             )
         )
         qbo_type = "Bill" if is_bill else "Purchase"
