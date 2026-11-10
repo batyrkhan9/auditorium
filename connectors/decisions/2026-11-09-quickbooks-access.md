@@ -82,3 +82,17 @@ Sources:
 - https://blogs.intuit.com/?p=34635 (minor version 75 is the minimum)
 - https://developers.intuit.com/app/developer/qbo/docs/release-notes/general-release-notes
 - https://www.nango.dev/blog/quickbooks-oauth-refresh-token-invalid-grant (refresh-token rotation)
+
+**Repairing guessed account types (2026-11-10).** The pre-v0.2 loader created
+"Accumulated Depreciation" as `Expense`/`Travel`. The dataset says `Fixed Asset`.
+`repair_account_types` (CLI `qbo repair-types DATASET`, a dry run unless `--write`,
+sandbox only) compares every account the dataset types with QuickBooks. It changes
+an account only when every record pointing at it is one we stamped. It first tries
+a sparse update of `AccountType`/`AccountSubType`. If QuickBooks refuses, it renames
+the old account "<name> (wrong type, unused)", creates a correctly typed one under
+the dataset's name, points our stamped entries at it with sparse updates (so the
+stamp is never resent), and makes the old one inactive. Run live: the in-place update
+was accepted (now `Fixed Asset`/`AccumulatedDepreciation`, same Id, so the 14 journal
+entries were not touched), and 255 of 255 loaded entries now read back with the
+dataset's account types. We considered deleting and reloading the 14 entries. We
+didn't, because that would change their QuickBooks ids for no gain.

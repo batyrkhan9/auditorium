@@ -16,6 +16,7 @@ Configuration comes from the environment only:
 
     python -m auditorium_connectors.qbo fetch [--out ledger.jsonl] [--fallback DATASET]
     python -m auditorium_connectors.qbo load DATASET [--dry-run]
+    python -m auditorium_connectors.qbo repair-types DATASET [--write]
 """
 
 from __future__ import annotations
@@ -218,6 +219,10 @@ class QboClient:
     def create(self, entity: str, payload: dict[str, Any]) -> dict[str, Any]:
         body = self._request("POST", entity.lower(), json=payload)
         return body[entity]
+
+    def update(self, entity: str, payload: dict[str, Any]) -> dict[str, Any]:
+        """QuickBooks updates by POSTing a body with Id and SyncToken to the create path."""
+        return self.create(entity, payload)
 
     def account_types(self) -> dict[str, str]:
         """Account id, and account name, -> its QuickBooks AccountType. Read once per client."""
@@ -735,6 +740,215 @@ def _send(
     return f"qbo:{plan.entity}:{created['Id']}"
 
 
+# --- repairing account types the old loader guessed -------------------------------
+
+# Every entity whose records can point at an account. An account is only repaired
+# when every record pointing at it is one the loader stamped; anything else (Intuit's
+# sample company, an item, a sub-account) leaves it alone.
+ACCOUNT_USERS = (
+    *ENTITY_TYPES,
+    "Deposit",
+    "Transfer",
+    "VendorCredit",
+    "BillPayment",
+    "Payment",
+    "SalesReceipt",
+    "RefundReceipt",
+    "Invoice",
+    "CreditMemo",
+    "CreditCardPayment",
+    "PurchaseOrder",
+    "Item",
+)
+# The old account keeps this name once a correctly typed one has taken its name.
+WRONG_TYPE_SUFFIX = " (wrong type, unused)"
+
+
+def account_subtype(name: str, account_type: str) -> str | None:
+    """The AccountSubType to send with a repaired type. None lets QuickBooks pick its
+    default; it must not keep the old subtype, which belongs to the old type."""
+    if account_type == "Fixed Asset" and "depreciation" in name.lower():
+        return "AccumulatedDepreciation"
+    return None
+
+
+def _points_at(obj: Any, account_id: str) -> bool:
+    if isinstance(obj, dict):
+        return any(
+            (
+                key.endswith("AccountRef")
+                and isinstance(value, dict)
+                and value.get("value") == account_id
+            )
+            or _points_at(value, account_id)
+            for key, value in obj.items()
+        )
+    if isinstance(obj, list):
+        return any(_points_at(item, account_id) for item in obj)
+    return False
+
+
+def _repoint(obj: Any, old_id: str, new: dict[str, str]) -> Any:
+    """A copy of `obj` with every *AccountRef to `old_id` pointing at `new` instead."""
+    if isinstance(obj, dict):
+        return {
+            key: dict(new)
+            if key.endswith("AccountRef")
+            and isinstance(value, dict)
+            and value.get("value") == old_id
+            else _repoint(value, old_id, new)
+            for key, value in obj.items()
+        }
+    if isinstance(obj, list):
+        return [_repoint(item, old_id, new) for item in obj]
+    return obj
+
+
+@dataclass
+class RepairReport:
+    planned: dict[str, str] = field(default_factory=dict)
+    fixed: dict[str, str] = field(default_factory=dict)
+    refused: dict[str, str] = field(default_factory=dict)
+    moved: list[str] = field(default_factory=list)
+    failed: dict[str, str] = field(default_factory=dict)
+
+    def summary(self) -> str:
+        lines = [
+            f"planned {len(self.planned)}, fixed {len(self.fixed)}, refused {len(self.refused)}, "
+            f"entries moved {len(self.moved)}, failed {len(self.failed)}"
+        ]
+        for label, items in (
+            ("plan", self.planned),
+            ("fixed", self.fixed),
+            ("refused", self.refused),
+            ("failed", self.failed),
+        ):
+            lines += [f"  {label} {name}: {why}" for name, why in items.items()]
+        return "\n".join(lines)
+
+
+def repair_account_types(
+    dataset: Path | str, client: QboClient, write: bool = False
+) -> RepairReport:
+    """Give every account the dataset uses the AccountType the dataset says, where
+    QuickBooks holds it with another one and only our stamped entries use it.
+
+    First an in-place update of the type. If QuickBooks refuses (it often will for an
+    account with transactions), the wrong account is renamed with WRONG_TYPE_SUFFIX,
+    a correctly typed one is created under the dataset's name, every stamped entry is
+    pointed at it (stamp kept), and the old one is made inactive once nothing uses it.
+    Dry run unless `write`. Safe to run again: matching accounts are left alone, and an
+    account left half moved (still active under the suffixed name) is finished off."""
+    require_sandbox(client.config)
+    report = RepairReport()
+    wanted: dict[str, str] = {}
+    for entry in read_jsonl(Path(dataset) / "ledger.jsonl", LedgerEntry):
+        for line in entry.lines:
+            if line.account_type:
+                if wanted.setdefault(line.account, line.account_type) != line.account_type:
+                    report.refused[line.account] = "the dataset gives it two account types"
+    accounts = client.query("Account")  # active accounts only: inactive ones are done
+    by_name: dict[str, dict[str, Any]] = {}
+    for account in accounts:
+        for name in (account["Name"], account.get("FullyQualifiedName", account["Name"])):
+            by_name.setdefault(name, account)
+    records = [(entity, r) for entity in ACCOUNT_USERS for r in client.query(entity)]
+    records += [("Account", a) for a in accounts if a.get("ParentRef")]  # sub-accounts
+
+    def users(account_id: str) -> tuple[list[tuple[str, dict]], int]:
+        """Our stamped records that point at the account, and how many others do."""
+        ours, others = [], 0
+        for entity, record in records:
+            if _points_at(record, account_id):
+                if entity in ENTITY_TYPES and loaded_ref(record):
+                    ours.append((entity, record))
+                else:
+                    others += 1
+        return ours, others
+
+    def create_account(name: str, kind: str) -> dict[str, Any]:
+        body = {"Name": name, "AccountType": kind}
+        if subtype := account_subtype(name, kind):
+            body["AccountSubType"] = subtype
+        return client.create("Account", body)
+
+    def move(old: dict[str, Any], new: dict[str, Any], ours: list[tuple[str, dict]]) -> None:
+        """Point our entries at `new`, then make `old` inactive: nothing else used it."""
+        target = {"value": new["Id"], "name": new["Name"]}
+        for entity, record in ours:
+            changed = _repoint(record, old["Id"], target)
+            body = {"Id": record["Id"], "SyncToken": record["SyncToken"], "sparse": True}
+            body.update({k: v for k, v in changed.items() if v != record.get(k)})
+            client.update(entity, body)
+            report.moved.append(f"qbo:{entity}:{record['Id']}")
+        client.update("Account", {**_editable(old), "Active": False, "sparse": True})
+
+    def retype(account: dict[str, Any], name: str, kind: str, before: str, ours) -> str:
+        """Change the type in place; if QuickBooks refuses, replace the account."""
+        body = {**_editable(account), "AccountType": kind, "sparse": True}
+        # The old subtype belongs to the old type. With none, QuickBooks picks a default.
+        if subtype := account_subtype(name, kind):
+            body["AccountSubType"] = subtype
+        try:
+            after = client.update("Account", body)
+        except QboError as refusal:
+            renamed = client.update(
+                "Account", {**_editable(account), "Name": name + WRONG_TYPE_SUFFIX, "sparse": True}
+            )
+            new = create_account(name, kind)
+            move(renamed, new, ours)
+            return (
+                f"{before} -> {new.get('AccountType')}/{new.get('AccountSubType')} as new "
+                f"account {new['Id']}, {len(ours)} entries moved (in place refused: {refusal})"
+            )
+        return f"{before} -> {after.get('AccountType')}/{after.get('AccountSubType')} in place"
+
+    for name, kind in wanted.items():
+        if name in report.refused:
+            continue
+        account = by_name.get(name)
+        leftover = by_name.get(name + WRONG_TYPE_SUFFIX)
+        try:
+            if leftover and (account is None or account.get("AccountType") == kind):
+                # A run stopped part way: finish moving off the renamed account.
+                ours, others = users(leftover["Id"])
+                if others:
+                    report.refused[name] = (
+                        f"{leftover['Name']!r} is used by {others} records we did not stamp"
+                    )
+                elif not write:
+                    report.planned[name] = f"finish moving {len(ours)} entries to a {kind}"
+                else:
+                    move(leftover, account or create_account(name, kind), ours)
+                    report.fixed[name] = f"finished: {len(ours)} entries moved to a {kind}"
+                continue
+            if account is None or account.get("AccountType") == kind:
+                continue
+            before = f"{account.get('AccountType')}/{account.get('AccountSubType')}"
+            ours, others = users(account["Id"])
+            if others:
+                report.refused[name] = (
+                    f"is {before} but {others} records we did not stamp use it; "
+                    "only accounts holding nothing but our entries are changed"
+                )
+            elif not write:
+                report.planned[name] = (
+                    f"{before} -> {kind}: update in place, or replace it if QuickBooks "
+                    f"refuses ({len(ours)} stamped entries use it)"
+                )
+            else:
+                report.fixed[name] = retype(account, name, kind, before, ours)
+        except QboError as error:
+            report.failed[name] = str(error)
+    client._account_types = None  # types read before the repair are stale
+    return report
+
+
+def _editable(account: dict[str, Any]) -> dict[str, Any]:
+    """What an Account update sends back: its identity and name, not computed fields."""
+    return {key: account[key] for key in ("Id", "SyncToken", "Name") if key in account}
+
+
 # --- the ledger half of Sources ------------------------------------------------
 
 
@@ -845,9 +1059,22 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="plan offline: read nothing from QuickBooks, send nothing",
     )
+    repair = commands.add_parser(
+        "repair-types",
+        help="give the dataset's accounts their dataset AccountType in the sandbox",
+    )
+    repair.add_argument("dataset", type=Path)
+    repair.add_argument(
+        "--write", action="store_true", help="change the sandbox; without it, only report"
+    )
     args = parser.parse_args(argv)
 
     try:
+        if args.command == "repair-types":
+            client = QboClient(QboConfig.from_env())
+            report = repair_account_types(args.dataset, client, write=args.write)
+            print(("" if args.write else "dry run: ") + report.summary())
+            return 1 if report.failed else 0
         if args.command == "fetch":
             ledger = QboLedger(fallback=args.fallback)
             entries = ledger.ledger_entries()

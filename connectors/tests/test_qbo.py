@@ -776,3 +776,252 @@ def test_load_skips_an_entry_whose_account_quickbooks_holds_with_another_type(tm
         "'Accumulated Depreciation' is a Expense account in QuickBooks; the dataset says "
         "Fixed Asset"
     )
+
+
+# --- repairing account types the old loader guessed --------------------------------
+
+
+class UpdatingQbo(FakeQbo):
+    """FakeQbo that also takes sparse updates (a POST whose body has an Id), checks
+    SyncToken, lists only active accounts and can refuse an AccountType change."""
+
+    PATHS = {"account": "Account", "journalentry": "JournalEntry"}
+
+    def __init__(self, store=None, refuse_retype=False):
+        super().__init__(store)
+        self.refuse_retype = refuse_retype
+
+    def writes(self):
+        return [
+            r for r in self.requests if r.method == "POST" and "intuit.com/oauth" not in str(r.url)
+        ]
+
+    def __call__(self, request):
+        if request.url.path.endswith("/query") and "FROM Account" in request.url.params["query"]:
+            self.requests.append(request)
+            active = [a for a in self.store.get("Account", []) if a.get("Active", True)]
+            return httpx.Response(200, json={"QueryResponse": {"Account": active}})
+        api = request.url.host == "sandbox-quickbooks.api.intuit.com"
+        body = json.loads(request.content) if api and request.method == "POST" else {}
+        if "Id" not in body:
+            return super().__call__(request)
+        self.requests.append(request)
+        entity = self.PATHS[request.url.path.rsplit("/", 1)[-1]]
+        record = next(r for r in self.store[entity] if r["Id"] == body["Id"])
+        fault = None
+        if not body.get("sparse") or body["SyncToken"] != record["SyncToken"]:
+            fault = "stale or full update"
+        elif self.refuse_retype and body.get("AccountType", record.get("AccountType")) != (
+            record.get("AccountType")
+        ):
+            fault = "Account type cannot be changed for an account with transactions"
+        if fault:
+            return httpx.Response(400, json={"Fault": {"Error": [{"Message": fault}]}})
+        record.update({k: v for k, v in body.items() if k != "sparse"})
+        record["SyncToken"] = str(int(record["SyncToken"]) + 1)
+        return httpx.Response(200, json={entity: record})
+
+
+def depreciation_entry(n):
+    return entry(
+        id=f"qbo:JournalEntry:dep-{n}",
+        entry_type="journal_entry",
+        vendor_name=None,
+        doc_number=None,
+        memo=None,
+        total_cents=315_000,
+        lines=[
+            LedgerLine(
+                account="Depreciation Expense",
+                account_type="Expense",
+                side="debit",
+                amount_cents=315_000,
+            ),
+            LedgerLine(
+                account="Accumulated Depreciation",
+                account_type="Fixed Asset",
+                side="credit",
+                amount_cents=315_000,
+            ),
+        ],
+    )
+
+
+def depreciation_journal(record_id, ref, account_id="900"):
+    note = f"{qbo.REF_PREFIX}{ref}" if ref else "Intuit sample"
+    return {
+        "Id": record_id,
+        "SyncToken": "0",
+        "TxnDate": "2025-01-31",
+        "PrivateNote": note,
+        "Line": [
+            {
+                "Id": "0",
+                "Amount": 3150.0,
+                "DetailType": "JournalEntryLineDetail",
+                "JournalEntryLineDetail": {
+                    "PostingType": "Debit",
+                    "AccountRef": {"value": "901", "name": "Depreciation Expense"},
+                },
+            },
+            {
+                "Id": "1",
+                "Amount": 3150.0,
+                "DetailType": "JournalEntryLineDetail",
+                "JournalEntryLineDetail": {
+                    "PostingType": "Credit",
+                    "AccountRef": {"value": account_id, "name": "Accumulated Depreciation"},
+                },
+            },
+        ],
+    }
+
+
+def depreciation_sandbox(journals, refuse_retype=False):
+    accounts = [
+        {
+            "Id": "900",
+            "SyncToken": "0",
+            "Name": "Accumulated Depreciation",
+            "AccountType": "Expense",
+            "AccountSubType": "Travel",
+        },
+        {
+            "Id": "901",
+            "SyncToken": "0",
+            "Name": "Depreciation Expense",
+            "AccountType": "Expense",
+            "AccountSubType": "Travel",
+        },
+    ]
+    return UpdatingQbo({"Account": accounts, "JournalEntry": journals}, refuse_retype)
+
+
+def repair_fixture(tmp_path, journals, refuse_retype=False):
+    dataset = tmp_path / "dataset"
+    write_dataset(dataset, [depreciation_entry(1), depreciation_entry(2)])
+    fake = depreciation_sandbox(journals, refuse_retype)
+    return dataset, fake, make_client(fake, tmp_path)
+
+
+STAMPED = [
+    ("j1", "qbo:JournalEntry:dep-1"),
+    ("j2", "qbo:JournalEntry:dep-2"),
+]
+
+
+def test_repair_dry_run_reports_and_writes_nothing(tmp_path):
+    dataset, fake, client = repair_fixture(tmp_path, [depreciation_journal(*j) for j in STAMPED])
+    report = qbo.repair_account_types(dataset, client)
+    assert list(report.planned) == ["Accumulated Depreciation"]
+    assert "Expense/Travel -> Fixed Asset" in report.planned["Accumulated Depreciation"]
+    assert "2 stamped entries" in report.planned["Accumulated Depreciation"]
+    assert report.fixed == {} and report.moved == [] and fake.writes() == []
+
+
+def test_repair_changes_the_type_in_place_when_quickbooks_allows(tmp_path):
+    dataset, fake, client = repair_fixture(tmp_path, [depreciation_journal(*j) for j in STAMPED])
+    report = qbo.repair_account_types(dataset, client, write=True)
+    assert report.fixed == {
+        "Accumulated Depreciation": "Expense/Travel -> Fixed Asset/AccumulatedDepreciation in place"
+    }
+    account = fake.store["Account"][0]
+    assert (account["Id"], account["AccountType"], account["AccountSubType"]) == (
+        "900",
+        "Fixed Asset",
+        "AccumulatedDepreciation",
+    )
+    assert report.moved == [] and len(fake.writes()) == 1
+    assert all(j["SyncToken"] == "0" for j in fake.store["JournalEntry"])  # untouched
+
+    again = qbo.repair_account_types(dataset, client, write=True)
+    assert (again.planned, again.fixed, again.refused) == ({}, {}, {})
+    assert len(fake.writes()) == 1
+
+
+def test_repair_replaces_the_account_when_quickbooks_refuses_the_type_change(tmp_path):
+    dataset, fake, client = repair_fixture(
+        tmp_path, [depreciation_journal(*j) for j in STAMPED], refuse_retype=True
+    )
+    report = qbo.repair_account_types(dataset, client, write=True)
+    assert report.failed == {}
+    assert "as new account" in report.fixed["Accumulated Depreciation"]
+    assert "2 entries moved" in report.fixed["Accumulated Depreciation"]
+    assert report.moved == ["qbo:JournalEntry:j1", "qbo:JournalEntry:j2"]
+
+    old, new = fake.store["Account"][0], fake.store["Account"][-1]
+    assert old["Name"] == "Accumulated Depreciation (wrong type, unused)"
+    assert old["Active"] is False and old["AccountType"] == "Expense"
+    assert (new["Name"], new["AccountType"], new["AccountSubType"]) == (
+        "Accumulated Depreciation",
+        "Fixed Asset",
+        "AccumulatedDepreciation",
+    )
+    for journal, (_, ref) in zip(fake.store["JournalEntry"], STAMPED, strict=True):
+        credit = journal["Line"][1]["JournalEntryLineDetail"]["AccountRef"]
+        debit = journal["Line"][0]["JournalEntryLineDetail"]["AccountRef"]
+        assert credit == {"value": new["Id"], "name": "Accumulated Depreciation"}
+        assert debit == {"value": "901", "name": "Depreciation Expense"}
+        assert qbo.loaded_ref(journal) == ref and journal["SyncToken"] == "1"
+    # Each entry update was sparse and sent only Line: the stamp was never resent.
+    sent = [json.loads(r.content) for r in fake.writes() if r.url.path.endswith("journalentry")]
+    assert all(set(body) == {"Id", "SyncToken", "sparse", "Line"} for body in sent)
+
+    # Mapping now gives the dataset's type; a second run has nothing to do.
+    ledger = qbo.QboClient(client.config, client.http).fetch_ledger()
+    assert {line.account_type for e in ledger for line in e.lines} == {"Expense", "Fixed Asset"}
+    writes = len(fake.writes())
+    again = qbo.repair_account_types(dataset, client, write=True)
+    assert (again.planned, again.fixed, again.refused, again.failed) == ({}, {}, {}, {})
+    assert len(fake.writes()) == writes
+
+
+def test_repair_finishes_a_run_that_stopped_part_way(tmp_path):
+    journals = [depreciation_journal("j1", STAMPED[0][1], account_id="902")]
+    journals.append(depreciation_journal("j2", STAMPED[1][1], account_id="900"))
+    dataset, fake, client = repair_fixture(tmp_path, journals)
+    fake.store["Account"][0]["Name"] = "Accumulated Depreciation (wrong type, unused)"
+    fake.store["Account"].append(
+        {
+            "Id": "902",
+            "SyncToken": "0",
+            "Name": "Accumulated Depreciation",
+            "AccountType": "Fixed Asset",
+        }
+    )
+    report = qbo.repair_account_types(dataset, client, write=True)
+    assert report.fixed == {
+        "Accumulated Depreciation": "finished: 1 entries moved to a Fixed Asset"
+    }
+    assert report.moved == ["qbo:JournalEntry:j2"]
+    assert fake.store["Account"][0]["Active"] is False
+    lines = [j["Line"][1]["JournalEntryLineDetail"]["AccountRef"]["value"] for j in journals]
+    assert lines == ["902", "902"]
+
+
+def test_repair_refuses_an_account_that_records_we_did_not_stamp_use(tmp_path):
+    journals = [depreciation_journal(*j) for j in STAMPED]
+    journals.append(depreciation_journal("j3", None))  # one of Intuit's own
+    dataset, fake, client = repair_fixture(tmp_path, journals)
+    report = qbo.repair_account_types(dataset, client, write=True)
+    assert report.fixed == {} and report.moved == []
+    assert "1 records we did not stamp use it" in report.refused["Accumulated Depreciation"]
+    assert fake.writes() == []
+    assert fake.store["Account"][0]["AccountType"] == "Expense"
+
+
+def test_repair_refuses_production_before_any_request(tmp_path):
+    fake = depreciation_sandbox([])
+    client = make_client(fake, tmp_path, {**ENV, "QBO_ENVIRONMENT": "production"})
+    with pytest.raises(qbo.QboConfigError, match="sandbox"):
+        qbo.repair_account_types(tmp_path, client, write=True)
+    assert fake.requests == []
+
+
+def test_cli_repair_types_is_a_dry_run_without_write(tmp_path, monkeypatch, capsys):
+    dataset, fake, client = repair_fixture(tmp_path, [depreciation_journal(*j) for j in STAMPED])
+    monkeypatch.setattr(qbo.QboConfig, "from_env", classmethod(lambda cls: client.config))
+    monkeypatch.setattr(qbo, "QboClient", lambda config: client)
+    assert qbo.main(["repair-types", str(dataset)]) == 0
+    assert capsys.readouterr().out.startswith("dry run: planned 1, fixed 0")
+    assert fake.writes() == []
