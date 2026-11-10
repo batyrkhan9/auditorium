@@ -16,13 +16,13 @@ Honest and current. Update it as things land.
 
 | Piece | State |
 |---|---|
-| Repo setup, shared data contract | Done |
-| Audit agent | Not started |
-| Fake company data and answer key | Not started |
-| Ramp connection | Not started. The demo URL from our research, `https://mcp.ramp.com/mcp-apps/demo/mcp`, returned 404 on 2026-11-09. `https://mcp.ramp.com/mcp` answers but needs OAuth. |
-| QuickBooks sandbox connection | Not started |
-| Eval | Not started |
-| Screen | Not started |
+| Repo setup, shared data contract | Done. Contract v0.2.0 on main. |
+| Audit agent | In progress (Batyrkhan). On main: the preflight command and the period, ledger_match, receipt and approval checks. |
+| Fake company data and answer key | Dataset v1 on main (`data/company`, copperline-fy2025-v1, contract v0.2). Answer key sealed. |
+| Ramp connection | Live against Ramp's sandbox through the Developer API (client credentials). The dataset's 68 paid bills are loaded into the sandbox and read back live. The 2 unpaid bills and the 130 card transactions come from the dataset, because Ramp's API can't create card transactions; each run says so. MCP path (`https://demo-mcp.ramp.com/mcp`) and an offline stand-in server also work. |
+| QuickBooks sandbox connection | Live. The dataset's 255 ledger entries are loaded into the sandbox and read back with 0 missing. |
+| Eval | In progress (Noriaki). |
+| Screen | Done for run folders: results, evidence with what it was verified against, step log, pinned reviewer sign-off. Not yet tried on a real agent run. |
 
 ## Start here
 
