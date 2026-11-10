@@ -24,7 +24,10 @@ uv run python -m auditorium_connectors.ramp_standin <dataset_dir> [--port 8765] 
 RAMP_MCP_URL=http://127.0.0.1:8765/mcp RAMP_MCP_TOKEN=anything   # any token is accepted
 ```
 
-Ramp documents must be PDFs or images, or the connector refuses them and falls back.
+Ramp documents must be PDFs or images (a bill's raw `EMAIL` attachment may be plain
+text), or the connector refuses them and falls back. A file Ramp lists but its host
+answers 404 for is left off its transaction and named in `describe()`; see
+`decisions/2026-11-10-ramp-files-ramp-cannot-serve.md`.
 
 ## Ramp Developer API (unattended, with approvals)
 

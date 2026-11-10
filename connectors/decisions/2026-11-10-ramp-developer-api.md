@@ -37,8 +37,8 @@ that code.
 - Money comes from `entity_amount` (integer cents, signed, so a refund is
   negative). Anything not in USD is left out and counted. Pending transactions
   are left out and counted, and declined ones are dropped.
-- Approvals: steps with `step_status` `APPROVED` or `REJECTED` and a `user_id`
-  become contract `Approval`s. Every other step is left out and counted in
+- Approvals: steps with `step_status` `Approved`, `Admin approved` or `Rejected`
+  (any case) and a `user_id` become contract `Approval`s. Every other step is left out and counted in
   `describe()`, and so is a chain that is not approved yet. If the app lacks
   `approvals:read`, or the endpoint answers 403 or 404, approvals stay empty and
   `describe()` says "approvals unavailable". A 500 fails the connection.
@@ -49,11 +49,16 @@ that code.
   today's department, not the one at the time of purchase. A person's `role` stays
   empty too, because Ramp's role is a permission level.
 
-**Not confirmed.** Every payload follows the OpenAPI spec (read 2026-11-10). None
-has been captured. The values of `step_status` are a guess, because the spec types
-it as a free string. We have not checked that a client-credentials app on
-demo.ramp.com is granted `approvals:read`, or that the sandbox plan allows bills
-(a 403 on bills fails the connection, because missing bills means missing spend).
+**Checked against the sandbox (2026-11-10).** A read-only capture of
+demo-api.ramp.com is in `connectors/tests/fixtures/ramp_api_capture.json`. The app is
+granted every scope we ask for, `approvals:read` included, and bills are readable.
+Transactions, bills, receipts, users and departments match the spec. Approval
+`step_status` is free text in sentence case: we saw `Approved` (29) and
+`Admin approved` (4), both mapped to an approval by that user. `Rejected` has not
+been seen, so its spelling is still a guess. 111 of 144 chains are `PENDING` with no
+history. The capture has no pending or non-USD card transactions and no suspended
+users, so those paths still rest on the spec. One receipt's file is missing from
+Ramp's file host; see `2026-11-10-ramp-files-ramp-cannot-serve.md`.
 
 **What would change our mind.** A real capture whose shapes differ from the spec.
 A `step_status` vocabulary that has other decisions in it. Ramp's MCP server

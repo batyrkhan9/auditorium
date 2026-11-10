@@ -531,8 +531,8 @@ def map_card_transaction(payload: Mapping[str, Any]) -> SpendTransaction:
 def map_bill(
     payload: Mapping[str, Any], invoices: Iterable[Mapping[str, Any]] = ()
 ) -> SpendTransaction:
-    """A bill in the Developer API's shape (unconfirmed: the sandbox has no bills), with
-    the attachments `ramp_get_bill_invoices` returned for it."""
+    """A bill in the Developer API's shape (captured 2026-11-10; the MCP sandbox has no
+    bills), with the attachments `ramp_get_bill_invoices` returned for it."""
     ramp_id = payload["id"]
     what = f"bill {ramp_id}"
     vendor = (payload.get("vendor") or {}).get("name")
@@ -601,6 +601,8 @@ class RemoteFile:
     origin: str
     source: SourceRef
     url: str
+    # A raw e-mail is plain text. Every other file must be a PDF or an image.
+    text_ok: bool = False
 
 
 ATTACHMENT_TYPES = {
@@ -612,8 +614,8 @@ ATTACHMENT_TYPES = {
 
 
 def remote_files(payloads: RampPayloads) -> list[RemoteFile]:
-    """Receipt and invoice files to download. Their shapes are unconfirmed (the sandbox
-    has none); a record without a file URL is refused, not skipped."""
+    """Receipt and invoice files to download, in the Developer API's shapes (captured
+    2026-11-10; the MCP sandbox has none). A record without a file URL is refused."""
     files = []
     for receipt in payloads.receipts:
         if not receipt.get("receipt_url"):
@@ -647,6 +649,7 @@ def remote_files(payloads: RampPayloads) -> list[RemoteFile]:
                         record_id=attachment["id"],
                     ),
                     url=attachment["url"],
+                    text_ok=attachment.get("attachment_type") == "EMAIL",
                 )
             )
     return files
@@ -670,12 +673,23 @@ def _download_failure(error: Exception) -> str:
     return type(error).__name__
 
 
-def _is_document(media_type: str, path: Path) -> bool:
-    """A PDF or an image. A 200 login page is neither."""
+def _is_document(media_type: str, path: Path, text_ok: bool = False) -> bool:
+    """A PDF or an image, or plain text where `text_ok`. A 200 login page is none of them."""
     if media_type == "application/pdf":
         with path.open("rb") as file:
             return file.read(5) == b"%PDF-"
+    if text_ok and media_type == "text/plain":
+        with path.open("rb") as file:
+            return not file.read(512).lstrip().startswith(b"<")
     return media_type.startswith("image/")
+
+
+# A file host answering these says the file is not there. Any other failure (a 403 from
+# an expired signature, a 5xx, a timeout) fails the connection instead.
+FILE_GONE_STATUSES = {404, 410}
+# More files gone than this share of all files looks like a host problem, not missing
+# receipts, so the connection fails rather than flag every transaction.
+MAX_GONE_SHARE = 0.05
 
 
 # --- the Sources implementation -------------------------------------------------
@@ -725,14 +739,29 @@ class RampSources:
         self._attach_documents(remote_files(payloads), download)
 
     def _attach_documents(self, files: list[RemoteFile], download: Downloader) -> None:
-        """Downloads `files`, and refuses a transaction naming a file Ramp did not return."""
+        """Downloads `files`, and refuses a transaction naming a file Ramp did not return.
+        A file Ramp lists but its host says is gone is taken off its transaction (so it
+        reads as missing) and named in `describe()`; `raw` still lists it."""
+        # Document id -> why it could not be downloaded.
+        self.unavailable: dict[str, str] = {}
         self._documents = {d.id: d for d in self._download(files, download)}
+        if len(self.unavailable) > max(1, int(len(files) * MAX_GONE_SHARE)):
+            raise RampUnavailable(
+                f"{len(self.unavailable)} of {len(files)} files could not be found on Ramp's "
+                "file host; that looks like a host problem, not missing documents"
+            )
+        kept = []
         for txn in self._transactions:
             for document_id in txn.document_ids:
-                if document_id not in self._documents:
+                if document_id not in self._documents and document_id not in self.unavailable:
                     raise RampUnavailable(
                         f"{txn.id} names {document_id}, which Ramp did not return"
                     )
+            if any(d in self.unavailable for d in txn.document_ids):
+                found = [d for d in txn.document_ids if d not in self.unavailable]
+                txn = txn.model_copy(update={"document_ids": found})
+            kept.append(txn)
+        self._transactions = kept
 
     def _download(self, files: list[RemoteFile], download: Downloader) -> list[Document]:
         self.cache_dir.mkdir(parents=True, exist_ok=True)
@@ -747,10 +776,16 @@ class RampSources:
             try:
                 media_type = download(file.url, part)
             except Exception as error:
+                if (
+                    isinstance(error, httpx.HTTPStatusError)
+                    and error.response.status_code in FILE_GONE_STATUSES
+                ):
+                    self.unavailable[file.document_id] = _download_failure(error)
+                    continue
                 raise RampUnavailable(
                     f"could not download {what}: {_download_failure(error)}"
                 ) from None
-            if not _is_document(media_type, part):
+            if not _is_document(media_type, part, file.text_ok):
                 part.unlink(missing_ok=True)
                 raise RampUnavailable(f"{what} is not a PDF or an image (served as {media_type})")
             extension = mimetypes.guess_extension(media_type) or ".bin"
@@ -775,11 +810,23 @@ class RampSources:
         sent, not from a setting, so a stand-in can't be configured into "live"."""
         return self.server.get("name") == STANDIN_SERVER_NAME
 
+    def unavailable_note(self) -> list[str]:
+        """The files Ramp lists but could not serve, if any."""
+        if not self.unavailable:
+            return []
+        named = ", ".join(f"{d} ({why})" for d, why in sorted(self.unavailable.items()))
+        return [
+            f"{len(self.unavailable)} document(s) Ramp lists but its file host could not "
+            f"serve, left off their transactions so they read as missing: {named}"
+        ]
+
     def notes(self) -> list[str]:
         """What a reader of `describe()` must know about these records."""
         left_out = [f"{n} {why}" for why, n in sorted(self.left_out.items())]
-        return [APPROVALS_UNAVAILABLE] + (
-            [f"card transactions left out: {', '.join(left_out)}"] if left_out else []
+        return (
+            [APPROVALS_UNAVAILABLE]
+            + ([f"card transactions left out: {', '.join(left_out)}"] if left_out else [])
+            + self.unavailable_note()
         )
 
     def describe(self) -> list[SourceUse]:

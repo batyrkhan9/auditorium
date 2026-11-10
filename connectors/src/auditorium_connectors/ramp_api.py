@@ -10,9 +10,10 @@ secret. It is the only Ramp path that reaches approvals for card transactions
 - `ApiRampSources` maps those payloads to contract records. It reuses the MCP
   path's bill mapping, money checks, URL scrubbing and file download from `ramp.py`.
 
-Payload shapes follow Ramp's OpenAPI spec (docs.ramp.com/openapi/developer-api.json,
-read 2026-11-10). None has been captured from Ramp yet; see
-connectors/decisions/2026-11-10-ramp-developer-api.md.
+Payload shapes follow payloads captured from demo-api.ramp.com on 2026-11-10
+(connectors/tests/fixtures/ramp_api_capture.json). Pending transactions, suspended
+users and rejected approval steps were not in the capture and still follow Ramp's
+OpenAPI spec; see connectors/decisions/2026-11-10-ramp-developer-api.md.
 """
 
 from __future__ import annotations
@@ -84,8 +85,10 @@ APPROVALS_BATCH = 50  # entity ids per approvals request
 API_PENDING_STATES = PENDING_STATES | {"PENDING_INITIATION"}
 # The approvals endpoint answers these when the scope or the plan feature is missing.
 APPROVALS_REFUSALS = {403, 404}
-# Step statuses that are a decision. Others (the spec does not list them) are counted.
-DECISIONS = {"APPROVED": "approved", "REJECTED": "rejected"}
+# Step statuses that are a decision, upper-cased. Ramp writes "Approved" and "Admin
+# approved" (an admin's approval: still an approval by that user). "Rejected" was not
+# in the capture. Any other status is left out and counted.
+DECISIONS = {"APPROVED": "approved", "ADMIN APPROVED": "approved", "REJECTED": "rejected"}
 
 
 class RampApiError(RampUnavailable):
@@ -355,6 +358,7 @@ class ApiRampSources(RampSources):
         self.approvals_unavailable = payloads.approvals_unavailable
         self.unmapped_steps: Counter[str] = Counter()
         self.chain_statuses: Counter[str] = Counter()
+        self.step_statuses: Counter[str] = Counter()
 
         chains: dict[tuple[str, str], Mapping[str, Any]] = {}
         for resource in payloads.approvals:
@@ -368,6 +372,8 @@ class ApiRampSources(RampSources):
             if chain is None:
                 return []
             self.chain_statuses[str(chain.get("status"))] += 1
+            for step in chain.get("approval_history") or ():
+                self.step_statuses[str(step.get("step_status"))] += 1
             return map_approvals(chain, self.unmapped_steps)
 
         self._transactions = []
@@ -441,6 +447,11 @@ class ApiRampSources(RampSources):
                     "approval chains not approved: "
                     + ", ".join(f"{n} {s}" for s, n in sorted(unfinished.items()))
                 )
+            if self.step_statuses:
+                notes.append(
+                    "approval steps: "
+                    + ", ".join(f"{n} {s}" for s, n in sorted(self.step_statuses.items()))
+                )
             if self.unmapped_steps:
                 notes.append(
                     "approval steps left out: "
@@ -450,14 +461,17 @@ class ApiRampSources(RampSources):
             if counter:
                 left = ", ".join(f"{n} {why}" for why, n in sorted(counter.items()))
                 notes.append(f"{what} left out: {left}")
-        return notes
+        return notes + self.unavailable_note()
 
     def describe(self) -> list[SourceUse]:
+        kinds = Counter(t.kind for t in self._transactions)
         ramp = SourceUse(
             system=SourceSystem.RAMP,
             mode="live",
-            detail=f"Ramp Developer API at {httpx.URL(self.endpoint).host}; "
-            + "; ".join(self.notes()),
+            detail=f"Ramp Developer API at {httpx.URL(self.endpoint).host}: "
+            f"{kinds[TransactionKind.CARD_EXPENSE]} card transactions, "
+            f"{kinds[TransactionKind.VENDOR_BILL]} bills, {len(self._documents)} documents, "
+            f"{len(self._people)} people; " + "; ".join(self.notes()),
         )
         return [ramp] + [
             use for use in self.local.describe() if use.system is not SourceSystem.RAMP
