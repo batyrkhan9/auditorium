@@ -45,6 +45,15 @@ entities, including bills, purchases and journal entries). The PRD names it.
   paid-from account, or a type other than bill, expense or journal entry.
   New accounts get an `AccountType` guessed from the name. Only sandbox test data
   is affected, and the type never comes back into the contract.
+- QuickBooks requires `PaymentType` on an expense. The loader takes it from the
+  entry's `raw` record, or uses `CreditCard` when the paid-from account is a card
+  account by name. Cash and Check cannot be told apart from a name, so such an
+  entry is skipped. A refund (`Credit`) must be a card expense.
+- The read covers Bill, Purchase and JournalEntry only, and `describe()` says so.
+  Given the dataset, it counts how many of the dataset's entries the sandbox is
+  missing. If it holds none of them (only Intuit's sample company, say), the
+  ledger is reported `local`, because a live ledger without our data would flag
+  every transaction.
 
 **Contract mismatches found (contract-change candidates, not edited here).**
 1. `LedgerLine` has no account type or number. The loader has to guess types,

@@ -313,7 +313,63 @@ def test_plan_card_refund_sets_credit():
     plan = qbo.plan_entry(refund)
     assert plan.entity == "Purchase"
     assert plan.payload["Credit"] is True
+    assert plan.payload["PaymentType"] == "CreditCard"
     assert plan.payload["AccountRef"] == {"name": "Ramp Card"}
+
+
+def card_expense(**overrides):
+    return entry(
+        **{
+            "id": "qbo:Purchase:ds-7",
+            "entry_type": "expense",
+            "vendor_name": "Figma",
+            "doc_number": None,
+            "memo": None,
+            "total_cents": 4599,
+            "lines": [
+                LedgerLine(account="Software", side="debit", amount_cents=4599),
+                LedgerLine(account="Ramp Card", side="credit", amount_cents=4599),
+            ],
+            **overrides,
+        }
+    )
+
+
+def test_plan_expense_takes_payment_type_from_raw_record():
+    paid_by_check = card_expense(
+        raw={"PaymentType": "Check"},
+        lines=[
+            LedgerLine(account="Software", side="debit", amount_cents=4599),
+            LedgerLine(account="Operating", side="credit", amount_cents=4599),
+        ],
+    )
+    plan = qbo.plan_entry(paid_by_check)
+    assert plan.payload["PaymentType"] == "Check"
+    assert qbo.guess_account_type("Operating", plan.accounts["Operating"]) == "Bank"
+
+
+def test_plan_expense_refuses_to_guess_cash_or_check():
+    unknown = card_expense(
+        lines=[
+            LedgerLine(account="Software", side="debit", amount_cents=4599),
+            LedgerLine(account="Operating", side="credit", amount_cents=4599),
+        ]
+    )
+    with pytest.raises(qbo.Skip, match="cannot tell how the expense was paid"):
+        qbo.plan_entry(unknown)
+
+
+def test_plan_refund_needs_a_card_payment():
+    refund = card_expense(
+        total_cents=-4599,
+        raw={"PaymentType": "Cash"},
+        lines=[
+            LedgerLine(account="Software", side="credit", amount_cents=4599),
+            LedgerLine(account="Petty Cash", side="debit", amount_cents=4599),
+        ],
+    )
+    with pytest.raises(qbo.Skip, match="only valid on a CreditCard expense"):
+        qbo.plan_entry(refund)
 
 
 def test_account_type_guess():
@@ -381,6 +437,14 @@ class FakeQbo:
             "account": "Account",
         }[request.url.path.rsplit("/", 1)[-1]]
         body = json.loads(request.content)
+        if entity == "Purchase":
+            # QuickBooks requires PaymentType, and Credit only goes with CreditCard.
+            kind = body.get("PaymentType")
+            if kind not in ("Cash", "Check", "CreditCard") or (
+                body.get("Credit") and kind != "CreditCard"
+            ):
+                fault = {"Error": [{"Message": "Invalid PaymentType", "Detail": str(kind)}]}
+                return httpx.Response(400, json={"Fault": fault})
         body["Id"] = str(self.next_id)
         self.next_id += 1
         self.store.setdefault(entity, []).append(body)
@@ -396,6 +460,18 @@ def test_fetch_ledger_reads_all_three_entities(tmp_path):
     fake = FakeQbo({"Bill": [BILL], "Purchase": [PURCHASE], "JournalEntry": [JOURNAL]})
     entries = make_client(fake, tmp_path).fetch_ledger()
     assert [e.id for e in entries] == ["qbo:Bill:147", "qbo:Purchase:252", "qbo:JournalEntry:301"]
+
+
+def test_token_cache_is_private_from_creation_and_leaves_no_temp_file(tmp_path):
+    cache = tmp_path / "cache" / "auditorium" / "token.json"
+    config = qbo.QboConfig.from_env({**ENV, "QBO_TOKEN_CACHE": str(cache)})
+    client = qbo.QboClient(config, httpx.Client(transport=httpx.MockTransport(FakeQbo())))
+    client._store_refresh_token("refresh-rotated")
+    client._store_refresh_token("refresh-rotated-again")
+    assert cache.stat().st_mode & 0o777 == 0o600
+    assert cache.parent.stat().st_mode & 0o777 == 0o700
+    assert [p.name for p in cache.parent.iterdir()] == ["token.json"]
+    assert json.loads(cache.read_text())["refresh_token"] == "refresh-rotated-again"
 
 
 def test_rotated_refresh_token_is_cached_outside_env_and_tied_to_its_seed(tmp_path):
@@ -477,6 +553,30 @@ def test_load_creates_vendors_accounts_and_entries_once(tmp_path):
     assert len(fake.store["Bill"]) == 1
 
 
+def test_load_creates_a_card_expense_with_its_payment_type(tmp_path):
+    dataset = tmp_path / "dataset"
+    write_dataset(dataset, [card_expense()])
+    fake = FakeQbo()
+    report = qbo.load_dataset_ledger(dataset, make_client(fake, tmp_path))
+    assert report.failed == {} and report.skipped == {}
+    assert report.created == ["qbo:Purchase:1003"]
+    purchase = fake.store["Purchase"][0]
+    assert purchase["PaymentType"] == "CreditCard"
+    card = next(a for a in fake.store["Account"] if a["Name"] == "Ramp Card")
+    assert card["AccountType"] == "Credit Card"
+    assert purchase["AccountRef"] == {"value": card["Id"]}
+
+
+def test_load_skips_an_expense_whose_paid_from_account_has_another_type(tmp_path):
+    dataset = tmp_path / "dataset"
+    write_dataset(dataset, [card_expense()])
+    fake = FakeQbo({"Account": [{"Id": "41", "Name": "Ramp Card", "AccountType": "Bank"}]})
+    report = qbo.load_dataset_ledger(dataset, make_client(fake, tmp_path))
+    assert report.created == []
+    assert "is a Bank account in QuickBooks" in report.skipped["qbo:Purchase:ds-7"]
+    assert "Purchase" not in fake.store
+
+
 # --- QboLedger: live or an honest fallback ----------------------------------------
 
 
@@ -486,7 +586,35 @@ def test_qbo_ledger_live(tmp_path):
     use = ledger.describe()
     assert use.system == "qbo" and use.mode == "live"
     assert "sandbox-quickbooks.api.intuit.com" in use.detail
+    assert "read Bill, Purchase, JournalEntry" in use.detail
     assert [e.id for e in ledger.ledger_entries()] == ["qbo:Bill:147"]
+
+
+def test_qbo_ledger_live_says_how_much_of_the_dataset_is_missing(tmp_path):
+    dataset = tmp_path / "dataset"
+    write_dataset(dataset, [entry(id="qbo:JournalEntry:ds-1"), entry(id="qbo:Bill:ds-2")])
+    # One loaded entry (JOURNAL carries the stamp) and one of Intuit's own.
+    fake = FakeQbo({"Bill": [BILL], "JournalEntry": [JOURNAL]})
+    ledger = qbo.QboLedger(fallback=dataset, client=make_client(fake, tmp_path))
+    use = ledger.describe()
+    assert use.mode == "live"
+    assert "dataset fixture: 1 of 2 entries missing, 1 entries not from the dataset" in use.detail
+    assert [e.id for e in ledger.ledger_entries()] == ["qbo:Bill:147", "qbo:JournalEntry:301"]
+
+
+def test_qbo_ledger_with_none_of_the_dataset_loaded_is_local(tmp_path):
+    dataset = tmp_path / "dataset"
+    write_dataset(dataset, [entry()])
+    # Only Intuit's sample company: nothing the loader stamped.
+    fake = FakeQbo({"Bill": [BILL], "Purchase": [PURCHASE]})
+    ledger = qbo.QboLedger(fallback=dataset, client=make_client(fake, tmp_path))
+    use = ledger.describe()
+    assert use.mode == "local"
+    assert "not live: the sandbox holds none of the 1 ledger entries of dataset fixture" in (
+        use.detail
+    )
+    assert "2 entries read, 0 stamped" in use.detail
+    assert [e.id for e in ledger.ledger_entries()] == ["qbo:Bill:147"]  # the dataset's one
 
 
 def test_qbo_ledger_falls_back_when_not_configured(tmp_path):

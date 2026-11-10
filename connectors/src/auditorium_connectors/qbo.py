@@ -24,6 +24,7 @@ import argparse
 import hashlib
 import json
 import os
+import secrets
 import sys
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
@@ -145,11 +146,17 @@ class QboClient:
         cache = self.config.token_cache
         if not cache:
             return
+        # Written to a fresh file that is 0600 from creation, then moved into place,
+        # so the token is never readable by others and never half written.
+        tmp = cache.with_name(f".{cache.name}.{secrets.token_hex(8)}.tmp")
         try:
-            cache.parent.mkdir(parents=True, exist_ok=True)
-            cache.write_text(json.dumps({"seed": self._seed(), "refresh_token": token}), "utf-8")
-            cache.chmod(0o600)
+            cache.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+            fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            with os.fdopen(fd, "w", encoding="utf-8") as file:
+                file.write(json.dumps({"seed": self._seed(), "refresh_token": token}))
+            os.replace(tmp, cache)
         except OSError as error:
+            tmp.unlink(missing_ok=True)
             print(f"warning: could not keep the rotated refresh token: {error}", file=sys.stderr)
 
     def _refresh(self) -> None:
@@ -212,6 +219,7 @@ class QboClient:
         return body[entity]
 
     def fetch_ledger(self) -> list[LedgerEntry]:
+        """Every Bill, Purchase and JournalEntry. Other entity types are not read."""
         entries: list[LedgerEntry] = []
         for entity in ENTITY_TYPES:
             entries.extend(map_entity(entity, record) for record in self.query(entity))
@@ -377,8 +385,14 @@ class Skip(Exception):
 # QuickBooks needs an account type to create an account and the contract carries
 # only a name, so a new account's type is guessed from its name and its role.
 # Only test data in a sandbox is ever loaded, and the type never comes back into
-# the contract.
+# the contract. The account an expense was paid from has the type its PaymentType
+# requires, so QuickBooks accepts the pair.
+PAYMENT_ACCOUNT_TYPES = {"CreditCard": "Credit Card", "Cash": "Bank", "Check": "Bank"}
+
+
 def guess_account_type(name: str, role: str) -> str:
+    if role in PAYMENT_ACCOUNT_TYPES:
+        return PAYMENT_ACCOUNT_TYPES[role]
     lowered = name.lower()
     for words, account_type in (
         (("payable",), "Accounts Payable"),
@@ -389,7 +403,22 @@ def guess_account_type(name: str, role: str) -> str:
     ):
         if any(word in lowered for word in words):
             return account_type
-    return {"ap": "Accounts Payable", "payment": "Credit Card"}.get(role, "Expense")
+    return {"ap": "Accounts Payable"}.get(role, "Expense")
+
+
+def payment_type(entry: LedgerEntry, paid_from: str) -> str:
+    """QuickBooks' required Purchase.PaymentType. Taken from the entry's raw QBO
+    record when it has one, else CreditCard when the paid-from account is a card
+    account by name. Cash and Check cannot be told apart from a name, so Skip."""
+    recorded = (entry.raw or {}).get("PaymentType")
+    if recorded in PAYMENT_ACCOUNT_TYPES:
+        return recorded
+    if guess_account_type(paid_from, "") == "Credit Card":
+        return "CreditCard"
+    raise Skip(
+        f"cannot tell how the expense was paid: {paid_from!r} is not a card account "
+        "by name and the entry records no PaymentType (Cash or Check)"
+    )
 
 
 @dataclass
@@ -473,7 +502,11 @@ def plan_entry(entry: LedgerEntry) -> PlannedEntry:
     else:
         if not balancing:
             raise Skip("an expense needs the account it was paid from (its balancing line)")
-        accounts[balancing[0].account] = "payment"
+        paid_with = payment_type(entry, balancing[0].account)
+        if refund and paid_with != "CreditCard":
+            raise Skip(f"a refund (Credit) is only valid on a CreditCard expense, not {paid_with}")
+        accounts[balancing[0].account] = paid_with
+        payload["PaymentType"] = paid_with
         payload["AccountRef"] = {"name": balancing[0].account}
         if entry.vendor_name:
             payload["EntityRef"] = {"name": entry.vendor_name, "type": "Vendor"}
@@ -550,9 +583,11 @@ def load_dataset_ledger(dataset: Path | str, client: QboClient) -> LoadReport:
     }
     vendors = {v["DisplayName"]: v["Id"] for v in client.query("Vendor")}
     accounts: dict[str, str] = {}
+    account_types: dict[str, str] = {}
     for account in client.query("Account"):
-        accounts.setdefault(account["Name"], account["Id"])
-        accounts.setdefault(account.get("FullyQualifiedName", account["Name"]), account["Id"])
+        for name in (account["Name"], account.get("FullyQualifiedName", account["Name"])):
+            accounts.setdefault(name, account["Id"])
+            account_types.setdefault(name, account.get("AccountType", ""))
 
     def vendor_id(name: str) -> str:
         if name not in vendors:
@@ -571,6 +606,16 @@ def load_dataset_ledger(dataset: Path | str, client: QboClient) -> LoadReport:
         if plan.entry.id in loaded:
             report.already_loaded.append(plan.entry.id)
             continue
+        if plan.entity == "Purchase":
+            paid_from = plan.payload["AccountRef"]["name"]
+            wanted = PAYMENT_ACCOUNT_TYPES[plan.payload["PaymentType"]]
+            existing = account_types.get(paid_from)
+            if existing is not None and existing != wanted:
+                report.skipped[plan.entry.id] = (
+                    f"{paid_from!r} is a {existing} account in QuickBooks; "
+                    f"PaymentType {plan.payload['PaymentType']} needs {wanted}"
+                )
+                continue
         try:
             report.created.append(_send(plan, client, vendor_id, account_id))
         except QboError as error:
@@ -612,8 +657,9 @@ def _send(
 class QboLedger:
     """`ledger_entries()` and `describe()` for QuickBooks, honestly labelled.
 
-    Live when the sandbox answered. Otherwise the ledger of a local dataset, with
-    the reason in `describe().detail`. The fetch happens once, on first use;
+    Live when the sandbox answered and, given a fallback dataset, holds at least one
+    of its entries; `detail` then says how many are missing. Otherwise the ledger
+    of the local dataset, with the reason in `describe().detail`. The fetch happens once, on first use;
     `describe()` triggers it so it never reports a fetch that did not happen.
     """
 
@@ -634,28 +680,53 @@ class QboLedger:
             return
         try:
             client = self._client or QboClient(QboConfig.from_env(self._env))
-            self._entries = client.fetch_ledger()
-            config = client.config
-            self._use = SourceUse(
-                system=SourceSystem.QBO,
-                mode="live",
-                detail=f"QuickBooks Online {config.environment} ({config.base_url}), "
-                f"{len(self._entries)} entries",
-            )
+            entries = client.fetch_ledger()
         except (QboError, httpx.HTTPError, KeyError, ValueError) as error:
             reason = str(error) or type(error).__name__
             if self.fallback is None:
                 raise QboError(
                     f"QuickBooks not reachable and no local fallback: {reason}"
                 ) from error
+            self._use_local(LocalSources(self.fallback), reason)
+            return
+        config = client.config
+        detail = (
+            f"QuickBooks Online {config.environment} ({config.base_url}), "
+            f"read {', '.join(ENTITY_TYPES)}: {len(entries)} entries"
+        )
+        if self.fallback is not None:
+            # The sandbox only means something for this dataset if the loader put
+            # the dataset's entries there. Say how much of it is missing.
             local = LocalSources(self.fallback)
-            self._entries = local.ledger_entries()
-            self._use = SourceUse(
-                system=SourceSystem.QBO,
-                mode="local",
-                detail=f"dataset {local.dataset.manifest.dataset_id} at {self.fallback}; "
-                f"QuickBooks not live: {reason}",
+            dataset_id = local.dataset.manifest.dataset_id
+            wanted = {entry.id for entry in local.ledger_entries()}
+            stamped = {ref for entry in entries if (ref := loaded_ref(entry.raw or {}))}
+            if wanted and not stamped & wanted:
+                self._use_local(
+                    local,
+                    f"the sandbox holds none of the {len(wanted)} ledger entries of dataset "
+                    f"{dataset_id} ({len(entries)} entries read, {len(stamped)} stamped by "
+                    "the loader); load them with `python -m auditorium_connectors.qbo load`",
+                )
+                return
+            missing = len(wanted - stamped)
+            foreign = sum(1 for entry in entries if loaded_ref(entry.raw or {}) not in wanted)
+            detail += (
+                f"; dataset {dataset_id}: {missing} of {len(wanted)} entries missing, "
+                f"{foreign} entries not from the dataset"
             )
+        self._entries = entries
+        self._use = SourceUse(system=SourceSystem.QBO, mode="live", detail=detail)
+
+    def _use_local(self, local: LocalSources, reason: str) -> None:
+        self._entries = local.ledger_entries()
+        # Same wording as LocalFallback: the local detail, then why it is not live.
+        self._use = SourceUse(
+            system=SourceSystem.QBO,
+            mode="local",
+            detail=f"dataset {local.dataset.manifest.dataset_id} at {self.fallback}; "
+            f"not live: {reason}",
+        )
 
     def ledger_entries(self) -> list[LedgerEntry]:
         self._load()
