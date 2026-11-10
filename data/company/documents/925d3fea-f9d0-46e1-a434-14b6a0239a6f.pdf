@@ -1,0 +1,113 @@
+%PDF-1.3
+1 0 obj
+<<
+/Count 1
+/Kids [3 0 R]
+/MediaBox [0 0 612.00 792.00]
+/Type /Pages
+>>
+endobj
+2 0 obj
+<<
+/OpenAction [3 0 R /FitH null]
+/PageLayout /OneColumn
+/Pages 1 0 R
+/Type /Catalog
+>>
+endobj
+3 0 obj
+<<
+/Contents 4 0 R
+/Parent 1 0 R
+/Resources 7 0 R
+/Type /Page
+>>
+endobj
+4 0 obj
+<<
+/Length 1225
+>>
+stream
+2 J
+0.57 w
+BT /F2 22.00 Tf ET
+BT 56.83 717.40 Td (Invoice) Tj ET
+BT /F2 11.00 Tf ET
+BT 413.95 720.70 Td (Lumenstack Analytics, Inc.) Tj ET
+BT /F1 9.00 Tf ET
+BT 379.59 701.30 Td (88 Mission Plaza, San Francisco, CA 94105) Tj ET
+BT /F1 10.00 Tf ET
+BT 56.83 675.00 Td (Invoice #: LA-2463) Tj ET
+BT 308.83 675.00 Td (Billed to: Copperline, Inc.) Tj ET
+BT 56.83 659.00 Td (Issued: 12/15/2025) Tj ET
+BT 308.83 659.00 Td (1800 Wazee Street, Suite 400) Tj ET
+BT 56.83 643.00 Td (Due: 01/14/2026) Tj ET
+BT 308.83 643.00 Td (Denver, CO 80202) Tj ET
+BT 56.83 627.00 Td (Payment terms: Net 30) Tj ET
+BT 308.83 627.00 Td (Contact: Ingrid Navarro) Tj ET
+BT 56.83 602.00 Td (Subscription term: January 1 - December 31, 2026) Tj ET
+BT /F2 10.00 Tf ET
+BT 56.83 581.00 Td (Item) Tj ET
+BT 517.40 581.00 Td (Amount) Tj ET
+54.00 574.00 m 558.00 574.00 l S
+BT /F1 10.00 Tf ET
+BT 56.83 561.00 Td (Lumenstack Analytics platform, annual license) Tj ET
+BT 510.69 561.00 Td ($9,600.00) Tj ET
+54.00 554.00 m 558.00 554.00 l S
+BT /F2 10.00 Tf ET
+BT 56.83 541.00 Td (Amount due) Tj ET
+BT 510.69 541.00 Td ($9,600.00) Tj ET
+BT /F1 9.00 Tf ET
+BT 56.83 511.30 Td (Pay by bank transfer. Questions about this invoice: billing@lumenstackanalytic.example) Tj ET
+
+endstream
+endobj
+5 0 obj
+<<
+/BaseFont /Helvetica
+/Encoding /WinAnsiEncoding
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+6 0 obj
+<<
+/BaseFont /Helvetica-Bold
+/Encoding /WinAnsiEncoding
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+7 0 obj
+<<
+/Font <</F1 5 0 R
+/F2 6 0 R>>
+/ProcSet [/PDF /Text /ImageB /ImageC /ImageI]
+>>
+endobj
+8 0 obj
+<<
+/CreationDate (D:20260302120000Z)
+>>
+endobj
+xref
+0 9
+0000000000 65535 f 
+0000000009 00000 n 
+0000000096 00000 n 
+0000000199 00000 n 
+0000000279 00000 n 
+0000001556 00000 n 
+0000001653 00000 n 
+0000001755 00000 n 
+0000001852 00000 n 
+trailer
+<<
+/Size 9
+/Root 2 0 R
+/Info 8 0 R
+/ID [<40ABA0FBE997FBBBA1AF3EC7B8B438C1><40ABA0FBE997FBBBA1AF3EC7B8B438C1>]
+>>
+startxref
+1907
+%%EOF
