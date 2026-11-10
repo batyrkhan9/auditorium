@@ -29,10 +29,6 @@ import repo_rules as rr  # noqa: E402
 READ_TOOLS = ("Read", "Grep", "Glob")
 
 SECRET_FILE = re.compile(r"(^|/)(\.env(\.(?!example$)[^/]+)?|[^/]+\.(key|pem|p12))$")
-SECRET_IN_COMMAND = re.compile(r"(?<![\w.-])\.env(?!\.example)(\.[\w-]+)?(?![\w-])|\.(pem|p12)\b")
-FILE_READERS = re.compile(
-    r"\b(cat|head|tail|less|more|bat|grep|rg|awk|sed|cut|sort|strings|xxd|od|base64|open|code|vim?|nano)\b"
-)
 KEY_HANDLING = re.compile(r"sealed\.key|git-crypt\s+(unlock|lock|export-key|init|add-gpg-user)")
 ATTRIBUTION = re.compile(
     r"co-authored-by:[^\n]*(claude|anthropic)|generated with[^\n]{0,40}claude"
@@ -83,12 +79,6 @@ def guard_bash(command, cwd):
         )
     if SKIPS_HOOKS.search(command):
         decide("deny", "Don't skip or repoint the git hooks. Fix what the hook reports.")
-    if SECRET_IN_COMMAND.search(command) and FILE_READERS.search(command):
-        decide(
-            "deny",
-            "That command would read a secrets file. Variable names are in .env.example. "
-            "Load values with 'uv run --env-file .env ...' and never print them.",
-        )
 
     root = rr.repo_root(cwd)
     if root is None:

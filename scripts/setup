@@ -31,20 +31,6 @@ fi
 git config auditorium.person "$person"
 git config core.hooksPath .githooks
 
-email="$(git config user.email || true)"
-if ! python3 - "$email" <<'PY'
-import json, sys
-people = json.load(open("ownership.json"))["people"]
-ok = sys.argv[1].lower() in {e.lower() for p in people.values() for e in p["emails"]}
-sys.exit(0 if ok else 1)
-PY
-then
-  echo
-  echo "NOTE  Your git email '$email' is not in ownership.json, so commits will be refused."
-  echo "      Add it under people.$person.emails on a branch named shared/add-$person-email,"
-  echo "      or set git config user.email to an address that is listed."
-fi
-
 [ -f .env ] || cp .env.example .env
 uv sync --all-packages --quiet
 

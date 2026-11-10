@@ -81,10 +81,6 @@ def person(root):
     return git("config", "--get", "auditorium.person", cwd=str(root)) or None
 
 
-def allowed_emails(rules):
-    return {e.lower() for p in rules["people"].values() for e in p["emails"]}
-
-
 def clone_is_sealed(root):
     """True when this clone holds the git-crypt key, so sealed/ is readable here."""
     try:

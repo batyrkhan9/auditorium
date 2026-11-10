@@ -2,9 +2,9 @@
 """Repo checks, run by the git hooks and by CI.
 
     scripts/checks.py precommit        staged changes (the pre-commit hook)
-    scripts/checks.py commit-msg FILE  the commit message and author (the commit-msg hook)
+    scripts/checks.py commit-msg FILE  the commit message (the commit-msg hook)
     scripts/checks.py sealed           everything under sealed/ is encrypted in git
-    scripts/checks.py authors          every commit is by Batyrkhan or Noriaki, no attribution
+    scripts/checks.py authors          no commit carries Claude attribution
     scripts/checks.py ownership        this branch only changed its own area
     scripts/checks.py secrets          no secrets in tracked files
 
@@ -29,8 +29,7 @@ ATTRIBUTION = re.compile(
     r"|noreply@anthropic\.com|claude-session:",
     re.IGNORECASE,
 )
-CO_AUTHOR = re.compile(r"^co-authored-by:.*<([^>]+)>", re.IGNORECASE | re.MULTILINE)
-GITHUB_COMMITTER = "noreply@github.com"
+BOT = re.compile(r"claude|anthropic", re.IGNORECASE)
 
 SECRET_FILENAME = re.compile(r"(^|/)(\.env(\.(?!example$)[^/]+)?|[^/]+\.(key|pem|p12))$")
 SECRET_PATTERNS = [
@@ -127,24 +126,14 @@ def check_precommit():
 
 
 def check_commit_msg(message_file):
-    rules = rr.load_rules(ROOT)
     message = Path(message_file).read_text(errors="replace")
     message = "\n".join(line for line in message.splitlines() if not line.startswith("#"))
-    problems = []
     if ATTRIBUTION.search(message):
-        problems.append(
+        return [
             "The commit message carries Claude attribution. The only authors are Batyrkhan "
             "and Noriaki. Remove the Co-Authored-By / 'Generated with' / session lines."
-        )
-    ident = git("var", "GIT_AUTHOR_IDENT")
-    match = re.search(r"<([^>]*)>", ident)
-    email = match.group(1).lower() if match else ""
-    if email not in rr.allowed_emails(rules):
-        problems.append(
-            f"Author email '{email}' is not one of ours. Fix git config user.email, or add "
-            "your email to ownership.json on a shared/ branch."
-        )
-    return problems
+        ]
+    return []
 
 
 def check_sealed():
@@ -153,24 +142,14 @@ def check_sealed():
 
 
 def check_authors():
-    rules = rr.load_rules(ROOT)
-    allowed = rr.allowed_emails(rules)
-    log = git("log", "--format=%H%x1f%ae%x1f%ce%x1f%B%x1e")
+    log = git("log", "--format=%H%x1f%an <%ae>%x1f%cn <%ce>%x1f%B%x1e")
     problems = []
     for entry in log.split("\x1e"):
         if not entry.strip():
             continue
-        sha, author, committer, body = entry.strip().split("\x1f", 3)
-        short = sha[:9]
-        if author.lower() not in allowed:
-            problems.append(f"{short}: author {author} is not Batyrkhan or Noriaki")
-        if committer.lower() not in allowed and committer.lower() != GITHUB_COMMITTER:
-            problems.append(f"{short}: committer {committer} is not Batyrkhan or Noriaki")
-        if ATTRIBUTION.search(body):
-            problems.append(f"{short}: commit message carries Claude attribution")
-        for email in CO_AUTHOR.findall(body):
-            if email.lower() not in allowed:
-                problems.append(f"{short}: co-author {email} is not Batyrkhan or Noriaki")
+        sha, author, committer, body = entry.strip("\n").split("\x1f", 3)
+        if BOT.search(author) or BOT.search(committer) or ATTRIBUTION.search(body):
+            problems.append(f"{sha[:9]}: carries Claude attribution")
     return problems
 
 

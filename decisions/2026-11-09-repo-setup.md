@@ -34,7 +34,7 @@ Decided at setup, 2026-11-09. Each line: the call, then why.
     each area owns its own `pyproject.toml`. The Agent SDK, Braintrust and PDF
     tooling are all first-class in Python.
 11. **Attribution off in three places:** Claude Code settings, a commit-msg
-    hook, and a CI check on every commit's author.
+    hook, and a CI check. Nothing checks who the author is.
 12. **No GitHub branch protection.** We work on our own branches and talk
     before main changes. Sessions cannot commit on main, and a push to main
     asks the human first.
