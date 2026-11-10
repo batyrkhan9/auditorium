@@ -50,8 +50,9 @@ result stays `needs_review`.
 **Checked live once**, on 2026-11-10, on the 19-transaction sample: three
 requests, all answered by `claude-opus-5-5`, 2,775 tokens in and 223 out, about
 1.6 cents at list price. Both quotes verified against the documents, and for
-the invoice with no service dates it answered that none were stated. Not yet
-run on PDFs or on the scored dataset.
+the invoice with no service dates it answered that none were stated. Run again
+the same day on the PDF version of the sample with the same three outcomes.
+Not yet run on the scored dataset.
 
 **Spend is capped twice.** The reader stops after 50 requests in a run
 (`--max-claude-calls`), and the API key should come from a Console workspace

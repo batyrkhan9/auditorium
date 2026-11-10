@@ -6,10 +6,12 @@ It exists so the agent can run before the real dataset does. Rebuild with:
     uv run python agent/examples/make_sample.py
 """
 
+import re
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import auditorium_contracts as c
+from fpdf import FPDF
 
 ROOT = Path(__file__).parent / "sample"
 BILL_TO = "Bill to: Larkspur Labs, Inc.\n"
@@ -31,7 +33,8 @@ CASES = [
         key="b_1002", vendor="Harlow & Finch LLP", cents=450_000, day=date(2026, 1, 10),
         invoice="883", booked=date(2026, 1, 10), paid=date(2026, 1, 24),
         text="Harlow & Finch LLP\nInvoice 883\nInvoice date: January 10, 2026\n" + BILL_TO
-        + "Legal services\nService period: 12/01/2025 - 12/31/2025\nAmount due: $4,500.00\n",
+        + "Legal services for the Series B financing and related corporate housekeeping. Service period: "
+        "December 1 - December 31, 2025\nAmount due: $4,500.00\n",
     ),
     dict(  # Clean. Same vendor and amount as b_1005: the pairing must keep them apart.
         key="b_1003", vendor="Cloudline Hosting, Inc.", cents=230_000, day=date(2025, 11, 30),
@@ -163,6 +166,32 @@ SAMPLE_REQUEST = c.SampleRequest(
 )  # fmt: skip
 
 
+def write_pdf(path: Path, text: str) -> Path:
+    """Lay the text out the way real invoices and statements are: a heading, amounts
+    right-aligned in their own column, statement rows as a table, long lines wrapped."""
+    pdf = FPDF(format="Letter")
+    pdf.set_creation_date(datetime(2026, 1, 1, tzinfo=UTC))  # so rebuilding gives the same bytes
+    pdf.add_page()
+    heading, *lines = text.splitlines()
+    pdf.set_font("Helvetica", "B", 16)
+    pdf.cell(0, 12, heading, new_x="LMARGIN", new_y="NEXT")
+    pdf.set_font("Helvetica", size=11)
+    for line in lines:
+        label, colon, value = line.partition(": ")
+        columns = re.split(r"\s{2,}", line)
+        if colon and re.fullmatch(r"\$[\d,]+\.\d{2}", value):
+            pdf.cell(130, 7, f"{label}:")
+            pdf.cell(0, 7, value, align="R", new_x="LMARGIN", new_y="NEXT")
+        elif len(columns) > 2:
+            for column, width in zip(columns[:-1], (28, 32, 80), strict=False):
+                pdf.cell(width, 7, column)
+            pdf.cell(0, 7, columns[-1], align="R", new_x="LMARGIN", new_y="NEXT")
+        else:
+            pdf.multi_cell(0, 7, line, new_x="LMARGIN", new_y="NEXT")
+    pdf.output(str(path))
+    return path
+
+
 def main():
     (ROOT / "documents").mkdir(parents=True, exist_ok=True)
     transactions, ledger, documents = [], [], []
@@ -173,16 +202,14 @@ def main():
             system="ramp", record_type="bill" if is_bill else "transaction", record_id=key
         )
         if case["text"]:
-            path = ROOT / "documents" / f"{key}.txt"
-            path.write_text(case["text"])
+            path = write_pdf(ROOT / "documents" / f"{key}.pdf", case["text"])
             documents.append(
                 c.Document(
                     id=f"doc_{key}",
                     type="invoice" if is_bill else "receipt",
                     source=source,
                     origin="external",
-                    path=f"documents/{key}.txt",
-                    media_type="text/plain",
+                    path=f"documents/{key}.pdf",
                     sha256=c.sha256_file(path),
                 )
             )
@@ -241,16 +268,14 @@ def main():
     )
 
     for month, text in BANK_STATEMENTS.items():
-        path = ROOT / "documents" / f"bank-{month}.txt"
-        path.write_text(text)
+        path = write_pdf(ROOT / "documents" / f"bank-{month}.pdf", text)
         documents.append(
             c.Document(
                 id=f"doc_bank_{month}",
                 type="bank_statement",
                 source=c.SourceRef(system="bank", record_type="statement", record_id=month),
                 origin="external",
-                path=f"documents/bank-{month}.txt",
-                media_type="text/plain",
+                path=f"documents/bank-{month}.pdf",
                 sha256=c.sha256_file(path),
             )
         )

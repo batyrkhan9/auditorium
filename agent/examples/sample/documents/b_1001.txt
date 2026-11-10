@@ -1,7 +1,0 @@
-Northwind Advisory LLC
-Invoice INV-2041
-Invoice date: January 8, 2026
-Bill to: Larkspur Labs, Inc.
-Strategy consulting
-Services rendered: December 1 - December 31, 2025
-Total due: $12,000.00
