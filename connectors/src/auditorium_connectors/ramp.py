@@ -323,6 +323,25 @@ def _day(value: str | None) -> date | None:
     return datetime.fromisoformat(value).date() if "T" in value else date.fromisoformat(value)
 
 
+# The query string and fragment of a URL, where presigned URLs keep their signature.
+_URL_QUERY = re.compile(r"(https?://[^\s?#'\"]+)[?#][^\s'\"]*")
+
+
+def _unsigned(value: Any) -> Any:
+    """`value` with the query string and fragment cut from every URL in any string,
+    at any depth. Ramp's file links (`attachments[].url`, `receipt_url`, `invoice_urls`)
+    are presigned and the signature is a credential, so `raw` keeps scheme, host and
+    path (enough to identify the file) and never the signature. Fields are kept, not
+    dropped, so `raw` still has the original's shape."""
+    if isinstance(value, str):
+        return _URL_QUERY.sub(r"\1", value)
+    if isinstance(value, Mapping):
+        return {key: _unsigned(item) for key, item in value.items()}
+    if isinstance(value, list | tuple):
+        return [_unsigned(item) for item in value]
+    return value
+
+
 def _usd_cents(money: Mapping[str, Any] | None, what: str) -> int:
     """Ramp's ApiSignedAmount {value, currency} or CurrencyAmount {amount, currency_code}."""
     if not money:
@@ -381,13 +400,14 @@ def map_card_transaction(
         amount_cents=_usd_cents(payload.get("entity_amount"), what),
         transaction_date=purchased,
         accounting_date=_day(payload.get("accounting_date")),
+        paid_date=_day(payload.get("settlement_date")),
         memo=payload.get("memo") or None,
         category=_gl_account(payload.get("accounting_field_selections")),
         spender_id=person_id(holder["user_id"]) if holder.get("user_id") else None,
         department=holder.get("department_name") or None,
         document_ids=[receipt_document_id(r) for r in payload.get("receipts") or ()],
         approvals=map_approvals(approvals),
-        raw=dict(payload),
+        raw=_unsigned(payload),
     )
 
 
@@ -422,7 +442,7 @@ def map_bill(
         spender_id=person_id(owner["id"]) if owner.get("id") else None,
         document_ids=[attachment_document_id(a["id"]) for a in payload.get("attachments") or ()],
         approvals=map_approvals(approvals),
-        raw=dict(payload),
+        raw=_unsigned(payload),
     )
 
 
@@ -626,10 +646,6 @@ class RampSources:
 
     def policy(self) -> SpendPolicy:
         return self.local.policy()
-
-
-# The query string and fragment of a URL, where presigned URLs keep their signature.
-_URL_QUERY = re.compile(r"(https?://[^\s?#'\"]+)[?#][^\s'\"]*")
 
 
 def _reason(error: BaseException) -> str:

@@ -37,7 +37,8 @@ synthetic. A missing tool, a second page of results (or a total larger than what
 came back), an approval chain left out of the answer, or a receipt that Ramp names
 but does not return all fail the connection rather than silently drop records. A
 downloaded file must be a PDF or an image, and a failure reason never carries a
-URL's query string (Ramp's file URLs are presigned). Archived (deleted) and draft
+URL's query string, and neither does a record's `raw` (Ramp's file URLs are presigned;
+we keep scheme, host and path). Archived (deleted) and draft
 bills are not spend. The spec gives `Bill.status` only `OPEN` or `PAID`, so there
 is no voided status to exclude.
 
@@ -52,8 +53,9 @@ is no voided status to exclude.
    type (receipt, invoice: external; email, file: internal).
 4. Approvals: Ramp has a chain with a status (`PENDING`, `APPROVED`). The contract
    only has decisions, so "still waiting" and "never routed" look the same.
-5. Card `paid_date`: Ramp's `settlement_date` exists, but the contract does not
-   define paid for a card. Left empty, kept in `raw`.
+5. Card `paid_date`: we map Ramp's `settlement_date` to it (agreed: for a card, paid
+   is the settlement date; for a bill, the day payment left). The contract does not
+   say this, so it should be written into CONTRACT.md.
 6. Bills have no department, and `category` is one string where a bill can carry
    several GL accounts (we leave it empty then).
 7. `SpendPolicy`: Ramp exposes no receipt threshold or approval rules in this

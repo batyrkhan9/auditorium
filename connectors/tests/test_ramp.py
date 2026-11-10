@@ -176,7 +176,7 @@ def test_card_transaction_maps_ramp_fields_and_keeps_raw():
     assert txn.amount_cents == 4250
     assert txn.transaction_date == date(2025, 12, 3)
     assert txn.accounting_date == date(2025, 12, 4)
-    assert txn.paid_date is None  # Ramp's settlement_date stays in raw; see the decision file
+    assert txn.paid_date == date(2025, 12, 5)  # a card is paid on its settlement date
     assert txn.category == "6100 Meals"  # the GL_ACCOUNT selection, not Ramp's own category
     assert txn.spender_id == "ramp:user:u-200"
     assert txn.department == "Engineering"
@@ -189,6 +189,32 @@ def test_card_transaction_maps_ramp_fields_and_keeps_raw():
         )
     ]
     assert txn.raw == CARD
+
+
+def test_a_card_transaction_without_a_settlement_date_has_no_paid_date():
+    assert map_card_transaction(DECLINED).paid_date is None
+
+
+def test_signed_urls_never_reach_raw():
+    signature = "X-Amz-Signature=deadbeefcafe"
+    signed = f"https://ramp-files.example/f.pdf?{signature}&X-Amz-Credential=AKIA#frag"
+    card = {**CARD, "receipt_urls": [signed], "nested": {"deep": [{"url": signed}]}}
+    bill = {
+        **BILL,
+        "attachments": [{"id": "att-500", "attachment_type": "INVOICE", "url": signed}],
+        "invoice_urls": [signed],
+        "note": f"see {signed} for the copy",
+    }
+    records = [map_card_transaction(card), map_bill(bill)]
+
+    dumped = "".join(r.model_dump_json() for r in records)
+    assert "deadbeefcafe" not in dumped
+    assert "AKIA" not in dumped
+    assert "frag" not in dumped
+    # The record stays identifiable: scheme, host and path survive.
+    assert records[1].raw["attachments"][0]["url"] == "https://ramp-files.example/f.pdf"
+    assert records[0].raw["nested"]["deep"][0]["url"] == "https://ramp-files.example/f.pdf"
+    assert records[1].raw["note"] == "see https://ramp-files.example/f.pdf for the copy"
 
 
 def test_refund_keeps_its_negative_amount_and_no_invented_fields():
