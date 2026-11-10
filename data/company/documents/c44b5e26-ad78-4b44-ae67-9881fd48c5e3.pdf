@@ -1,0 +1,119 @@
+%PDF-1.3
+1 0 obj
+<<
+/Count 1
+/Kids [3 0 R]
+/MediaBox [0 0 612.00 792.00]
+/Type /Pages
+>>
+endobj
+2 0 obj
+<<
+/OpenAction [3 0 R /FitH null]
+/PageLayout /OneColumn
+/Pages 1 0 R
+/Type /Catalog
+>>
+endobj
+3 0 obj
+<<
+/Contents 4 0 R
+/Parent 1 0 R
+/Resources 7 0 R
+/Type /Page
+>>
+endobj
+4 0 obj
+<<
+/Length 1421
+>>
+stream
+2 J
+0.57 w
+BT /F2 16.00 Tf ET
+BT 56.83 722.20 Td (Tallgrass Data Services) Tj ET
+BT 489.37 722.20 Td (INVOICE) Tj ET
+BT /F1 10.00 Tf ET
+BT 56.83 706.50 Td (803 Prairie Avenue) Tj ET
+BT 56.83 693.50 Td (Fort Collins, CO 80524) Tj ET
+BT 56.83 670.00 Td (Invoice No.: TDS-68138) Tj ET
+BT 56.83 656.00 Td (Invoice Date: January 5, 2026) Tj ET
+BT 56.83 642.00 Td (Terms: Net 30) Tj ET
+BT 56.83 628.00 Td (Due Date: February 4, 2026) Tj ET
+BT /F2 10.00 Tf ET
+BT 56.83 606.00 Td (Bill To) Tj ET
+BT /F1 10.00 Tf ET
+BT 56.83 592.00 Td (Copperline, Inc.) Tj ET
+BT 56.83 578.50 Td (1800 Wazee Street, Suite 400) Tj ET
+BT 56.83 565.50 Td (Denver, CO 80202) Tj ET
+BT 56.83 552.50 Td (Attn: Ingrid Navarro) Tj ET
+BT 56.83 531.00 Td (Service month: December 2025) Tj ET
+BT /F2 10.00 Tf ET
+BT 56.83 512.00 Td (Description) Tj ET
+BT 357.06 512.00 Td (Qty) Tj ET
+BT 432.70 512.00 Td (Rate) Tj ET
+BT 517.40 512.00 Td (Amount) Tj ET
+54.00 505.00 m 558.00 505.00 l S
+BT /F1 10.00 Tf ET
+BT 56.83 492.00 Td (Data warehouse migration, cutover support) Tj ET
+BT 510.69 492.00 Td ($6,450.00) Tj ET
+54.00 485.00 m 558.00 485.00 l S
+BT 417.68 472.00 Td (Subtotal) Tj ET
+BT 510.69 472.00 Td ($6,450.00) Tj ET
+BT /F2 10.00 Tf ET
+BT 408.81 456.00 Td (Total Due) Tj ET
+BT 510.69 456.00 Td ($6,450.00) Tj ET
+BT /F1 10.00 Tf ET
+BT 56.83 427.00 Td (Please remit payment to Tallgrass Data Services by ACH within 30 days. Thank you for your business.) Tj ET
+
+endstream
+endobj
+5 0 obj
+<<
+/BaseFont /Helvetica
+/Encoding /WinAnsiEncoding
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+6 0 obj
+<<
+/BaseFont /Helvetica-Bold
+/Encoding /WinAnsiEncoding
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+7 0 obj
+<<
+/Font <</F1 5 0 R
+/F2 6 0 R>>
+/ProcSet [/PDF /Text /ImageB /ImageC /ImageI]
+>>
+endobj
+8 0 obj
+<<
+/CreationDate (D:20260302120000Z)
+>>
+endobj
+xref
+0 9
+0000000000 65535 f 
+0000000009 00000 n 
+0000000096 00000 n 
+0000000199 00000 n 
+0000000279 00000 n 
+0000001752 00000 n 
+0000001849 00000 n 
+0000001951 00000 n 
+0000002048 00000 n 
+trailer
+<<
+/Size 9
+/Root 2 0 R
+/Info 8 0 R
+/ID [<765795FE32A173CBD8969962BA32C0AD><765795FE32A173CBD8969962BA32C0AD>]
+>>
+startxref
+2103
+%%EOF

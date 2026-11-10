@@ -1,0 +1,99 @@
+{
+  "id": "sample-2026-02",
+  "auditor": "Whitlock & Draper LLP",
+  "received_on": "2026-02-16",
+  "items": [
+    {
+      "line": 1,
+      "description": "Card expense, Travel",
+      "transaction_date": "2025-02-24",
+      "vendor_name": "The Larimer House Hotel",
+      "amount_cents": 81984
+    },
+    {
+      "line": 2,
+      "description": "Vendor bill, Prepaid Expenses",
+      "transaction_date": "2025-03-10",
+      "vendor_name": "Front Range Insurance Brokers",
+      "amount_cents": 1860000,
+      "reference": "FR45548"
+    },
+    {
+      "line": 3,
+      "description": "Vendor bill, Recruiting",
+      "transaction_date": "2025-03-12",
+      "vendor_name": "Summit Talent Partners",
+      "amount_cents": 1800000,
+      "reference": "STP-67152"
+    },
+    {
+      "line": 4,
+      "description": "Card expense, Travel",
+      "transaction_date": "2025-04-04",
+      "vendor_name": "Harborlight Inn",
+      "amount_cents": 23368
+    },
+    {
+      "line": 5,
+      "description": "Card expense, Computer Equipment",
+      "transaction_date": "2025-06-11",
+      "vendor_name": "Voltline Electronics",
+      "amount_cents": 24999
+    },
+    {
+      "line": 6,
+      "description": "Vendor bill, Recruiting",
+      "transaction_date": "2025-06-18",
+      "vendor_name": "Summit Talent Partners",
+      "amount_cents": 2150000,
+      "reference": "STP-67197"
+    },
+    {
+      "line": 7,
+      "description": "Vendor bill, Recruiting",
+      "transaction_date": "2025-09-09",
+      "vendor_name": "Summit Talent Partners",
+      "amount_cents": 6120000,
+      "reference": "STP-67201"
+    },
+    {
+      "line": 8,
+      "description": "Card expense, Meals & Entertainment",
+      "transaction_date": "2025-10-11",
+      "vendor_name": "Juniper Coffee Roasters",
+      "amount_cents": 1648
+    },
+    {
+      "line": 9,
+      "description": "Vendor bill, Legal & Professional Fees",
+      "transaction_date": "2026-01-07",
+      "vendor_name": "Halvorsen Compliance Partners",
+      "amount_cents": 1150000,
+      "reference": "HCP52440"
+    },
+    {
+      "line": 10,
+      "description": "Vendor bill, Contractors",
+      "transaction_date": "2026-01-07",
+      "vendor_name": "Forgepoint Software Studio LLC",
+      "amount_cents": 1305000,
+      "reference": "FSS-67332"
+    },
+    {
+      "line": 11,
+      "description": "Vendor bill, Legal & Professional Fees",
+      "transaction_date": "2026-01-08",
+      "vendor_name": "Sentinel Wharf Security LLC",
+      "amount_cents": 980000,
+      "reference": "SW-56254"
+    },
+    {
+      "line": 12,
+      "description": "Vendor bill, Legal & Professional Fees",
+      "transaction_date": "2026-01-16",
+      "vendor_name": "Ridgeline Strategy Group LLC",
+      "amount_cents": 1200000,
+      "reference": "RSG-66651"
+    }
+  ]
+}

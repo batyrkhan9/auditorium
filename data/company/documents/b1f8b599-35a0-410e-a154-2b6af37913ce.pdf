@@ -1,0 +1,104 @@
+%PDF-1.3
+1 0 obj
+<<
+/Count 1
+/Kids [3 0 R]
+/MediaBox [0 0 612.00 792.00]
+/Type /Pages
+>>
+endobj
+2 0 obj
+<<
+/OpenAction [3 0 R /FitH null]
+/PageLayout /OneColumn
+/Pages 1 0 R
+/Type /Catalog
+>>
+endobj
+3 0 obj
+<<
+/Contents 4 0 R
+/Parent 1 0 R
+/Resources 7 0 R
+/Type /Page
+>>
+endobj
+4 0 obj
+<<
+/Length 792
+>>
+stream
+2 J
+0.57 w
+BT /F2 16.00 Tf ET
+BT 56.83 721.20 Td (Receipt from Mapleleaf CI) Tj ET
+BT /F1 10.00 Tf ET
+BT 56.83 704.50 Td (200 Bay Street, Burlington, VT 05401) Tj ET
+BT 56.83 681.00 Td (Receipt number: 555857) Tj ET
+BT 56.83 667.00 Td (Date paid: May 3, 2025) Tj ET
+BT 56.83 653.00 Td (Billed to: Devon Achterberg, Copperline, Inc.) Tj ET
+BT /F2 10.00 Tf ET
+BT 56.83 628.00 Td (Description) Tj ET
+BT 517.40 628.00 Td (Amount) Tj ET
+54.00 621.00 m 558.00 621.00 l S
+BT /F1 10.00 Tf ET
+BT 56.83 608.00 Td (Build minutes and runners - May 2025) Tj ET
+BT 519.03 608.00 Td ($315.44) Tj ET
+54.00 601.00 m 558.00 601.00 l S
+BT /F2 10.00 Tf ET
+BT 56.83 588.00 Td (Total paid) Tj ET
+BT 519.03 588.00 Td ($315.44) Tj ET
+BT /F1 10.00 Tf ET
+BT 56.83 561.00 Td (Payment method: Visa ending in 6642) Tj ET
+
+endstream
+endobj
+5 0 obj
+<<
+/BaseFont /Helvetica
+/Encoding /WinAnsiEncoding
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+6 0 obj
+<<
+/BaseFont /Helvetica-Bold
+/Encoding /WinAnsiEncoding
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+7 0 obj
+<<
+/Font <</F1 5 0 R
+/F2 6 0 R>>
+/ProcSet [/PDF /Text /ImageB /ImageC /ImageI]
+>>
+endobj
+8 0 obj
+<<
+/CreationDate (D:20260302120000Z)
+>>
+endobj
+xref
+0 9
+0000000000 65535 f 
+0000000009 00000 n 
+0000000096 00000 n 
+0000000199 00000 n 
+0000000279 00000 n 
+0000001122 00000 n 
+0000001219 00000 n 
+0000001321 00000 n 
+0000001418 00000 n 
+trailer
+<<
+/Size 9
+/Root 2 0 R
+/Info 8 0 R
+/ID [<A4A14CAFA6FCC0B79BC1BD6106DD235C><A4A14CAFA6FCC0B79BC1BD6106DD235C>]
+>>
+startxref
+1473
+%%EOF
