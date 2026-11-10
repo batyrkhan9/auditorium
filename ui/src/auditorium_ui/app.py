@@ -1,34 +1,127 @@
 """The run viewer: one run folder, its results, the evidence behind them, the log, sign-off.
 
-Reads the run through `load_run` on every request, so sign-offs and a run that is
-still being written show up on reload. Evidence is checked with `verify_evidence`
-when a dataset folder is given; without one every item shows as not checked.
+Reads the run folder on every request, so sign-offs and a run that is still being
+written show up on reload. Evidence is checked with `verify_evidence` when a
+dataset folder is given; without one every item shows as not checked. A run that
+used any live source is not re-checked against the local dataset, because live
+ids need not exist there.
 """
 
 from __future__ import annotations
 
 import json
 import re
+import secrets
+import tempfile
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-from urllib.parse import parse_qs, quote
+from urllib.parse import parse_qs, quote, urlsplit
 
 import auditorium_contracts as c
 from jinja2 import Environment, PackageLoader, select_autoescape
 from starlette.applications import Starlette
+from starlette.datastructures import MutableHeaders
+from starlette.middleware import Middleware
 from starlette.requests import Request
 from starlette.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 from starlette.routing import Route
 
+from .demo import DEMO_PREFIX
+
 CHECKS = [check.value for check in c.CheckName]
 STATUSES = [status.value for status in c.CheckStatus]
+LIVE_UNCHECKED = "evidence not re-verified against live sources"
 
 
 @dataclass(frozen=True)
 class Verification:
-    state: str  # "verified", "failed" or "unchecked"
+    state: str  # "verified", "failed", "unchecked" or "live_unchecked"
     reason: str | None = None
+
+
+def is_demo(manifest: c.RunManifest) -> bool:
+    """The demo marks its own run and dataset ids, so it is labelled even without --demo."""
+    return manifest.run_id.startswith(DEMO_PREFIX) and (manifest.dataset_id or "").startswith(
+        DEMO_PREFIX
+    )
+
+
+def _read_log(path: Path) -> tuple[list[str], bool]:
+    """The log's complete lines, and whether a half-written last line was left out.
+
+    Only a final line with no newline after it (the agent is mid-write) is
+    tolerated. Any other line that does not parse still raises when parsed.
+    """
+    text = path.read_text(encoding="utf-8")
+    lines = [line for line in text.splitlines() if line.strip()]
+    if lines and not text.endswith("\n"):
+        try:
+            c.LogEvent.model_validate_json(lines[-1])
+        except ValueError:
+            return lines[:-1], True
+    return lines, False
+
+
+def _verify_lines(lines: list[str]) -> list[str]:
+    """`verify_log` on exactly the lines shown, not on a file that may have grown since."""
+    with tempfile.TemporaryDirectory() as folder:
+        snapshot = Path(folder) / c.LOG
+        snapshot.write_text("".join(line + "\n" for line in lines), encoding="utf-8")
+        return c.verify_log(snapshot)
+
+
+def _load_run(root: Path) -> tuple[c.Run, list[str], bool]:
+    """Like `load_run` plus `verify_log`, but a half-written last log line does not stop
+    the page. Returns the run, the chain's problems and whether a line was left out."""
+    lines, partial = _read_log(root / c.LOG)
+    log = [c.LogEvent.model_validate_json(line) for line in lines]
+
+    def optional(name: str, model) -> tuple:
+        return tuple(c.read_jsonl(root / name, model)) if (root / name).is_file() else ()
+
+    scorecard = root / c.SCORECARD
+    run = c.Run(
+        root=root,
+        manifest=c.RunManifest.model_validate_json((root / c.RUN_MANIFEST).read_text("utf-8")),
+        results=tuple(c.read_jsonl(root / c.RESULTS, c.CheckResult)),
+        packets=optional(c.PACKETS, c.EvidencePacket),
+        drafts=optional(c.DRAFTS, c.FollowUpDraft),
+        log=tuple(log),
+        scorecard=c.Scorecard.model_validate_json(scorecard.read_text("utf-8"))
+        if scorecard.is_file()
+        else None,
+    )
+    return run, _verify_lines(lines), partial
+
+
+def _same_origin(request: Request) -> bool:
+    """A browser sends Origin (or at least Referer) on a form POST; it must be this server."""
+    host = request.headers.get("host", "")
+    claimed = request.headers.get("origin") or request.headers.get("referer")
+    if claimed is None:
+        return True  # not a browser; the CSRF token still has to match
+    return bool(host) and urlsplit(claimed).netloc == host
+
+
+class SecurityHeaders:
+    """Refuse framing on every response, so a sign-off cannot be clickjacked."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+
+        async def send_with_headers(message):
+            if message["type"] == "http.response.start":
+                headers = MutableHeaders(scope=message)
+                headers.setdefault("X-Frame-Options", "DENY")
+                headers.setdefault("Content-Security-Policy", "frame-ancestors 'none'")
+            await send(message)
+
+        await self.app(scope, receive, send_with_headers)
 
 
 def _money(cents: int | None) -> str:
@@ -61,6 +154,7 @@ class Viewer:
         self.run_dir = Path(run_dir)
         self.dataset_dir = Path(dataset_dir) if dataset_dir else None
         self.demo = demo
+        self.csrf = secrets.token_urlsafe(32)
         self.sources = c.LocalSources(self.dataset_dir) if self.dataset_dir else None
         self.index = c.SourceIndex(self.sources) if self.sources else None
         self.env = Environment(
@@ -75,7 +169,9 @@ class Viewer:
 
     # -- reading ---------------------------------------------------------------
 
-    def verify(self, evidence) -> Verification:
+    def verify(self, evidence, live: bool = False) -> Verification:
+        if live:
+            return Verification("live_unchecked", LIVE_UNCHECKED)
         if self.index is None:
             return Verification("unchecked", "no dataset given, so this was not checked")
         try:
@@ -85,15 +181,26 @@ class Viewer:
         return Verification("failed", problem) if problem else Verification("verified")
 
     def context(self) -> dict:
-        run = c.load_run(self.run_dir)
-        chain = c.verify_log(self.run_dir / c.LOG)
+        run, chain, log_partial = _load_run(self.run_dir)
+        live = any(source.mode == "live" for source in run.manifest.sources)
         signoffs: dict[str, list[c.LogEvent]] = defaultdict(list)
+        logged_status: dict[str, str] = {}
         for event in run.log:
             if event.action is c.LogAction.SIGNOFF:
                 for subject in event.subject_ids:
                     signoffs[subject].append(event)
+            elif event.action is c.LogAction.CHECK_RECORDED and "status" in event.detail:
+                for subject in event.subject_ids:
+                    logged_status[subject] = str(event.detail["status"])
+        # A result whose status differs from the one its check_recorded event logged
+        # was changed after it was logged; the log does not back it.
+        drift = {
+            r.id: logged_status[r.id]
+            for r in run.results
+            if r.id in logged_status and logged_status[r.id] != r.status.value
+        }
         verifications = {
-            result.id: [self.verify(evidence) for evidence in result.evidence]
+            result.id: [self.verify(evidence, live) for evidence in result.evidence]
             for result in run.results
         }
         failed = sum(v.state == "failed" for vs in verifications.values() for v in vs)
@@ -111,7 +218,12 @@ class Viewer:
             "evidence_unchecked": unchecked,
             "transactions": transactions,
             "dataset": self.sources.dataset if self.sources else None,
-            "demo": self.demo,
+            "demo": self.demo or is_demo(run.manifest),
+            "live": live,
+            "drift": drift,
+            "log_partial": log_partial,
+            "in_progress": run.manifest.finished_at is None or log_partial,
+            "csrf": self.csrf,
         }
 
     def render(self, template: str, status_code: int = 200, **values) -> HTMLResponse:
@@ -178,7 +290,7 @@ class Viewer:
     async def packets(self, request: Request) -> Response:
         ctx = self.context()
         packets = [
-            (packet, [(item, self.verify(item.evidence)) for item in packet.items])
+            (packet, [(item, self.verify(item.evidence, ctx["live"])) for item in packet.items])
             for packet in ctx["run"].packets
         ]
         sample = None
@@ -197,18 +309,28 @@ class Viewer:
 
     async def signoff(self, request: Request) -> Response:
         form = {k: v[0].strip() for k, v in parse_qs((await request.body()).decode()).items()}
+        if not _same_origin(request) or not secrets.compare_digest(form.get("csrf", ""), self.csrf):
+            return self.render(
+                "error.html",
+                status_code=403,
+                message="Sign-off refused: the form did not come from this page. Reload and try again.",
+            )
         result_id = form.get("result_id", "")
         back = f"/result?id={quote(result_id, safe='')}"
-        run = c.load_run(self.run_dir)
+        run, chain, log_partial = _load_run(self.run_dir)
         if result_id not in {r.id for r in run.results}:
             return self.not_found(f"result {result_id}")
         reviewer, decision = form.get("reviewer", ""), form.get("decision", "")
         problem = None
-        if not reviewer:
+        if run.manifest.finished_at is None or log_partial:
+            # The agent's LogWriter keeps seq and the last hash in memory; appending
+            # now would fork the chain.
+            problem = "The run is still in progress. Sign-off opens once it has finished."
+        elif not reviewer:
             problem = "Enter your name to sign off."
         elif decision not in ("accepted", "disputed"):
             problem = "Choose accepted or disputed."
-        elif c.verify_log(self.run_dir / c.LOG):
+        elif chain:
             problem = "The log's chain is broken, so a sign-off cannot be added to it."
         if problem:
             return RedirectResponse(f"{back}&error={quote(problem)}#signoff", status_code=303)
@@ -263,7 +385,11 @@ class Viewer:
         if found is None:
             return self.not_found("document file")
         document, file = found
-        headers = {"X-Content-Type-Options": "nosniff"}
+        headers = {
+            "X-Content-Type-Options": "nosniff",
+            # Whatever the file holds, it runs no script and has no origin.
+            "Content-Security-Policy": "sandbox; frame-ancestors 'none'",
+        }
         if document.media_type == "application/pdf":
             return FileResponse(file, media_type="application/pdf", headers=headers)
         if document.media_type.startswith("text/"):
@@ -273,6 +399,7 @@ class Viewer:
 
     def app(self) -> Starlette:
         return Starlette(
+            middleware=[Middleware(SecurityHeaders)],
             routes=[
                 Route("/", self.results),
                 Route("/result", self.result),
@@ -282,7 +409,7 @@ class Viewer:
                 Route("/document", self.document),
                 Route("/document/file", self.document_file),
                 Route("/signoff", self.signoff, methods=["POST"]),
-            ]
+            ],
         )
 
 

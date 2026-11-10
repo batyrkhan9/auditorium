@@ -22,6 +22,24 @@ def client(demo):
     return TestClient(create_app(preflight, dataset, demo=True))
 
 
+def csrf(client) -> str:
+    page = client.get("/result", params={"id": PITCH})
+    return re.search(r'name="csrf" value="([^"]+)"', page.text).group(1)
+
+
+def sign(client, **fields):
+    data = {"result_id": PITCH, "reviewer": "A", "decision": "accepted", **fields}
+    if "csrf" not in data:
+        data["csrf"] = csrf(client)
+    return client.post("/signoff", data=data, follow_redirects=False)
+
+
+def edit_manifest(run_dir, **changes):
+    manifest = json.loads((run_dir / c.RUN_MANIFEST).read_text())
+    manifest.update(changes)
+    (run_dir / c.RUN_MANIFEST).write_text(json.dumps(manifest))
+
+
 def test_demo_fixture_is_contract_valid(demo):
     dataset, preflight, sample = demo
     sources = c.LocalSources(dataset)
@@ -86,35 +104,51 @@ def test_without_dataset_evidence_shows_not_checked(demo):
     assert "Evidence not checked" in page.text
 
 
-def test_badges_come_from_the_manifest(demo):
+def test_demo_is_honest_about_sources_and_labels_itself(demo):
+    dataset, preflight, sample = demo
+    for run_dir in (preflight, sample):
+        run = c.load_run(run_dir)
+        assert {s.mode for s in run.manifest.sources} == {"local"}
+        calls = [e for e in run.log if e.action is c.LogAction.SOURCE_CALL]
+        assert calls and all(e.detail["mode"] == "local" for e in calls)
+        assert all(e.actor_id == "local-dataset" for e in calls)
+        # Opened without --demo, the run still says it is demo data.
+        text = TestClient(create_app(run_dir, dataset)).get("/").text
+        assert "DEMO DATA" in text
+        assert 'data-mode="live"' not in text
+
+
+def test_live_run_badges_and_evidence_left_unchecked(demo):
+    """The only place a LIVE badge appears: a non-demo manifest written by the test."""
     dataset, preflight, _ = demo
-    manifest = json.loads((preflight / c.RUN_MANIFEST).read_text())
-    manifest["sources"] = [
-        {"system": "qbo", "mode": "live", "detail": "sandbox"},
-        {"system": "bank", "mode": "local", "detail": "statements folder"},
-    ]
-    (preflight / c.RUN_MANIFEST).write_text(json.dumps(manifest))
-    text = TestClient(create_app(preflight, dataset)).get("/").text
+    edit_manifest(
+        preflight,
+        run_id="run-2026-02-02",
+        dataset_id="larkspur",
+        sources=[
+            {"system": "qbo", "mode": "live", "detail": "sandbox"},
+            {"system": "bank", "mode": "local", "detail": "statements folder"},
+        ],
+    )
+    client = TestClient(create_app(preflight, dataset))
+    text = client.get("/").text
     assert re.findall(r'data-system="(\w+)" data-mode="(\w+)"', text) == [
         ("qbo", "live"),
         ("bank", "local"),
     ]
     assert "DEMO DATA" not in text
+    assert 'data-evidence="live-unchecked"' in text
+    assert "did not verify" not in text and "not verified" not in text.lower()
+    detail = client.get("/result", params={"id": PITCH}).text
+    assert detail.count('data-verification="live_unchecked"') == 3
+    assert "Unchecked: live run" in detail
+    assert 'data-verification="failed"' not in detail
 
 
 def test_signoff_appends_a_chained_event(client, demo):
     _, preflight, _ = demo
     before = len(c.read_log(preflight / c.LOG))
-    response = client.post(
-        "/signoff",
-        data={
-            "result_id": PITCH,
-            "reviewer": "Dana Reyes",
-            "decision": "accepted",
-            "note": "Agreed, accrue in Dec.",
-        },
-        follow_redirects=False,
-    )
+    response = sign(client, reviewer="Dana Reyes", note="Agreed, accrue in Dec.")
     assert response.status_code == 303
     events = c.read_log(preflight / c.LOG)
     assert len(events) == before + 1
@@ -130,33 +164,108 @@ def test_signoff_appends_a_chained_event(client, demo):
 def test_signoff_rejects_bad_input(client, demo):
     _, preflight, _ = demo
     before = (preflight / c.LOG).read_text()
-    no_name = client.post(
-        "/signoff",
-        data={"result_id": PITCH, "reviewer": " ", "decision": "accepted"},
-        follow_redirects=False,
-    )
+    no_name = sign(client, reviewer=" ")
     assert no_name.status_code == 303 and "error=" in no_name.headers["location"]
-    unknown = client.post(
-        "/signoff", data={"result_id": "nope#period", "reviewer": "A", "decision": "accepted"}
-    )
+    unknown = sign(client, result_id="nope#period")
     assert unknown.status_code == 404
     assert (preflight / c.LOG).read_text() == before
 
 
 def test_broken_chain_is_shown_and_blocks_signoff(client, demo):
     _, preflight, _ = demo
+    token = csrf(client)
     log = preflight / c.LOG
     log.write_text(log.read_text().replace('"status": "fail"', '"status": "pass"', 1))
     assert c.verify_log(log)
     page = client.get("/log")
     assert 'data-chain="broken"' in page.text
-    response = client.post(
+    assert 'name="csrf"' not in client.get("/result", params={"id": PITCH}).text
+    response = sign(client, csrf=token)
+    assert response.status_code == 303 and "error=" in response.headers["location"]
+    assert c.verify_log(log)  # nothing appended on top of the broken chain
+
+
+def test_signoff_refused_while_run_in_progress(client, demo):
+    _, preflight, _ = demo
+    token = csrf(client)
+    edit_manifest(preflight, finished_at=None)
+    before = (preflight / c.LOG).read_text()
+    page = client.get("/result", params={"id": PITCH}).text
+    assert 'data-signoff="in-progress"' in page and '<form method="post"' not in page
+    assert 'data-run="in-progress"' in client.get("/").text
+    response = sign(client, csrf=token)
+    assert response.status_code == 303 and "in%20progress" in response.headers["location"]
+    assert (preflight / c.LOG).read_text() == before
+
+
+def test_signoff_needs_csrf_token_and_same_origin(client, demo):
+    _, preflight, _ = demo
+    before = (preflight / c.LOG).read_text()
+    assert sign(client, csrf="").status_code == 403
+    assert sign(client, csrf="forged").status_code == 403
+    token = csrf(client)
+    cross = client.post(
         "/signoff",
-        data={"result_id": PITCH, "reviewer": "A", "decision": "accepted"},
+        data={"result_id": PITCH, "reviewer": "A", "decision": "accepted", "csrf": token},
+        headers={"Origin": "http://evil.example"},
         follow_redirects=False,
     )
-    assert "error=" in response.headers["location"]
-    assert c.verify_log(log)  # nothing appended on top of the broken chain
+    assert cross.status_code == 403
+    assert (preflight / c.LOG).read_text() == before
+    same = client.post(
+        "/signoff",
+        data={"result_id": PITCH, "reviewer": "A", "decision": "accepted", "csrf": token},
+        headers={"Origin": "http://testserver"},
+        follow_redirects=False,
+    )
+    assert same.status_code == 303 and "error=" not in same.headers["location"]
+
+
+def test_pages_refuse_framing(client):
+    for path in ("/", "/log", "/result?id=ramp%3Abill%3Ab_1001%23period"):
+        headers = client.get(path).headers
+        assert headers["x-frame-options"] == "DENY"
+        assert "frame-ancestors 'none'" in headers["content-security-policy"]
+
+
+def test_result_changed_after_logging_is_flagged(client, demo):
+    _, preflight, _ = demo
+    results = c.read_jsonl(preflight / c.RESULTS, c.CheckResult)
+    assert results[3].id == PITCH
+    edited = results[3].model_copy(update={"status": c.CheckStatus.NEEDS_REVIEW})
+    c.write_jsonl(preflight / c.RESULTS, [*results[:3], edited, *results[4:]])
+    listing = client.get("/").text
+    assert re.findall(r'data-result="([^"]+)" data-drift="(\w+)"', listing) == [(PITCH, "fail")]
+    assert 'data-drift-count="1"' in listing
+    detail = client.get("/result", params={"id": PITCH}).text
+    assert 'data-drift="fail"' in detail and "Changed after it was logged" in detail
+    assert "data-signoff-drift" in detail
+
+
+def test_half_written_log_line_does_not_break_the_pages(client, demo):
+    _, preflight, _ = demo
+    token = csrf(client)
+    log = preflight / c.LOG
+    events = len(c.read_log(log))
+    with log.open("a", encoding="utf-8") as handle:
+        handle.write(f'{{"seq": {events + 1}, "ts": "2026-02-02T09:')
+    for path in ("/", "/log", "/drafts"):
+        page = client.get(path)
+        assert page.status_code == 200
+        assert "the step log could not be read fully" in page.text
+    page = client.get("/log").text
+    assert 'data-chain="intact"' in page and page.count("data-action=") == events
+    before = log.read_text()
+    assert "in%20progress" in sign(client, csrf=token).headers["location"]
+    assert log.read_text() == before
+
+
+def test_corrupt_complete_log_line_still_fails(client, demo):
+    _, preflight, _ = demo
+    with (preflight / c.LOG).open("a", encoding="utf-8") as handle:
+        handle.write("not json\n")
+    with pytest.raises(ValueError):
+        client.get("/")
 
 
 def test_log_page_shows_intact_chain(client):
@@ -201,6 +310,7 @@ def test_document_view_and_file(client):
     file = client.get("/document/file", params={"id": "doc_inv_2041"})
     assert file.status_code == 200 and file.headers["content-type"].startswith("text/plain")
     assert "Invoice INV-2041" in file.text
+    assert file.headers["content-security-policy"].startswith("sandbox")
     assert client.get("/document", params={"id": "nope"}).status_code == 404
 
 

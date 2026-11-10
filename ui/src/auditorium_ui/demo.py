@@ -1,7 +1,9 @@
 """A small synthetic dataset and two runs, for looking at the screen before the agent exists.
 
 Everything here is made up and written through the contract models, then checked
-with `validate_dataset` and `validate_run`. The screen labels it as demo data.
+with `validate_dataset` and `validate_run`. Every source is a local file and the
+manifest says so. The run and dataset ids start with `demo-`, which is how the
+screen knows to label it as demo data even when it is opened without --demo.
 It includes the pitch example: a $12,000 consulting bill for December work,
 recorded in January, flagged as the wrong period.
 """
@@ -13,9 +15,10 @@ from pathlib import Path
 
 import auditorium_contracts as c
 
-DATASET_ID = "demo-larkspur"
-PREFLIGHT_RUN_ID = "demo-run-preflight"
-SAMPLE_RUN_ID = "demo-run-sample"
+DEMO_PREFIX = "demo-"  # the screen's marker; see auditorium_ui.app.is_demo
+DATASET_ID = f"{DEMO_PREFIX}larkspur"
+PREFLIGHT_RUN_ID = f"{DEMO_PREFIX}run-preflight"
+SAMPLE_RUN_ID = f"{DEMO_PREFIX}run-sample"
 START = datetime(2026, 2, 2, 9, 0, tzinfo=UTC)
 
 DOCUMENTS = {
@@ -392,9 +395,10 @@ def _results(run_id: str) -> list[c.CheckResult]:
 
 
 def _manifest(run_id: str, mode: str, sources: c.LocalSources, sample_id: str | None = None):
-    described = sources.describe()
-    # Show both badges in the demo: pretend the Ramp demo MCP server was reached.
-    described[0] = c.SourceUse(system="ramp", mode="live", detail="Ramp demo MCP server (demo)")
+    described = [
+        source.model_copy(update={"detail": f"{source.detail} (synthetic UI demo)"})
+        for source in sources.describe()
+    ]
     return c.RunManifest(
         run_id=run_id,
         mode=mode,
@@ -410,27 +414,38 @@ def _manifest(run_id: str, mode: str, sources: c.LocalSources, sample_id: str | 
     )
 
 
-def _write_log(run_dir: Path, run_id: str, results, drafts, packets) -> None:
+def _write_log(
+    run_dir: Path, run_id: str, sources: c.LocalSources, results, drafts, packets
+) -> None:
     log = c.LogWriter(run_dir / c.LOG, run_id)
     ts = START
     step = timedelta(seconds=7)
     log.append("system", c.LogAction.RUN_STARTED, actor_id="auditorium-demo", ts=ts)
-    log.append(
-        "agent",
-        c.LogAction.SOURCE_CALL,
-        actor_id="ramp",
-        detail={"call": "list_transactions", "returned": 5},
-        ts=(ts := ts + step),
-    )
+    for file, records in (
+        ("transactions.jsonl", sources.transactions()),
+        ("ledger.jsonl", sources.ledger_entries()),
+    ):
+        log.append(
+            "agent",
+            c.LogAction.SOURCE_CALL,
+            actor_id="local-dataset",
+            detail={"mode": "local", "dataset": DATASET_ID, "read": file, "returned": len(records)},
+            ts=(ts := ts + step),
+        )
     for result in results:
         for evidence in result.evidence:
             if isinstance(evidence, c.SearchEvidence):
                 log.append(
                     "agent",
                     c.LogAction.SOURCE_CALL,
-                    actor_id=evidence.system.value,
+                    actor_id="local-dataset",
                     subject_ids=[result.transaction_id],
-                    detail={"query": evidence.query, "returned": evidence.result_ids},
+                    detail={
+                        "mode": "local",
+                        "system": evidence.system.value,
+                        "query": evidence.query,
+                        "returned": evidence.result_ids,
+                    },
                     ts=(ts := ts + step),
                 )
         log.append(
@@ -479,7 +494,7 @@ def build_preflight_run(run_dir: Path, sources: c.LocalSources) -> Path:
     c.write_json(run_dir / c.RUN_MANIFEST, _manifest(PREFLIGHT_RUN_ID, "preflight", sources))
     c.write_jsonl(run_dir / c.RESULTS, results)
     c.write_jsonl(run_dir / c.DRAFTS, drafts)
-    _write_log(run_dir, PREFLIGHT_RUN_ID, results, drafts, [])
+    _write_log(run_dir, PREFLIGHT_RUN_ID, sources, results, drafts, [])
     return run_dir
 
 
@@ -552,7 +567,7 @@ def build_sample_run(run_dir: Path, sources: c.LocalSources) -> Path:
     c.write_jsonl(run_dir / c.RESULTS, results)
     c.write_jsonl(run_dir / c.DRAFTS, [draft, catering])
     c.write_jsonl(run_dir / c.PACKETS, packets)
-    _write_log(run_dir, run_id, results, [draft, catering], packets)
+    _write_log(run_dir, run_id, sources, results, [draft, catering], packets)
     return run_dir
 
 

@@ -9,6 +9,7 @@
 {% macro verification(v) -%}
 {% if v.state == "verified" %}<span class="v verified" title="verify_evidence found it in the sources">Verified</span>
 {% elif v.state == "failed" %}<span class="v failed">Not verified</span>
+{% elif v.state == "live_unchecked" %}<span class="v live_unchecked">Unchecked: live run</span>
 {% else %}<span class="v unchecked">Not checked</span>{% endif %}
 {%- endmacro %}
 

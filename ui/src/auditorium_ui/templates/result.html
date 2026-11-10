@@ -6,6 +6,9 @@
 <p class="small"><a href="/">&larr; All results</a></p>
 <h2 style="margin-top:8px">{{ result.check.value }} {{ pill(result.status.value) }}
   {% for code in result.issue_codes %}<code>{{ code.value }}</code> {% endfor %}</h2>
+{% if result.id in drift %}
+<div class="banner bad" role="alert" data-drift="{{ drift[result.id] }}"><strong>Changed after it was logged.</strong> This result's status is <strong>{{ result.status.value | replace("_", " ") }}</strong>, but its <code>check_recorded</code> event in the step log says <strong>{{ drift[result.id] | replace("_", " ") }}</strong>.</div>
+{% endif %}
 <p><strong>{{ result.summary }}</strong></p>
 <p>{{ result.rationale }}</p>
 <dl class="kv">
@@ -42,8 +45,14 @@
 {% if error %}<div class="banner bad" role="alert">{{ error }}</div>{% endif %}
 {% if chain %}
 <p class="v failed">Sign-off is disabled because the step log's chain is broken.</p>
+{% elif in_progress %}
+<p class="v unchecked" data-signoff="in-progress">Run in progress. Sign-off is disabled until the run has finished, so a sign-off cannot interleave with the agent's own log writes.</p>
 {% else %}
+{% if result.id in drift %}
+<p class="drift" data-signoff-drift>Before signing: this result was changed after it was logged (the log says {{ drift[result.id] | replace("_", " ") }}, the result says {{ result.status.value | replace("_", " ") }}).</p>
+{% endif %}
 <form method="post" action="/signoff" class="filters">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
   <input type="hidden" name="result_id" value="{{ result.id }}">
   <label>Your name <input name="reviewer" required autocomplete="name"></label>
   <label>Decision
