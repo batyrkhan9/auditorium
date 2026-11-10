@@ -50,8 +50,12 @@ missing.
 
 ## What we promised Ramp
 
-- Working code on Ramp's demo MCP server and a QuickBooks Online sandbox, tested
-  against planted mistakes.
+- Working code against Ramp's MCP interface and a QuickBooks Online sandbox,
+  tested against planted mistakes. We have no Ramp account (Ramp requires a
+  registered business), so Ramp is tested on a stand-in server that serves our
+  dataset in the shapes of Ramp's public API spec. It is never reported as
+  live. With a Ramp account, it switches to Ramp's sandbox server by changing
+  the URL and token.
 - The example from our pitch must work: a $12,000 consulting bill, work done in
   December, recorded in January, and nobody booked it in December another way.
   It gets flagged as recorded in the wrong year.
@@ -61,11 +65,13 @@ missing.
 ## Tools
 
 - Claude Sonnet 5.5 and Opus 5.5 through the Claude Agent SDK
-- Ramp's MCP server (the public demo server for the build)
+- Ramp's MCP interface: a stand-in server that serves our dataset in the
+  shapes of Ramp's public API spec. Ramp's sandbox server
+  (`https://demo-mcp.ramp.com/mcp`) needs a Ramp account we do not have.
 - A QuickBooks Online sandbox through Intuit's MCP server
 - PDF reading for the PBC list, bank statements and invoices
-- A fake company dataset matched to the Ramp demo transactions, with planted
-  mistakes mixed into clean transactions so we can measure false alarms
+- A fake company dataset shaped like Ramp's documented transactions (we cannot
+  see Ramp's demo transactions), with planted mistakes mixed into clean transactions so we can measure false alarms
 - A test set based on AU-C 500 (audit evidence) that scores each result and
   checks the agent never makes up a document, run in Braintrust
 - Slack and email drafts for follow-ups

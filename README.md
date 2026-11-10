@@ -19,7 +19,7 @@ Honest and current. Update it as things land.
 | Repo setup, shared data contract | Done |
 | Audit agent | Not started |
 | Fake company data and answer key | Not started |
-| Ramp connection | Not started. The demo URL from our research, `https://mcp.ramp.com/mcp-apps/demo/mcp`, returned 404 on 2026-11-09. `https://mcp.ramp.com/mcp` answers but needs OAuth. |
+| Ramp connection | Connector built. Ramp's sandbox MCP server (`https://demo-mcp.ramp.com/mcp`) needs a Ramp account, and Ramp requires a registered business, so we have none. A stand-in server that serves our fake company in the shapes of Ramp's public API spec is in progress. Runs against it report Ramp as `local`, never `live`. |
 | QuickBooks sandbox connection | Not started |
 | Eval | Not started |
 | Screen | Not started |
