@@ -26,7 +26,7 @@ from auditorium_contracts import (
 )
 
 from ..books import Books
-from ..matching import find_accruals, find_ledger_entry
+from ..matching import VENDOR_UNCLEAR, find_accruals
 from ..service_period import find_service_period
 
 
@@ -93,7 +93,8 @@ def check_period(txn: SpendTransaction, books: Books, run_id: str) -> CheckResul
             expected_period=period_of(expected) if expected else None,
         )
 
-    entry = find_ledger_entry(txn, books.ledger)
+    match = books.matches[txn.id]
+    entry = None if match.how == VENDOR_UNCLEAR else match.entry
     if entry is None:
         search = books.search(
             SourceSystem.QBO,

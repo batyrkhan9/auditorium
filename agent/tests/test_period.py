@@ -18,7 +18,7 @@ def run(tmp_path):
         fiscal_year_start=manifest.fiscal_year_start,
         fiscal_year_end=manifest.fiscal_year_end,
     )
-    return sources, {r.transaction_id: r for r in results}
+    return sources, {r.transaction_id: r for r in results if r.check.value == "period"}
 
 
 def test_sample_statuses(tmp_path):
@@ -29,7 +29,10 @@ def test_sample_statuses(tmp_path):
         "ramp:bill:b_1003": "pass",
         "ramp:bill:b_1004": "needs_review",  # no service period, recorded just after year end
         "ramp:bill:b_1005": "pass",
+        "ramp:bill:b_1006": "pass",  # the amount is wrong in the books, the period is not
+        "ramp:bill:b_1007": "pass",
         "ramp:card:c_2001": "pass",
+        "ramp:card:c_2002": "not_applicable",  # not in the books at all
     }
     assert validate_run(tmp_path / "run", sources) == []
 

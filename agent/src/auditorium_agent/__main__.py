@@ -39,7 +39,7 @@ def main() -> int:
     vendors = {txn.id: txn.vendor_name for txn in sources.transactions()}
     for result in results:
         print(
-            f"{result.status.value.upper():<15}{result.check.value:<8}{vendors[result.transaction_id]}"
+            f"{result.status.value.upper():<15}{result.check.value:<14}{vendors[result.transaction_id]}"
         )
         print(f"{'':<15}{result.summary}")
     problems = validate_run(out, sources)

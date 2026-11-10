@@ -18,6 +18,8 @@ from auditorium_contracts import (
     page_texts,
 )
 
+from .matching import Match, match_ledger
+
 
 @dataclass
 class Books:
@@ -29,6 +31,7 @@ class Books:
     ledger: list[LedgerEntry]
     documents: dict[str, Document]
     index: SourceIndex
+    matches: dict[str, Match]  # transaction id -> its ledger entry, paired one-to-one
 
     @classmethod
     def open(cls, sources: Sources, log: LogWriter, fiscal_year_start: date, fiscal_year_end: date):
@@ -50,6 +53,7 @@ class Books:
             ledger=ledger,
             documents={d.id: d for d in documents},
             index=SourceIndex(sources),
+            matches=match_ledger(transactions, ledger),
         )
 
     def side(self, day: date) -> int:
