@@ -2,30 +2,47 @@
   "$defs": {
     "Approval": {
       "additionalProperties": false,
+      "description": "One step of a transaction's approval chain.",
       "properties": {
         "approver_id": {
-          "description": "Person.id of whoever decided.",
-          "title": "Approver Id",
-          "type": "string"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Person.id of whoever decided, or is being asked to. Empty only for a pending step assigned to a group and not yet to one person.",
+          "title": "Approver Id"
         },
         "decided_at": {
-          "format": "date-time",
-          "title": "Decided At",
-          "type": "string"
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Empty while pending, and only then.",
+          "title": "Decided At"
         },
         "decision": {
           "enum": [
             "approved",
-            "rejected"
+            "rejected",
+            "pending"
           ],
           "title": "Decision",
           "type": "string"
         }
       },
       "required": [
-        "approver_id",
-        "decision",
-        "decided_at"
+        "decision"
       ],
       "title": "Approval",
       "type": "object"
@@ -98,11 +115,19 @@
       "type": "integer"
     },
     "approvals": {
-      "items": {
-        "$ref": "#/$defs/Approval"
-      },
-      "title": "Approvals",
-      "type": "array"
+      "anyOf": [
+        {
+          "items": {
+            "$ref": "#/$defs/Approval"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "The steps of the approval chain. An empty list means it was never sent for approval. None means the source could not say, which is not the same thing. None is always written out as null, so it is still None when the record is read back.",
+      "title": "Approvals"
     },
     "category": {
       "anyOf": [
@@ -114,7 +139,7 @@
         }
       ],
       "default": null,
-      "description": "The accounting category coded in Ramp.",
+      "description": "The accounting category coded in Ramp. When a bill is split across several, this is the largest line's, and the first of them if two tie. The full split stays in `raw`.",
       "title": "Category"
     },
     "department": {
@@ -192,6 +217,7 @@
         }
       ],
       "default": null,
+      "description": "Bill: the day payment left. Card: the settlement date.",
       "title": "Paid Date"
     },
     "raw": {

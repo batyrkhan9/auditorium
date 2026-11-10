@@ -19,6 +19,9 @@ area provides the live one, backed by Ramp and QuickBooks.
 from __future__ import annotations
 
 import hashlib
+import json
+import re
+import shutil
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
@@ -26,6 +29,7 @@ from typing import Protocol, TypeVar, runtime_checkable
 
 from pydantic import BaseModel, ValidationError
 
+from .log import LogAction, LogWriter
 from .records import (
     DatasetManifest,
     Document,
@@ -134,8 +138,8 @@ def validate_dataset(root: Path | str) -> list[str]:
                 problems.append(f"transaction {txn.id}: unknown document {document_id}")
         if txn.spender_id and txn.spender_id not in people:
             problems.append(f"transaction {txn.id}: unknown spender {txn.spender_id}")
-        for approval in txn.approvals:
-            if approval.approver_id not in people:
+        for approval in txn.approvals or []:
+            if approval.approver_id and approval.approver_id not in people:
                 problems.append(f"transaction {txn.id}: unknown approver {approval.approver_id}")
 
     for person in data.people:
@@ -161,6 +165,12 @@ class Sources(Protocol):
 
     Every method returns contract records. Implementations fetch everything in
     scope; the data is hundreds of records, not millions.
+
+    One instance is one fetch. Each method returns the same records every time it
+    is called on that instance, so what the agent checked, what was fingerprinted
+    and what was snapshotted are the same data. A live implementation fetches once
+    and keeps the result. It also keeps `raw` free of anything short-lived or
+    secret, such as presigned download links: `raw` is saved in snapshots.
     """
 
     def describe(self) -> list[SourceUse]:
@@ -191,8 +201,16 @@ class LocalSources:
 
     def describe(self) -> list[SourceUse]:
         systems = (SourceSystem.RAMP, SourceSystem.QBO, SourceSystem.BANK, SourceSystem.COMPANY)
-        detail = f"dataset {self.dataset.manifest.dataset_id}"
-        return [SourceUse(system=system, mode="local", detail=detail) for system in systems]
+        manifest = self.dataset.manifest
+        return [
+            SourceUse(
+                system=system,
+                mode="local",
+                detail=f"dataset {manifest.dataset_id}",
+                synthetic=manifest.synthetic,
+            )
+            for system in systems
+        ]
 
     def transactions(self) -> list[SpendTransaction]:
         return list(self.dataset.transactions)
@@ -211,3 +229,63 @@ class LocalSources:
 
     def policy(self) -> SpendPolicy:
         return self.dataset.policy
+
+
+def fingerprint_sources(sources: Sources) -> dict[str, str]:
+    """A sha256 of each kind of record the sources return, keyed by the method's name.
+
+    Records are sorted by id and written as canonical JSON, so two fetches of the same
+    data give the same fingerprints. A document's `path` is left out, because where a
+    file sits is not what it is; its `sha256` is included, which covers its bytes.
+    """
+
+    def digest(records, exclude=None) -> str:
+        dumped = sorted(
+            (r.model_dump(mode="json", exclude_none=True, exclude=exclude) for r in records),
+            key=lambda record: record["id"],
+        )
+        encoded = json.dumps(dumped, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+    return {
+        "transactions": digest(sources.transactions()),
+        "ledger_entries": digest(sources.ledger_entries()),
+        "documents": digest(sources.documents(), exclude={"path"}),
+        "people": digest(sources.people()),
+        "policy": digest([sources.policy()]),
+    }
+
+
+def log_source_fingerprints(log: LogWriter, sources: Sources) -> dict[str, str]:
+    """Write the sources' fingerprints into the log, one `source_call` event per kind.
+
+    The agent calls this right after `run_started`, before any check. From then on the
+    hash-chained log holds what the run fetched, and a snapshot can be tied back to it.
+    """
+    fingerprints = fingerprint_sources(sources)
+    for call, digest in fingerprints.items():
+        log.append("agent", LogAction.SOURCE_CALL, detail={"call": call, "sha256": digest})
+    return fingerprints
+
+
+def snapshot_sources(sources: Sources, folder: Path | str, manifest: DatasetManifest) -> Path:
+    """Save what the sources returned as a dataset folder that `LocalSources` can load.
+
+    Written into a run folder as `sources/`, it lets the run be verified later from
+    the folder alone, after the live data has moved on. Keep it out of git.
+    """
+    folder = Path(folder)
+    (folder / "documents").mkdir(parents=True, exist_ok=True)
+    documents = []
+    for document in sources.documents():
+        original = sources.document_file(document.id)
+        name = re.sub(r"[^A-Za-z0-9._-]", "_", document.id) + original.suffix
+        shutil.copyfile(original, folder / "documents" / name)
+        documents.append(document.model_copy(update={"path": f"documents/{name}"}))
+    write_json(folder / "manifest.json", manifest)
+    write_jsonl(folder / "transactions.jsonl", sources.transactions())
+    write_jsonl(folder / "ledger.jsonl", sources.ledger_entries())
+    write_jsonl(folder / "documents.jsonl", documents)
+    write_jsonl(folder / "people.jsonl", sources.people())
+    write_json(folder / "policy.json", sources.policy())
+    return folder

@@ -1,0 +1,112 @@
+%PDF-1.3
+1 0 obj
+<<
+/Count 1
+/Kids [3 0 R]
+/MediaBox [0 0 612.00 792.00]
+/Type /Pages
+>>
+endobj
+2 0 obj
+<<
+/OpenAction [3 0 R /FitH null]
+/PageLayout /OneColumn
+/Pages 1 0 R
+/Type /Catalog
+>>
+endobj
+3 0 obj
+<<
+/Contents 4 0 R
+/Parent 1 0 R
+/Resources 7 0 R
+/Type /Page
+>>
+endobj
+4 0 obj
+<<
+/Length 1132
+>>
+stream
+2 J
+0.57 w
+BT /F2 22.00 Tf ET
+BT 56.83 717.40 Td (Invoice) Tj ET
+BT /F2 11.00 Tf ET
+BT 431.67 720.70 Td (Cascade Device Supply) Tj ET
+BT /F1 9.00 Tf ET
+BT 402.08 701.30 Td (1601 Fifth Avenue, Seattle, WA 98101) Tj ET
+BT /F1 10.00 Tf ET
+BT 56.83 675.00 Td (Invoice #: CDS22635) Tj ET
+BT 308.83 675.00 Td (Billed to: Copperline, Inc.) Tj ET
+BT 56.83 659.00 Td (Issued: 10/21/2025) Tj ET
+BT 308.83 659.00 Td (1800 Wazee Street, Suite 400) Tj ET
+BT 56.83 643.00 Td (Due: 11/20/2025) Tj ET
+BT 308.83 643.00 Td (Denver, CO 80202) Tj ET
+BT 56.83 627.00 Td (Payment terms: Net 30) Tj ET
+BT 308.83 627.00 Td (Contact: Noor Haddad) Tj ET
+BT /F2 10.00 Tf ET
+BT 56.83 601.00 Td (Item) Tj ET
+BT 517.40 601.00 Td (Amount) Tj ET
+54.00 594.00 m 558.00 594.00 l S
+BT /F1 10.00 Tf ET
+BT 56.83 581.00 Td (Laptop, 14 inch, 32 GB \(2 x $3,199.00\)) Tj ET
+BT 510.69 581.00 Td ($6,398.00) Tj ET
+54.00 574.00 m 558.00 574.00 l S
+BT /F2 10.00 Tf ET
+BT 56.83 561.00 Td (Amount due) Tj ET
+BT 510.69 561.00 Td ($6,398.00) Tj ET
+BT /F1 9.00 Tf ET
+BT 56.83 531.30 Td (Pay by bank transfer. Questions about this invoice: billing@cascadedevicesuppl.example) Tj ET
+
+endstream
+endobj
+5 0 obj
+<<
+/BaseFont /Helvetica
+/Encoding /WinAnsiEncoding
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+6 0 obj
+<<
+/BaseFont /Helvetica-Bold
+/Encoding /WinAnsiEncoding
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+7 0 obj
+<<
+/Font <</F1 5 0 R
+/F2 6 0 R>>
+/ProcSet [/PDF /Text /ImageB /ImageC /ImageI]
+>>
+endobj
+8 0 obj
+<<
+/CreationDate (D:20260302120000Z)
+>>
+endobj
+xref
+0 9
+0000000000 65535 f 
+0000000009 00000 n 
+0000000096 00000 n 
+0000000199 00000 n 
+0000000279 00000 n 
+0000001463 00000 n 
+0000001560 00000 n 
+0000001662 00000 n 
+0000001759 00000 n 
+trailer
+<<
+/Size 9
+/Root 2 0 R
+/Info 8 0 R
+/ID [<C620FE56F8CBCBDD3758D0ABCD711574><C620FE56F8CBCBDD3758D0ABCD711574>]
+>>
+startxref
+1814
+%%EOF

@@ -64,8 +64,9 @@ missing.
 - Ramp's MCP server (the public demo server for the build)
 - A QuickBooks Online sandbox through Intuit's MCP server
 - PDF reading for the PBC list, bank statements and invoices
-- A fake company dataset matched to the Ramp demo transactions, with planted
-  mistakes mixed into clean transactions so we can measure false alarms
+- A fake company dataset, with planted mistakes mixed into clean transactions so
+  we can measure false alarms. Its ledger is loaded into the QuickBooks sandbox
+  and its bills into the Ramp sandbox
 - A test set based on AU-C 500 (audit evidence) that scores each result and
   checks the agent never makes up a document, run in Braintrust
 - Slack and email drafts for follow-ups
@@ -77,7 +78,7 @@ missing.
 |---|---|---|
 | `agent` | Batyrkhan | The audit agent: the four checks, sample requests, drafts, the log |
 | `data` | Batyrkhan | The fake company, the planted mistakes, the answer key |
-| `connectors` | Noriaki | Ramp and QuickBooks connections, loading data into QuickBooks |
+| `connectors` | Noriaki | Ramp and QuickBooks connections, loading test data into both sandboxes |
 | `evals` | Noriaki | The test that scores the agent |
 | `ui` | Noriaki | The screen |
 | `shared` | both | The data contract, README, demo, repo rules |
@@ -86,8 +87,12 @@ missing.
 
 Assumptions made at setup. Change them on a `shared/` branch if they are wrong.
 
-- Sending messages, or writing anything to Ramp or to a real company's books.
-  The QuickBooks sandbox only ever holds our test data.
+- Sending messages, or writing anything to a real company's Ramp or books. The
+  agent itself never writes anywhere. The connectors' loaders write our test
+  data into the QuickBooks sandbox and the Ramp sandbox, and nowhere else. Ramp's
+  API can create bills, vendors and users but not card transactions, so in the
+  Ramp sandbox only the dataset's bills are ours; card transactions come from
+  the dataset, and each run says which records came from where.
 - Spending other than card expenses and vendor bills.
 - Currencies other than USD, and more than one legal entity.
 - An audit opinion. The agent prepares evidence. People decide.
