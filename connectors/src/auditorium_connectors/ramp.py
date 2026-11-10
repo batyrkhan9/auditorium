@@ -48,6 +48,7 @@ from auditorium_contracts import (
     SpendPolicy,
     SpendTransaction,
     TransactionKind,
+    default_origin,
 )
 
 from .fallback import LocalFallback
@@ -74,11 +75,20 @@ SAFE_ID = re.compile(r"[A-Za-z0-9_-]+")
 # The `serverInfo.name` our local stand-in for Ramp's MCP server gives in `initialize`.
 STANDIN_SERVER_NAME = "auditorium-ramp-standin"
 
-# Contract v0.1 has no way to say "the source could not tell", so `describe()` says it.
+# Ramp's MCP server reaches no approval chain from a transaction or bill, so every
+# record's `approvals` is None ("the source could not say"), never [] ("never routed").
 APPROVALS_UNAVAILABLE = (
     "approvals not available from Ramp's MCP server (no approval instance is reachable "
-    "from a transaction), so an empty approvals list means unknown, not unapproved"
+    "from a transaction), so every record's approvals are unknown (None)"
 )
+
+# Ramp's sandbox hosts. Their businesses (Ramp's demo company, and our loaded bills)
+# are made up, so a source read from one is `synthetic`. Production is api.ramp.com.
+RAMP_SANDBOX_HOSTS = frozenset({"demo-api.ramp.com", "demo-mcp.ramp.com"})
+
+
+def is_ramp_sandbox(url: str) -> bool:
+    return httpx.URL(url).host in RAMP_SANDBOX_HOSTS
 
 
 class RampUnavailable(Exception):
@@ -500,7 +510,8 @@ def _gl_account(selections: Iterable[Any] | None) -> str | None:
 
 def map_card_transaction(payload: Mapping[str, Any]) -> SpendTransaction:
     """A `ramp_get_transactions` record. Ramp's MCP server exposes no approvals for it,
-    and no department: both stay empty (see APPROVALS_UNAVAILABLE)."""
+    so they are None, unknown (see APPROVALS_UNAVAILABLE); and no department, so it
+    stays empty."""
     ramp_id = payload["transaction_uuid"]
     what = f"transaction {ramp_id}"
     vendor = payload.get("merchant_name")
@@ -524,6 +535,7 @@ def map_card_transaction(payload: Mapping[str, Any]) -> SpendTransaction:
         category=_gl_account(payload.get("accounting_categories")),
         spender_id=person_id(spender) if spender else None,
         document_ids=[receipt_document_id(r) for r in payload.get("receipt_uuids") or ()],
+        approvals=None,
         raw=_unsigned(payload),
     )
 
@@ -532,7 +544,9 @@ def map_bill(
     payload: Mapping[str, Any], invoices: Iterable[Mapping[str, Any]] = ()
 ) -> SpendTransaction:
     """A bill in the Developer API's shape (captured 2026-11-10; the MCP sandbox has no
-    bills), with the attachments `ramp_get_bill_invoices` returned for it."""
+    bills), with the attachments `ramp_get_bill_invoices` returned for it. A bill holds
+    no approval chain, so `approvals` is None (unknown); the Developer API path sets
+    it from its approvals endpoint."""
     ramp_id = payload["id"]
     what = f"bill {ramp_id}"
     vendor = (payload.get("vendor") or {}).get("name")
@@ -560,6 +574,7 @@ def map_bill(
         category=category,
         spender_id=person_id(owner["id"]) if owner.get("id") else None,
         document_ids=[attachment_document_id(a["id"]) for a in invoices],
+        approvals=None,
         raw=_unsigned(payload),
     )
 
@@ -578,18 +593,45 @@ def managers(org_charts: Mapping[str, Mapping[str, Any]]) -> dict[str, str]:
 
 
 def map_user(payload: Mapping[str, Any], manager: str | None = None) -> Person:
-    """A `ramp_list_users` record. `manager` is the Ramp id from the org chart."""
+    """A `ramp_list_users` record. `manager` is the Ramp id from the org chart.
+    Ramp's `role` is a permission level (BUSINESS_USER, ...), so it goes in
+    `platform_role`; the job role comes from company records (`with_job_roles`)."""
     name = " ".join(p for p in (payload.get("first_name"), payload.get("last_name")) if p)
     return Person(
         id=person_id(payload["id"]),
         name=name or payload.get("email") or payload["id"],
         email=payload.get("email") or None,
-        # Ramp's `role` is a permission level (BUSINESS_USER, ...), not a job role,
-        # so it is not what approval rules match on. Ramp holds no job title.
         role=None,
+        platform_role=payload.get("role") or None,
         department=payload.get("department_name") or None,
         manager_id=person_id(manager) if manager else None,
     )
+
+
+def _email_key(email: str | None) -> str | None:
+    return email.strip().casefold() if email and email.strip() else None
+
+
+def with_job_roles(people: Iterable[Person], company: Iterable[Person]) -> list[Person]:
+    """Ramp's people with `role` from the company record of the same email (contract
+    v0.2: people join on email; Ramp's id and manager win). No match, or an email two
+    company records share, leaves the role empty, and a rule that needs it comes out
+    `needs_review`."""
+    roles: dict[str, str | None] = {}
+    shared: set[str] = set()
+    for person in company:
+        key = _email_key(person.email)
+        if key is None:
+            continue
+        if key in roles:
+            shared.add(key)
+        roles[key] = person.role
+    joined = []
+    for person in people:
+        key = _email_key(person.email)
+        role = roles.get(key) if key and key not in shared else None
+        joined.append(person.model_copy(update={"role": role}) if role else person)
+    return joined
 
 
 @dataclass(frozen=True)
@@ -605,11 +647,14 @@ class RemoteFile:
     text_ok: bool = False
 
 
-ATTACHMENT_TYPES = {
+# Ramp's bill `attachment_type` -> our type and, where the type says where the file
+# came from, its origin. FILE and unknown types say nothing, so `default_origin`
+# decides (internal for OTHER: the weaker kind of evidence).
+ATTACHMENT_TYPES: dict[str, tuple[DocumentType, str | None]] = {
     "INVOICE": (DocumentType.INVOICE, "external"),
     "VENDOR_CREDIT": (DocumentType.OTHER, "external"),
     "EMAIL": (DocumentType.OTHER, "internal"),
-    "FILE": (DocumentType.OTHER, "internal"),
+    "FILE": (DocumentType.OTHER, None),
 }
 
 
@@ -636,13 +681,13 @@ def remote_files(payloads: RampPayloads) -> list[RemoteFile]:
             if not attachment.get("url"):
                 raise RampUnavailable(f"bill attachment {attachment['id']}: no file URL")
             doc_type, origin = ATTACHMENT_TYPES.get(
-                attachment.get("attachment_type"), (DocumentType.OTHER, "internal")
+                attachment.get("attachment_type"), (DocumentType.OTHER, None)
             )
             files.append(
                 RemoteFile(
                     document_id=attachment_document_id(attachment["id"]),
                     type=doc_type,
-                    origin=origin,
+                    origin=origin or default_origin(doc_type),
                     source=SourceRef(
                         system=SourceSystem.RAMP,
                         record_type="bill_attachment",
@@ -735,15 +780,18 @@ class RampSources:
             and b.get("status_summary") not in SKIPPED_BILL_SUMMARIES
         ]
         reports_to = managers(payloads.org_charts)
-        self._people = [map_user(u, reports_to.get(u["id"])) for u in payloads.users]
+        self._people = with_job_roles(
+            [map_user(u, reports_to.get(u["id"])) for u in payloads.users], local.people()
+        )
         self._attach_documents(remote_files(payloads), download)
 
     def _attach_documents(self, files: list[RemoteFile], download: Downloader) -> None:
         """Downloads `files`, and refuses a transaction naming a file Ramp did not return.
         A file Ramp lists but its host says is gone is taken off its transaction (so it
         reads as missing) and named in `describe()`; `raw` still lists it."""
-        # Document id -> why it could not be downloaded.
+        # Document id -> why it could not be downloaded, and -> the transaction naming it.
         self.unavailable: dict[str, str] = {}
+        self.unavailable_on: dict[str, str] = {}
         self._documents = {d.id: d for d in self._download(files, download)}
         if len(self.unavailable) > max(1, int(len(files) * MAX_GONE_SHARE)):
             raise RampUnavailable(
@@ -758,6 +806,9 @@ class RampSources:
                         f"{txn.id} names {document_id}, which Ramp did not return"
                     )
             if any(d in self.unavailable for d in txn.document_ids):
+                for d in txn.document_ids:
+                    if d in self.unavailable:
+                        self.unavailable_on[d] = txn.id
                 found = [d for d in txn.document_ids if d not in self.unavailable]
                 txn = txn.model_copy(update={"document_ids": found})
             kept.append(txn)
@@ -810,24 +861,38 @@ class RampSources:
         sent, not from a setting, so a stand-in can't be configured into "live"."""
         return self.server.get("name") == STANDIN_SERVER_NAME
 
-    def unavailable_note(self) -> list[str]:
-        """The files Ramp lists but could not serve, if any."""
-        if not self.unavailable:
+    @property
+    def synthetic(self) -> bool:
+        """Made-up data: our stand-in (it serves a dataset) or Ramp's sandbox."""
+        return self.is_standin or is_ramp_sandbox(self.endpoint)
+
+    def unavailable_note(self, transaction_ids: Iterable[str] | None = None) -> list[str]:
+        """The files Ramp lists but could not serve, if any; with `transaction_ids`,
+        only those on these transactions."""
+        wanted = None if transaction_ids is None else set(transaction_ids)
+        gone = {
+            d: why
+            for d, why in self.unavailable.items()
+            if wanted is None or self.unavailable_on.get(d) in wanted
+        }
+        if not gone:
             return []
-        named = ", ".join(f"{d} ({why})" for d, why in sorted(self.unavailable.items()))
+        named = ", ".join(f"{d} ({why})" for d, why in sorted(gone.items()))
         return [
-            f"{len(self.unavailable)} document(s) Ramp lists but its file host could not "
+            f"{len(gone)} document(s) Ramp lists but its file host could not "
             f"serve, left off their transactions so they read as missing: {named}"
         ]
 
+    def read_notes(self) -> list[str]:
+        """What the read found about the records, files aside."""
+        left_out = [f"{n} {why}" for why, n in sorted(self.left_out.items())]
+        return [APPROVALS_UNAVAILABLE] + (
+            [f"card transactions left out: {', '.join(left_out)}"] if left_out else []
+        )
+
     def notes(self) -> list[str]:
         """What a reader of `describe()` must know about these records."""
-        left_out = [f"{n} {why}" for why, n in sorted(self.left_out.items())]
-        return (
-            [APPROVALS_UNAVAILABLE]
-            + ([f"card transactions left out: {', '.join(left_out)}"] if left_out else [])
-            + self.unavailable_note()
-        )
+        return self.read_notes() + self.unavailable_note()
 
     def describe(self) -> list[SourceUse]:
         notes = "; ".join(self.notes())
@@ -837,12 +902,14 @@ class RampSources:
                 system=SourceSystem.RAMP,
                 mode="local",
                 detail=f"Ramp stand-in MCP server at {self.endpoint}, {served}; not Ramp; {notes}",
+                synthetic=True,
             )
         else:
             ramp = SourceUse(
                 system=SourceSystem.RAMP,
                 mode="live",
                 detail=f"Ramp MCP {self.endpoint}; {notes}",
+                synthetic=self.synthetic,
             )
         return [ramp] + [
             use for use in self.local.describe() if use.system is not SourceSystem.RAMP

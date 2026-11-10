@@ -508,6 +508,8 @@ def stamped_bills(ramp: Sources, local: LocalSources) -> dict[str, SpendTransact
 
 # What Ramp cannot hold for a loaded bill. A live bill takes these from the dataset
 # record its stamp names; Ramp's own values stay in `raw` (see `from_dataset`).
+# Contract v0.2 has no field for "this value came from elsewhere" (deferred in its
+# round 3), so the record says it under REPLACED_KEY and `describe()` says it too.
 FROM_DATASET = ("spender_id", "approvals", "paid_date")
 REPLACED_KEY = "auditorium_replaced_from_dataset"
 
@@ -561,7 +563,7 @@ class LoadedBillsSources:
         people = {p.id: p for p in local.people()}
         self.local_people = len(people)
         named = {t.spender_id for t in self.live.values()} | {
-            a.approver_id for t in self.live.values() for a in t.approvals
+            a.approver_id for t in self.live.values() for a in t.approvals or ()
         }
         for person in ramp.people():
             if person.id in named:
@@ -581,23 +583,33 @@ class LoadedBillsSources:
         if missing:
             named = ", ".join(missing[:5]) + (", ..." if len(missing) > 5 else "")
             split += f", {len(missing)} from dataset {dataset_id} (not found in Ramp: {named})"
+        live_ids = {t.id for t in self.ramp.transactions() if loaded_ref(t.raw) in self.live}
         detail = "; ".join(
             [
                 f"{_ramp_label(self.ramp)} | {split}",
                 f"card transactions: {len(cards)} from dataset {dataset_id} (Ramp cannot "
                 "create card transactions)",
-                f"requester, approvals, paid date from dataset {dataset_id} via the stamp; "
-                "Ramp cannot hold them",
+                f"requester, approvals, paid date from dataset {dataset_id} via the stamp "
+                f"(Ramp's own values in raw[{REPLACED_KEY!r}]); Ramp cannot hold them",
                 f"people: {self.local_people} from dataset, "
                 f"{len(self._people) - self.local_people} from Ramp",
-                f"{self.ignored} other Ramp records ignored (not stamped from this dataset, or a "
-                "second bill with the same stamp)",
-                "Ramp read: " + ", ".join(self.ramp.notes()),
+                *self.ramp.unavailable_note(live_ids),
+                f"{self.ignored} other Ramp records ignored and not part of this run (not "
+                "stamped from this dataset, or a second bill with the same stamp); what the "
+                "read of the whole Ramp business noted, mostly about those ignored records: "
+                + ", ".join(self.ramp.read_notes() + self._ignored_files(live_ids)),
             ]
         )
         mode = "local" if self.ramp.is_standin else "live"
-        ramp = SourceUse(system=SourceSystem.RAMP, mode=mode, detail=detail)
+        synthetic = self.ramp.synthetic or self.local.dataset.manifest.synthetic
+        ramp = SourceUse(system=SourceSystem.RAMP, mode=mode, detail=detail, synthetic=synthetic)
         return [ramp] + [u for u in self.local.describe() if u.system is not SourceSystem.RAMP]
+
+    def _ignored_files(self, live_ids: set[str]) -> list[str]:
+        gone = [d for d, txn in self.ramp.unavailable_on.items() if txn not in live_ids]
+        if not gone:
+            return []
+        return [f"{len(gone)} file(s) on ignored records Ramp's file host could not serve"]
 
     def transactions(self) -> list[SpendTransaction]:
         return list(self._transactions)

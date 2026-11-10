@@ -194,7 +194,8 @@ def test_transactions_survive_the_round_trip(connected):
     lost = {"raw", "approvals", "department"}
     for original in (CARD, REFUND, BILL):
         assert got[original.id].model_dump(exclude=lost) == original.model_dump(exclude=lost)
-        assert got[original.id].approvals == [] and got[original.id].department is None
+        # The MCP path cannot reach approvals: unknown, not "never routed".
+        assert got[original.id].approvals is None and got[original.id].department is None
     # The stand-in sends Ramp's shape: a decimal string, not cents.
     assert got[REFUND.id].raw["amount_value"] == "-180.00"
     assert "transaction_uuid" in got[CARD.id].raw
@@ -217,11 +218,12 @@ def test_small_pages_read_the_same_records(standin):
     assert len(one_by_one.transactions) == 2 and len(one_by_one.users) == 2
 
 
-def test_people_survive_except_the_job_role(connected, dataset):
+def test_people_survive_with_the_job_role_joined_on_email(connected, dataset):
     original = {p.id: p for p in c.LocalSources(dataset).people()}
     got = {p.id: p for p in connected.people()}
-    assert got[SAM.id] == SAM  # role "cfo" in the dataset; Ramp has no job role
-    assert original[SAM.id].role == "cfo" and got[SAM.id].role is None
+    # Ramp has no job role; "cfo" comes back from the company record with Sam's email.
+    assert original[SAM.id].role == "cfo"
+    assert got[SAM.id] == SAM.model_copy(update={"role": "cfo"})
     assert got[DANA.id] == DANA
 
 
@@ -298,3 +300,8 @@ def test_unknown_files_are_not_served(standin):
     base = standin.removesuffix("/mcp")
     assert httpx.get(f"{base}/files/receipt/nope").status_code == 404
     assert httpx.get(f"{base}/files/receipt/r-900").headers["content-type"] == "application/pdf"
+
+
+def test_the_standin_is_reported_local_and_synthetic(connected):
+    use = next(u for u in connected.describe() if u.system is c.SourceSystem.RAMP)
+    assert use.mode == "local" and use.synthetic is True

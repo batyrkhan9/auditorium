@@ -36,6 +36,7 @@ from auditorium_connectors.ramp import (
     records_from,
     refusal_recorder,
     tool_payload,
+    with_job_roles,
 )
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -145,6 +146,7 @@ def build_local(root: Path) -> c.LocalSources:
             fiscal_year_start=date(2025, 1, 1),
             fiscal_year_end=date(2025, 12, 31),
             coverage_end=date(2026, 2, 28),
+            synthetic=True,
         ),
     )
     c.write_jsonl(root / "transactions.jsonl", [])
@@ -220,7 +222,7 @@ def test_captured_card_transaction_maps_to_the_contract():
     assert txn.spender_id == "ramp:user:b6b46725-b181-454a-8094-f0e3e2f33e02"
     assert txn.department is None  # Ramp's MCP transaction has no department
     assert txn.document_ids == []
-    assert txn.approvals == []  # unknown, not unapproved: see APPROVALS_UNAVAILABLE
+    assert txn.approvals is None  # unknown, not "never routed": see APPROVALS_UNAVAILABLE
     assert txn.raw == AIR_CANADA
 
 
@@ -291,7 +293,7 @@ def test_synthetic_bill_maps_invoice_dates_attachments_and_line_item_account():
     assert txn.spender_id == f"ramp:user:{DAVID}"
     assert txn.department is None  # a Ramp bill has no department
     assert txn.document_ids == ["ramp:bill_attachment:att-500"]
-    assert txn.approvals == []
+    assert txn.approvals is None
     assert txn.raw == BILL
 
 
@@ -301,9 +303,28 @@ def test_captured_user_maps_without_inventing_a_job_role():
         name="Akshit Khurana",
         email="cardholder_23@example.com",
         role=None,  # Ramp's "BUSINESS_USER" is a permission level
+        platform_role="BUSINESS_USER",
         department="Implementations",
         manager_id=None,
     )
+
+
+def test_job_roles_join_on_email_and_ramp_ids_win():
+    ramp_people = [
+        map_user({**USERS[0], "email": "Sam@Example.com"}),
+        map_user({**USERS[1], "email": "nobody@example.com"}),
+        map_user({**USERS[2], "email": "shared@example.com"}),
+    ]
+    company = [
+        c.Person(id="company:sam", name="Sam", email="sam@example.com", role="cfo"),
+        c.Person(id="company:a", name="A", email="shared@example.com", role="engineer"),
+        c.Person(id="company:b", name="B", email="shared@example.com", role="cfo"),
+    ]
+    joined = with_job_roles(ramp_people, company)
+    assert [p.id for p in joined] == [p.id for p in ramp_people]  # Ramp's ids
+    # Matched (case-insensitively); no match; an email two company records share.
+    assert [p.role for p in joined] == ["cfo", None, None]
+    assert joined[0].platform_role == "BUSINESS_USER"
 
 
 def test_managers_come_from_the_captured_org_chart():
@@ -619,6 +640,8 @@ def test_failure_falls_back_to_local_and_says_why(tmp_path, url, token, client, 
     assert isinstance(sources, LocalFallback)
     uses = {use.system: use for use in sources.describe()}
     assert all(use.mode == "local" for use in uses.values())
+    # The dataset's manifest says synthetic; standing in for Ramp does not drop that.
+    assert all(use.synthetic for use in uses.values())
     assert reason in uses["ramp"].detail
     assert "not live" not in uses["qbo"].detail
     assert sources.transactions() == local.transactions()
@@ -790,3 +813,19 @@ def test_live_ramp_loads(tmp_path):
     assert isinstance(sources, RampSources), uses["ramp"].detail
     assert uses["ramp"].mode == "live"
     assert sources.transactions()
+
+
+def test_ramp_sandbox_is_synthetic_and_another_host_is_not(tmp_path):
+    sandbox = connect_with(tmp_path / "a", FixtureClient(payloads()))
+    assert isinstance(sandbox, RampSources)
+    uses = {use.system: use for use in sandbox.describe()}
+    assert uses["ramp"].mode == "live" and uses["ramp"].synthetic is True
+    other = connect_ramp(
+        build_local(tmp_path / "b" / "dataset"),
+        url="https://mcp.ramp.example/mcp",
+        token="t",
+        cache_dir=tmp_path / "b" / "cache",
+        client=FixtureClient(payloads()),
+        download=fake_download,
+    )
+    assert {u.system: u for u in other.describe()}["ramp"].synthetic is False

@@ -65,3 +65,5 @@ live bills and dropping the rest: the eval would lose the bills Ramp cannot hold
 **What would change our mind.** A first real load where `memo` loses the stamp, the
 multipart upload is refused, or `paid_at` lands far from the dataset's paid date.
 A sandbox with an accounting connection, which would let category through.
+A contract field for values taken from the dataset. v0.2 deferred it, so
+`raw["auditorium_replaced_from_dataset"]` stays, and `describe()` now names it.

@@ -619,7 +619,7 @@ def test_the_bill_owner_is_never_presented_as_a_requester_or_person(tmp_path):
     sources = mixed(tmp_path)
     owner = f"ramp:user:{OWNER}"
     assert owner not in {t.spender_id for t in sources.transactions()}
-    assert owner not in {a.approver_id for t in sources.transactions() for a in t.approvals}
+    assert owner not in {a.approver_id for t in sources.transactions() for a in t.approvals or ()}
     # Only the dataset's people: the live bills name no Ramp user.
     assert sorted(p.id for p in sources.people()) == [HOLLY, PAM]
 
@@ -633,10 +633,14 @@ def test_describe_states_the_split(tmp_path):
         "dataset tiny (Ramp cannot create card transactions)"
     )
     assert (
-        "requester, approvals, paid date from dataset tiny via the stamp; Ramp cannot hold them"
-        in use.detail
+        "requester, approvals, paid date from dataset tiny via the stamp (Ramp's own values in "
+        "raw['auditorium_replaced_from_dataset']); Ramp cannot hold them" in use.detail
     )
-    assert "other Ramp records ignored (not stamped from this dataset" in use.detail
+    assert "other Ramp records ignored and not part of this run (not stamped" in use.detail
+    # What the whole read said comes after, labelled as about the ignored records.
+    ignored = use.detail.index("ignored and not part of this run")
+    assert use.detail.index("approvals from /developer/v1/approvals") > ignored
+    assert use.synthetic is True
 
 
 def test_without_stamped_bills_ramp_falls_back_to_the_dataset_as_before(tmp_path):

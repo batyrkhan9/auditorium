@@ -37,3 +37,4 @@ that way.
 **What would change our mind.** A contract field for "listed but unavailable", which
 would let the receipt check answer `needs_review` instead of asking for the receipt.
 Or Ramp telling us that a 404 there means something other than a missing file.
+Contract v0.2 deferred that field (round 3), so this behaviour stays.

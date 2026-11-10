@@ -14,6 +14,7 @@ import base64
 import importlib.util
 import json
 import os
+from collections import Counter
 from datetime import date, datetime
 from pathlib import Path
 from urllib.parse import parse_qs
@@ -34,6 +35,7 @@ from auditorium_connectors.ramp_api import (
     APPROVALS_SCOPE,
     REQUIRED_SCOPES,
     map_api_card_transaction,
+    map_approvals,
 )
 
 # Helpers shared with test_ramp.py, loaded by path (--import-mode=importlib).
@@ -233,7 +235,8 @@ def test_an_app_without_approvals_scope_still_connects_and_says_approvals_unavai
     assert "/developer/v1/approvals" not in fake.paths()
     detail = ramp_use(sources).detail
     assert "approvals unavailable" in detail and APPROVALS_SCOPE in detail
-    assert all(t.approvals == [] for t in sources.transactions())
+    # Unknown, never an empty list ("never sent for approval").
+    assert all(t.approvals is None for t in sources.transactions())
 
 
 def test_a_token_missing_a_required_scope_is_refused(tmp_path):
@@ -589,11 +592,16 @@ def test_approval_steps_map_to_contract_approvals(tmp_path):
         (a.approver_id, a.decision)
         for a in by_id[f"ramp:bill:{ADMIN_APPROVED_BILL['id']}"].approvals
     ] == [("ramp:user:b6b46725-b181-454a-8094-f0e3e2f33e02", "approved")]
-    # Captured: a PENDING chain with no history yet has no approvals.
-    assert by_id["ramp:transaction:aa835a3a-0963-468c-a50d-fe747a7a090c"].approvals == []
-    # Spec-shaped: a rejection maps; a step with no user and a non-decision do not.
+    # Captured: a PENDING chain with no history yet is one pending step, waiting on its
+    # one next approver, with no decision time.
+    assert by_id["ramp:transaction:aa835a3a-0963-468c-a50d-fe747a7a090c"].approvals == [
+        c.Approval(approver_id="ramp:user:b6b46725-b181-454a-8094-f0e3e2f33e02", decision="pending")
+    ]
+    # Spec-shaped: a rejection maps; a step with no user and a non-decision do not. The
+    # chain is still PENDING with no next approver: one pending step, nobody named yet.
     assert [(a.approver_id, a.decision) for a in by_id["ramp:transaction:t-refund"].approvals] == [
-        (f"ramp:user:{USERS[0]['id']}", "rejected")
+        (f"ramp:user:{USERS[0]['id']}", "rejected"),
+        (None, "pending"),
     ]
     # No chain returned for CARD: empty, and describe says what that means.
     assert by_id[f"ramp:transaction:{CARD['id']}"].approvals == []
@@ -626,16 +634,46 @@ def test_approvals_are_asked_per_entity_type_by_id(tmp_path):
 
 
 @pytest.mark.parametrize("status", [403, 404])
-def test_approvals_endpoint_refusal_leaves_approvals_empty_and_says_so(tmp_path, status):
+def test_approvals_endpoint_refusal_leaves_approvals_unknown_and_says_so(tmp_path, status):
     sources = connect(tmp_path, FakeRamp(approvals_status=status))
     assert isinstance(sources, ApiRampSources)
-    assert all(t.approvals == [] for t in sources.transactions())
+    assert all(t.approvals is None for t in sources.transactions())
     use = ramp_use(sources)
     assert use.mode == "live"
     assert (
         f"approvals unavailable (GET /developer/v1/approvals answered HTTP {status})" in use.detail
     )
-    assert "unknown, not unapproved" in use.detail
+    assert "every record's approvals are unknown (None)" in use.detail
+
+
+def test_a_pending_chain_with_several_or_no_next_approvers_has_no_single_approver():
+    unmapped = Counter()
+    several = {
+        "status": "PENDING",
+        "approval_history": [
+            {
+                "step_status": "Approved",
+                "user_id": "u-1",
+                "action_at": "2026-01-02T10:00:00+00:00",
+            }
+        ],
+        "next_approvers": [{"user_id": "u-2"}, {"user_id": "u-3"}],
+    }
+    assert [
+        (a.approver_id, a.decision, a.decided_at is None) for a in map_approvals(several, unmapped)
+    ] == [("ramp:user:u-1", "approved", False), (None, "pending", True)]
+    nobody = {"status": "PENDING", "approval_history": [], "next_approvers": []}
+    assert map_approvals(nobody, unmapped) == [c.Approval(approver_id=None, decision="pending")]
+    # A pending step in the history is not doubled by next_approvers.
+    listed = {
+        "status": "PENDING",
+        "approval_history": [{"step_status": "Pending", "user_id": "u-4", "action_at": None}],
+        "next_approvers": [{"user_id": "u-4"}],
+    }
+    assert map_approvals(listed, unmapped) == [
+        c.Approval(approver_id="ramp:user:u-4", decision="pending")
+    ]
+    assert not unmapped
 
 
 def test_an_approvals_server_error_fails_the_connection(tmp_path):
@@ -749,3 +787,8 @@ def test_live_ramp_developer_api_loads(tmp_path):
     assert isinstance(sources, ApiRampSources), use.detail
     assert use.mode == "live"
     assert os.environ["RAMP_CLIENT_SECRET"] not in use.detail
+
+
+def test_the_sandbox_api_is_synthetic(tmp_path):
+    use = ramp_use(connect(tmp_path))
+    assert use.mode == "live" and use.synthetic is True

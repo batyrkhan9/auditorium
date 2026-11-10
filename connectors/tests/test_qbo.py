@@ -189,8 +189,51 @@ def test_purchase_maps_card_expense_and_leaves_item_lines_in_raw():
         ("Software", "debit", 4599),
         ("Ramp Card", "credit", 4599),
     ]
-    assert {line.department for line in entry.lines} == {"Design"}
+    # QuickBooks puts the department on the entry; the lines set none of their own.
+    assert entry.department == "Design"
+    assert {line.department for line in entry.lines} == {None}
+    assert entry.payment_type == "CreditCard"
     assert entry.raw["Line"][1]["DetailType"] == "ItemBasedExpenseLineDetail"
+
+
+ACCOUNTS = [
+    {"Id": "7", "Name": "Legal & Professional Fees", "AccountType": "Expense"},
+    {"Id": "33", "Name": "Accounts Payable (A/P)", "AccountType": "Accounts Payable"},
+    {"Id": "88", "Name": "Accrued Liabilities", "AccountType": "Other Current Liability"},
+    {"Id": "9", "Name": "Software", "AccountType": "Expense"},
+    {"Id": "41", "Name": "Ramp Card", "AccountType": "Credit Card"},
+]
+
+
+def test_lines_carry_quickbooks_account_types(tmp_path):
+    fake = FakeQbo({"Account": ACCOUNTS, "Bill": [BILL], "JournalEntry": [JOURNAL]})
+    client = make_client(fake, tmp_path)
+    bill, journal = client.fetch_ledger()
+    assert [(x.account, x.account_type) for x in bill.lines] == [
+        ("Legal & Professional Fees", "Expense"),
+        ("Accounts Payable (A/P)", "Accounts Payable"),
+    ]
+    assert [x.account_type for x in journal.lines] == ["Expense", "Other Current Liability"]
+    # The accounts are read once per client, not once per fetch.
+    client.fetch_ledger()
+    queries = [r.url.params.get("query", "") for r in fake.requests]
+    assert sum(" FROM Account " in q for q in queries) == 1
+
+
+def test_an_account_quickbooks_did_not_list_gets_no_type():
+    entry = qbo.map_entity("Bill", BILL, {"id:7": "Expense"})
+    assert [x.account_type for x in entry.lines] == ["Expense", None]
+
+
+def test_journal_lines_name_their_vendor_and_only_their_own_department():
+    journal = json.loads(json.dumps(JOURNAL))
+    journal["DepartmentRef"] = {"value": "1", "name": "Finance"}
+    journal["Line"][0]["JournalEntryLineDetail"]["DepartmentRef"] = {"name": "Legal"}
+    entry = qbo.map_entity("JournalEntry", journal)
+    assert [x.vendor_name for x in entry.lines] == ["Northwind Advisory LLC"] * 2
+    assert entry.department == "Finance"
+    assert [x.department for x in entry.lines] == ["Legal", None]
+    assert entry.payment_type is None
 
 
 def test_purchase_credit_is_a_negative_refund_with_sides_flipped():
@@ -335,9 +378,9 @@ def card_expense(**overrides):
     )
 
 
-def test_plan_expense_takes_payment_type_from_raw_record():
+def test_plan_expense_takes_payment_type_from_the_entry():
     paid_by_check = card_expense(
-        raw={"PaymentType": "Check"},
+        payment_type="Check",
         lines=[
             LedgerLine(account="Software", side="debit", amount_cents=4599),
             LedgerLine(account="Operating", side="credit", amount_cents=4599),
@@ -359,10 +402,57 @@ def test_plan_expense_refuses_to_guess_cash_or_check():
         qbo.plan_entry(unknown)
 
 
+def test_plan_expense_does_not_read_payment_type_from_raw():
+    unknown = card_expense(
+        raw={"PaymentType": "Check"},
+        lines=[
+            LedgerLine(account="Software", side="debit", amount_cents=4599),
+            LedgerLine(account="Operating", side="credit", amount_cents=4599),
+        ],
+    )
+    with pytest.raises(qbo.Skip, match="cannot tell how the expense was paid"):
+        qbo.plan_entry(unknown)
+
+
+def test_plan_expense_refuses_a_paid_from_account_type_that_contradicts_payment_type():
+    contradicts = card_expense(
+        payment_type="CreditCard",
+        lines=[
+            LedgerLine(account="Software", side="debit", amount_cents=4599),
+            LedgerLine(account="Ramp Card", account_type="Bank", side="credit", amount_cents=4599),
+        ],
+    )
+    with pytest.raises(qbo.Skip, match="is a Bank account; PaymentType CreditCard"):
+        qbo.plan_entry(contradicts)
+
+
+def test_plan_takes_account_types_from_the_dataset_over_a_guess():
+    accrual = entry(
+        id="qbo:JournalEntry:ds-1",
+        entry_type="journal_entry",
+        lines=[
+            LedgerLine(account="Advisory", account_type="Expense", side="debit", amount_cents=100),
+            # By name alone this would be guessed an Expense account.
+            LedgerLine(
+                account="Year-end",
+                account_type="Other Current Liability",
+                side="credit",
+                amount_cents=100,
+                vendor_name="Line Vendor",
+            ),
+        ],
+    )
+    plan = qbo.plan_entry(accrual)
+    assert plan.account_type("Year-end") == "Other Current Liability"
+    assert qbo.guess_account_type("Year-end", "journal") == "Expense"
+    entities = [x["JournalEntryLineDetail"]["Entity"]["EntityRef"] for x in plan.payload["Line"]]
+    assert entities == [{"name": "Northwind Advisory LLC"}, {"name": "Line Vendor"}]
+
+
 def test_plan_refund_needs_a_card_payment():
     refund = card_expense(
         total_cents=-4599,
-        raw={"PaymentType": "Cash"},
+        payment_type="Cash",
         lines=[
             LedgerLine(account="Software", side="credit", amount_cents=4599),
             LedgerLine(account="Petty Cash", side="debit", amount_cents=4599),
@@ -495,6 +585,7 @@ def write_dataset(root, ledger):
             fiscal_year_start=date(2025, 1, 1),
             fiscal_year_end=date(2025, 12, 31),
             coverage_end=date(2026, 2, 28),
+            synthetic=True,
         ),
     )
     write_jsonl(root / "ledger.jsonl", ledger)
@@ -585,6 +676,7 @@ def test_qbo_ledger_live(tmp_path):
     ledger = qbo.QboLedger(client=make_client(fake, tmp_path))
     use = ledger.describe()
     assert use.system == "qbo" and use.mode == "live"
+    assert use.synthetic is True  # a sandbox company holds only test data
     assert "sandbox-quickbooks.api.intuit.com" in use.detail
     assert "read Bill, Purchase, JournalEntry" in use.detail
     assert [e.id for e in ledger.ledger_entries()] == ["qbo:Bill:147"]
@@ -623,6 +715,7 @@ def test_qbo_ledger_falls_back_when_not_configured(tmp_path):
     ledger = qbo.QboLedger(fallback=dataset, env={})
     use = ledger.describe()
     assert use.mode == "local"
+    assert use.synthetic is True  # the fixture manifest says so
     assert "QBO_CLIENT_ID" in use.detail and "fixture" in use.detail
     assert [e.id for e in ledger.ledger_entries()] == ["qbo:Bill:147"]
 
@@ -654,3 +747,32 @@ def test_cli_dry_run_needs_no_credentials(tmp_path, capsys):
     out = capsys.readouterr().out
     assert "plan: 1 entries, skip 1; QuickBooks not checked" in out
     assert "would load" not in out
+
+
+def test_load_skips_an_entry_whose_account_quickbooks_holds_with_another_type(tmp_path):
+    dataset = tmp_path / "dataset"
+    depreciation = entry(
+        id="qbo:JournalEntry:ds-9",
+        entry_type="journal_entry",
+        vendor_name=None,
+        lines=[
+            LedgerLine(
+                account="Depreciation", account_type="Expense", side="debit", amount_cents=100
+            ),
+            LedgerLine(
+                account="Accumulated Depreciation",
+                account_type="Fixed Asset",
+                side="credit",
+                amount_cents=100,
+            ),
+        ],
+    )
+    write_dataset(dataset, [depreciation])
+    held = {"Id": "60", "Name": "Accumulated Depreciation", "AccountType": "Expense"}
+    fake = FakeQbo({"Account": [held]})
+    report = qbo.load_dataset_ledger(dataset, make_client(fake, tmp_path))
+    assert report.created == []
+    assert report.skipped["qbo:JournalEntry:ds-9"] == (
+        "'Accumulated Depreciation' is a Expense account in QuickBooks; the dataset says "
+        "Fixed Asset"
+    )

@@ -40,14 +40,17 @@ that code.
 - Approvals: steps with `step_status` `Approved`, `Admin approved` or `Rejected`
   (any case) and a `user_id` become contract `Approval`s. Every other step is left out and counted in
   `describe()`, and so is a chain that is not approved yet. If the app lacks
-  `approvals:read`, or the endpoint answers 403 or 404, approvals stay empty and
-  `describe()` says "approvals unavailable". A 500 fails the connection.
+  `approvals:read`, or the endpoint answers 403 or 404, approvals are `None`
+  (unknown) and `describe()` says "approvals unavailable". A 500 fails the
+  connection. Since contract v0.2 a waiting chain also gives a pending step; see
+  `2026-11-10-adopt-contract-v0.2.md`.
 - The token lives in memory for one process. It is never written to disk. The
   secret goes only in the Basic header, and any error text has the secret, the
   client id and the token cut out.
 - A card's department stays empty, as on the MCP path, because `card_holder` gives
-  today's department, not the one at the time of purchase. A person's `role` stays
-  empty too, because Ramp's role is a permission level.
+  today's department, not the one at the time of purchase. Ramp's role is a
+  permission level, so it goes in `platform_role`. The job `role` comes from the
+  company record with the same email (contract v0.2).
 
 **Checked against the sandbox (2026-11-10).** A read-only capture of
 demo-api.ramp.com is in `connectors/tests/fixtures/ramp_api_capture.json`. The app is

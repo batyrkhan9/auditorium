@@ -125,6 +125,7 @@ class QboClient:
         self.http = http or httpx.Client(timeout=30.0)
         self._access_token: str | None = None
         self._refresh_token = self._cached_refresh_token() or config.refresh_token
+        self._account_types: dict[str, str] | None = None
 
     # Intuit rotates refresh tokens and the old one stops working, so the newest
     # one is kept outside the repo, tied to the env token it descends from. A new
@@ -218,11 +219,27 @@ class QboClient:
         body = self._request("POST", entity.lower(), json=payload)
         return body[entity]
 
+    def account_types(self) -> dict[str, str]:
+        """Account id, and account name, -> its QuickBooks AccountType. Read once per client."""
+        if self._account_types is None:
+            types: dict[str, str] = {}
+            for account in self.query("Account"):
+                kind = account.get("AccountType")
+                if not kind:
+                    continue
+                types[f"id:{account['Id']}"] = kind
+                for name in (account.get("Name"), account.get("FullyQualifiedName")):
+                    if name:
+                        types.setdefault(f"name:{name}", kind)
+            self._account_types = types
+        return self._account_types
+
     def fetch_ledger(self) -> list[LedgerEntry]:
         """Every Bill, Purchase and JournalEntry. Other entity types are not read."""
+        types = self.account_types()
         entries: list[LedgerEntry] = []
         for entity in ENTITY_TYPES:
-            entries.extend(map_entity(entity, record) for record in self.query(entity))
+            entries.extend(map_entity(entity, record, types) for record in self.query(entity))
         return entries
 
 
@@ -273,10 +290,17 @@ def loaded_ref(record: dict[str, Any]) -> str | None:
     return None
 
 
-def _expense_lines(record: dict[str, Any], side: str) -> list[LedgerLine]:
+def _account_type(ref: Any, types: Mapping[str, str]) -> str | None:
+    """The AccountType of the account `ref` points at: by id, else by name."""
+    if not isinstance(ref, dict):
+        return None
+    return types.get(f"id:{ref.get('value')}") or types.get(f"name:{ref.get('name')}")
+
+
+def _expense_lines(record: dict[str, Any], side: str, types: Mapping[str, str]) -> list[LedgerLine]:
     """Account-based lines. Item-based lines name an item, not an account, so they
-    are left out here and stay in `raw`."""
-    department = _name(record.get("DepartmentRef"))
+    are left out here and stay in `raw`. QuickBooks sets no department on these
+    lines (only on the entry), so they carry none."""
     lines = []
     for line in record.get("Line", []):
         detail = line.get("AccountBasedExpenseLineDetail")
@@ -288,38 +312,52 @@ def _expense_lines(record: dict[str, Any], side: str) -> list[LedgerLine]:
         lines.append(
             LedgerLine(
                 account=account,
+                account_type=_account_type(detail.get("AccountRef"), types),
                 side=side,
                 amount_cents=abs(to_cents(line.get("Amount", 0))),
                 description=line.get("Description"),
-                department=department,
             )
         )
     return lines
 
 
-def _balancing_line(account: str | None, side: str, cents: int, department: str | None):
+def _balancing_line(ref: Any, side: str, cents: int, types: Mapping[str, str]):
+    account = _name(ref)
     if not account:
         return []
-    return [LedgerLine(account=account, side=side, amount_cents=abs(cents), department=department)]
+    return [
+        LedgerLine(
+            account=account,
+            account_type=_account_type(ref, types),
+            side=side,
+            amount_cents=abs(cents),
+        )
+    ]
 
 
-def map_entity(entity: str, record: dict[str, Any]) -> LedgerEntry:
+def map_entity(
+    entity: str, record: dict[str, Any], account_types: Mapping[str, str] | None = None
+) -> LedgerEntry:
     """One QBO Bill, Purchase or JournalEntry as a `LedgerEntry`, original in `raw`.
 
     Bills and Purchases list only their expense lines; the credit side is the
     header's APAccountRef or AccountRef, which QuickBooks posts the total to. It
-    becomes the balancing line when the payload names it.
+    becomes the balancing line when the payload names it. `account_types` (from
+    `QboClient.account_types`) fills each line's `account_type`; an account not in
+    it gets none. The entry's DepartmentRef goes on the entry; only a journal line's
+    own DepartmentRef goes on that line.
     """
     if entity not in ENTITY_TYPES:
         raise ValueError(f"not a ledger entity: {entity}")
+    types = account_types or {}
     total = to_cents(record.get("TotalAmt", 0))
     department = _name(record.get("DepartmentRef"))
     vendor: str | None = None
 
     if entity == "Bill":
         vendor = _name(record.get("VendorRef"))
-        lines = _expense_lines(record, "debit") + _balancing_line(
-            _name(record.get("APAccountRef")), "credit", total, department
+        lines = _expense_lines(record, "debit", types) + _balancing_line(
+            record.get("APAccountRef"), "credit", total, types
         )
     elif entity == "Purchase":
         entity_ref = record.get("EntityRef") or {}
@@ -330,8 +368,8 @@ def map_entity(entity: str, record: dict[str, Any]) -> LedgerEntry:
         if refund:
             total = -total
         expense_side, card_side = ("credit", "debit") if refund else ("debit", "credit")
-        lines = _expense_lines(record, expense_side) + _balancing_line(
-            _name(record.get("AccountRef")), card_side, total, department
+        lines = _expense_lines(record, expense_side, types) + _balancing_line(
+            record.get("AccountRef"), card_side, total, types
         )
     else:
         lines, vendors = [], set()
@@ -343,15 +381,20 @@ def map_entity(entity: str, record: dict[str, Any]) -> LedgerEntry:
             if not account:
                 continue
             entity_info = detail.get("Entity") or {}
-            if entity_info.get("Type") == "Vendor" and _name(entity_info.get("EntityRef")):
-                vendors.add(_name(entity_info.get("EntityRef")))
+            line_vendor = None
+            if entity_info.get("Type") == "Vendor":
+                line_vendor = _name(entity_info.get("EntityRef"))
+            if line_vendor:
+                vendors.add(line_vendor)
             lines.append(
                 LedgerLine(
                     account=account,
+                    account_type=_account_type(detail.get("AccountRef"), types),
                     side="debit" if detail.get("PostingType") == "Debit" else "credit",
                     amount_cents=abs(to_cents(line.get("Amount", 0))),
                     description=line.get("Description"),
-                    department=_name(detail.get("DepartmentRef")) or department,
+                    vendor_name=line_vendor,
+                    department=_name(detail.get("DepartmentRef")),
                 )
             )
         # A journal entry has no header vendor. When its lines name exactly one,
@@ -369,6 +412,8 @@ def map_entity(entity: str, record: dict[str, Any]) -> LedgerEntry:
         vendor_name=vendor,
         doc_number=record.get("DocNumber") or None,
         memo=_memo(record.get("PrivateNote")),
+        department=department,
+        payment_type=record.get("PaymentType") if entity == "Purchase" else None,
         total_cents=total,
         lines=lines,
         raw=record,
@@ -382,11 +427,11 @@ class Skip(Exception):
     """This ledger entry cannot be loaded as it is. The message says why."""
 
 
-# QuickBooks needs an account type to create an account and the contract carries
-# only a name, so a new account's type is guessed from its name and its role.
-# Only test data in a sandbox is ever loaded, and the type never comes back into
-# the contract. The account an expense was paid from has the type its PaymentType
-# requires, so QuickBooks accepts the pair.
+# QuickBooks needs an account type to create an account. A v0.2 dataset line carries
+# it (`LedgerLine.account_type`, QuickBooks' AccountType names) and that is sent as
+# is; only a line without one has its type guessed from its name and role. The
+# account an expense was paid from has the type its PaymentType requires, so
+# QuickBooks accepts the pair.
 PAYMENT_ACCOUNT_TYPES = {"CreditCard": "Credit Card", "Cash": "Bank", "Check": "Bank"}
 
 
@@ -407,30 +452,41 @@ def guess_account_type(name: str, role: str) -> str:
 
 
 def payment_type(entry: LedgerEntry, paid_from: str) -> str:
-    """QuickBooks' required Purchase.PaymentType. Taken from the entry's raw QBO
-    record when it has one, else CreditCard when the paid-from account is a card
-    account by name. Cash and Check cannot be told apart from a name, so Skip."""
-    recorded = (entry.raw or {}).get("PaymentType")
-    if recorded in PAYMENT_ACCOUNT_TYPES:
-        return recorded
+    """QuickBooks' required Purchase.PaymentType: the entry's `payment_type` (v0.2),
+    else CreditCard when the paid-from account is a card account by name. Cash and
+    Check cannot be told apart from a name, so Skip. `raw` is not read: it is the
+    source's own record, not a format between areas."""
+    if entry.payment_type is not None:
+        if entry.payment_type not in PAYMENT_ACCOUNT_TYPES:
+            raise Skip(
+                f"payment_type {entry.payment_type!r} is not one of QuickBooks' "
+                f"{sorted(PAYMENT_ACCOUNT_TYPES)}"
+            )
+        return entry.payment_type
     if guess_account_type(paid_from, "") == "Credit Card":
         return "CreditCard"
     raise Skip(
         f"cannot tell how the expense was paid: {paid_from!r} is not a card account "
-        "by name and the entry records no PaymentType (Cash or Check)"
+        "by name and the entry has no payment_type (Cash or Check)"
     )
 
 
 @dataclass
 class PlannedEntry:
     """One ledger entry ready to send: the QBO entity, and its body with names
-    still in place of ids. `accounts` maps each account name to its role."""
+    still in place of ids. `accounts` maps each account name to its role, and
+    `account_types` to the AccountType the dataset gives it, where it gives one."""
 
     entry: LedgerEntry
     entity: str
     payload: dict[str, Any]
     accounts: dict[str, str]
     vendor: str | None
+    account_types: dict[str, str] = field(default_factory=dict)
+
+    def account_type(self, name: str) -> str:
+        """The type to create account `name` with: the dataset's, else a guess."""
+        return self.account_types.get(name) or guess_account_type(name, self.accounts[name])
 
 
 def _line_sum(lines: list[LedgerLine]) -> int:
@@ -453,6 +509,12 @@ def plan_entry(entry: LedgerEntry) -> PlannedEntry:
     if entry.doc_number:
         payload["DocNumber"] = entry.doc_number
     accounts: dict[str, str] = {}
+    types: dict[str, str] = {}
+    for line in entry.lines:
+        if not line.account_type:
+            continue
+        if types.setdefault(line.account, line.account_type) != line.account_type:
+            raise Skip(f"account {line.account!r} is given two account types")
 
     if entity == "JournalEntry":
         debits = [line for line in entry.lines if line.side == "debit"]
@@ -466,10 +528,11 @@ def plan_entry(entry: LedgerEntry) -> PlannedEntry:
                 "PostingType": "Debit" if line.side == "debit" else "Credit",
                 "AccountRef": {"name": line.account},
             }
-            if entry.vendor_name:
-                detail["Entity"] = {"Type": "Vendor", "EntityRef": {"name": entry.vendor_name}}
+            vendor = line.vendor_name or entry.vendor_name
+            if vendor:
+                detail["Entity"] = {"Type": "Vendor", "EntityRef": {"name": vendor}}
             payload["Line"].append(_line(line, "JournalEntryLineDetail", detail))
-        return PlannedEntry(entry, entity, payload, accounts, entry.vendor_name)
+        return PlannedEntry(entry, entity, payload, accounts, entry.vendor_name, types)
 
     # Bill and Purchase: expense lines on one side, at most one balancing line on
     # the other (the A/P account, or the card or bank account paid from).
@@ -505,6 +568,12 @@ def plan_entry(entry: LedgerEntry) -> PlannedEntry:
         paid_with = payment_type(entry, balancing[0].account)
         if refund and paid_with != "CreditCard":
             raise Skip(f"a refund (Credit) is only valid on a CreditCard expense, not {paid_with}")
+        given = types.get(balancing[0].account)
+        if given and given != PAYMENT_ACCOUNT_TYPES[paid_with]:
+            raise Skip(
+                f"{balancing[0].account!r} is a {given} account; PaymentType {paid_with} "
+                f"needs {PAYMENT_ACCOUNT_TYPES[paid_with]}"
+            )
         accounts[balancing[0].account] = paid_with
         payload["PaymentType"] = paid_with
         payload["AccountRef"] = {"name": balancing[0].account}
@@ -512,7 +581,7 @@ def plan_entry(entry: LedgerEntry) -> PlannedEntry:
             payload["EntityRef"] = {"name": entry.vendor_name, "type": "Vendor"}
         if refund:
             payload["Credit"] = True
-    return PlannedEntry(entry, entity, payload, accounts, entry.vendor_name)
+    return PlannedEntry(entry, entity, payload, accounts, entry.vendor_name, types)
 
 
 def _line(line: LedgerLine, detail_type: str, detail: dict[str, Any]) -> dict[str, Any]:
@@ -595,9 +664,9 @@ def load_dataset_ledger(dataset: Path | str, client: QboClient) -> LoadReport:
             report.new_vendors.append(name)
         return vendors[name]
 
-    def account_id(name: str, role: str) -> str:
+    def account_id(name: str, account_type: str) -> str:
         if name not in accounts:
-            body = {"Name": name, "AccountType": guess_account_type(name, role)}
+            body = {"Name": name, "AccountType": account_type}
             accounts[name] = client.create("Account", body)["Id"]
             report.new_accounts.append(name)
         return accounts[name]
@@ -616,6 +685,21 @@ def load_dataset_ledger(dataset: Path | str, client: QboClient) -> LoadReport:
                     f"PaymentType {plan.payload['PaymentType']} needs {wanted}"
                 )
                 continue
+        # An account QuickBooks already holds with another type than the dataset gives
+        # would book the lines under the wrong type; QuickBooks fixes it, not the loader.
+        clash = next(
+            (
+                (name, account_types[name], kind)
+                for name, kind in plan.account_types.items()
+                if account_types.get(name) not in (None, kind)
+            ),
+            None,
+        )
+        if clash:
+            report.skipped[plan.entry.id] = (
+                f"{clash[0]!r} is a {clash[1]} account in QuickBooks; the dataset says {clash[2]}"
+            )
+            continue
         try:
             report.created.append(_send(plan, client, vendor_id, account_id))
         except QboError as error:
@@ -631,22 +715,22 @@ def _send(
 ) -> str:
     """Resolve names to ids in the planned body and create it. Returns the new ledger id."""
 
-    def resolve(ref: dict[str, Any], role: str | None) -> None:
+    def resolve(ref: dict[str, Any], account: bool) -> None:
         name = ref.pop("name")
-        ref["value"] = account_id(name, role) if role else vendor_id(name)
+        ref["value"] = account_id(name, plan.account_type(name)) if account else vendor_id(name)
 
     payload = json.loads(json.dumps(plan.payload))
     for line in payload["Line"]:
         detail = line[line["DetailType"]]
-        resolve(detail["AccountRef"], plan.accounts[detail["AccountRef"]["name"]])
+        resolve(detail["AccountRef"], True)
         if "Entity" in detail:
-            resolve(detail["Entity"]["EntityRef"], None)
+            resolve(detail["Entity"]["EntityRef"], False)
     for key in ("APAccountRef", "AccountRef"):
         if key in payload:
-            resolve(payload[key], plan.accounts[payload[key]["name"]])
+            resolve(payload[key], True)
     for key in ("VendorRef", "EntityRef"):
         if key in payload:
-            resolve(payload[key], None)
+            resolve(payload[key], False)
     created = client.create(plan.entity, payload)
     return f"qbo:{plan.entity}:{created['Id']}"
 
@@ -716,7 +800,13 @@ class QboLedger:
                 f"{foreign} entries not from the dataset"
             )
         self._entries = entries
-        self._use = SourceUse(system=SourceSystem.QBO, mode="live", detail=detail)
+        # A sandbox company holds only test data (ours, or Intuit's sample company).
+        self._use = SourceUse(
+            system=SourceSystem.QBO,
+            mode="live",
+            detail=detail,
+            synthetic=config.environment == "sandbox",
+        )
 
     def _use_local(self, local: LocalSources, reason: str) -> None:
         self._entries = local.ledger_entries()
@@ -726,6 +816,7 @@ class QboLedger:
             mode="local",
             detail=f"dataset {local.dataset.manifest.dataset_id} at {self.fallback}; "
             f"not live: {reason}",
+            synthetic=local.dataset.manifest.synthetic,
         )
 
     def ledger_entries(self) -> list[LedgerEntry]:

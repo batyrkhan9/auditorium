@@ -29,8 +29,9 @@ class LocalFallback:
         for use in self.local.describe():
             reason = self.reasons.get(use.system)
             if reason:
-                use = SourceUse(
-                    system=use.system, mode="local", detail=f"{use.detail}; not live: {reason}"
+                # model_copy keeps `synthetic`, which LocalSources set from the manifest.
+                use = use.model_copy(
+                    update={"mode": "local", "detail": f"{use.detail}; not live: {reason}"}
                 )
             uses.append(use)
         return uses

@@ -57,6 +57,7 @@ from .ramp import (
     _unsigned,
     _usd_cents,
     http_download,
+    is_ramp_sandbox,
     map_bill,
     map_user,
     person_id,
@@ -64,6 +65,7 @@ from .ramp import (
     records_from,
     remote_files,
     transaction_id,
+    with_job_roles,
 )
 
 API_URL = "https://demo-api.ramp.com"  # the sandbox; production is https://api.ramp.com
@@ -77,7 +79,7 @@ REQUIRED_SCOPES = (
     "users:read",
     "departments:read",
 )
-# Without this, approvals are reported unavailable and stay empty.
+# Without this, approvals are reported unavailable and are None (unknown) on every record.
 APPROVALS_SCOPE = "approvals:read"
 PAGE_SIZE = 100  # the spec's maximum
 APPROVALS_BATCH = 50  # entity ids per approvals request
@@ -85,10 +87,17 @@ APPROVALS_BATCH = 50  # entity ids per approvals request
 API_PENDING_STATES = PENDING_STATES | {"PENDING_INITIATION"}
 # The approvals endpoint answers these when the scope or the plan feature is missing.
 APPROVALS_REFUSALS = {403, 404}
-# Step statuses that are a decision, upper-cased. Ramp writes "Approved" and "Admin
-# approved" (an admin's approval: still an approval by that user). "Rejected" was not
-# in the capture. Any other status is left out and counted.
-DECISIONS = {"APPROVED": "approved", "ADMIN APPROVED": "approved", "REJECTED": "rejected"}
+# Step statuses, upper-cased. Ramp writes "Approved" and "Admin approved" (an admin's
+# approval: still an approval by that user). "Rejected" and "Pending" were not in the
+# capture's histories and follow the spec. Any other status is left out and counted.
+DECISIONS = {
+    "APPROVED": "approved",
+    "ADMIN APPROVED": "approved",
+    "REJECTED": "rejected",
+    "PENDING": "pending",
+}
+# A chain in this status is still waiting: its `next_approvers` are the pending step.
+PENDING_CHAIN = "PENDING"
 
 
 class RampApiError(RampUnavailable):
@@ -308,24 +317,38 @@ def map_api_card_transaction(payload: Mapping[str, Any]) -> SpendTransaction:
 
 
 def map_approvals(resource: Mapping[str, Any], unmapped: Counter[str]) -> list[Approval]:
-    """The decisions in an `ApprovalsResource` history. A step that is not a decision,
-    or that names no user, is left out and counted in `unmapped`: never invented."""
+    """The steps of an `ApprovalsResource`: each decision in its history, then, while
+    the chain is PENDING, the step it waits on. A waiting step names its approver when
+    `next_approvers` names exactly one; with several (any of them may act) or none it
+    has no single approver yet, as contract v0.2 allows, and `raw` keeps the list.
+    A decided step without a user, or a status we do not know, is left out and
+    counted in `unmapped`: never invented."""
     approvals = []
     for step in resource.get("approval_history") or ():
         status = str(step.get("step_status") or "")
         decision = DECISIONS.get(status.upper())
+        user = step.get("user_id")
         if decision is None:
             unmapped[f"step status {status or 'missing'}"] += 1
-        elif not step.get("user_id"):
+        elif decision == "pending":
+            approvals.append(
+                Approval(approver_id=person_id(user) if user else None, decision="pending")
+            )
+        elif not user:
             unmapped[f"{decision} step without a user"] += 1
         else:
             approvals.append(
                 Approval(
-                    approver_id=person_id(step["user_id"]),
+                    approver_id=person_id(user),
                     decision=decision,
                     decided_at=datetime.fromisoformat(step["action_at"]),
                 )
             )
+    waiting = str(resource.get("status") or "").upper() == PENDING_CHAIN
+    if waiting and not any(a.decision == "pending" for a in approvals):
+        users = {a.get("user_id") for a in resource.get("next_approvers") or ()} - {None}
+        only = person_id(users.pop()) if len(users) == 1 else None
+        approvals.append(Approval(approver_id=only, decision="pending"))
     return approvals
 
 
@@ -367,7 +390,9 @@ class ApiRampSources(RampSources):
                 raise RampMappingError(f"two approval chains for {key[0]} {key[1]}")
             chains[key] = resource
 
-        def approvals(kind: str, ramp_id: str) -> list[Approval]:
+        def approvals(kind: str, ramp_id: str) -> list[Approval] | None:
+            if self.approvals_unavailable:
+                return None  # the source could not say; not the same as never routed
             chain = chains.get((kind, ramp_id))
             if chain is None:
                 return []
@@ -409,13 +434,16 @@ class ApiRampSources(RampSources):
             kept_bills.append(bill)
 
         names = {d["id"]: d.get("name") for d in payloads.departments}
-        self._people = [
-            map_user(
-                {**u, "department_name": names.get(u.get("department_id") or "")},
-                u.get("manager_id"),
-            )
-            for u in payloads.users
-        ]
+        self._people = with_job_roles(
+            [
+                map_user(
+                    {**u, "department_name": names.get(u.get("department_id") or "")},
+                    u.get("manager_id"),
+                )
+                for u in payloads.users
+            ],
+            local.people(),
+        )
         # Only receipts on transactions we keep are downloaded.
         wanted = {d for t in self._transactions for d in t.document_ids}
         files = remote_files(
@@ -430,16 +458,20 @@ class ApiRampSources(RampSources):
         )
         self._attach_documents(files, download)
 
-    def notes(self) -> list[str]:
+    @property
+    def synthetic(self) -> bool:
+        return is_ramp_sandbox(self.endpoint)
+
+    def read_notes(self) -> list[str]:
         if self.approvals_unavailable:
             notes = [
-                f"approvals unavailable ({self.approvals_unavailable}), so an empty "
-                "approvals list means unknown, not unapproved"
+                f"approvals unavailable ({self.approvals_unavailable}), so every record's "
+                "approvals are unknown (None)"
             ]
         else:
             notes = [
                 f"approvals from {APPROVALS_PATH}; a record with no approval chain there "
-                "has empty approvals"
+                "was never sent for approval (empty approvals)"
             ]
             unfinished = {s: n for s, n in self.chain_statuses.items() if s != "APPROVED"}
             if unfinished:
@@ -461,7 +493,7 @@ class ApiRampSources(RampSources):
             if counter:
                 left = ", ".join(f"{n} {why}" for why, n in sorted(counter.items()))
                 notes.append(f"{what} left out: {left}")
-        return notes + self.unavailable_note()
+        return notes
 
     def describe(self) -> list[SourceUse]:
         kinds = Counter(t.kind for t in self._transactions)
@@ -472,6 +504,7 @@ class ApiRampSources(RampSources):
             f"{kinds[TransactionKind.CARD_EXPENSE]} card transactions, "
             f"{kinds[TransactionKind.VENDOR_BILL]} bills, {len(self._documents)} documents, "
             f"{len(self._people)} people; " + "; ".join(self.notes()),
+            synthetic=self.synthetic,
         )
         return [ramp] + [
             use for use in self.local.describe() if use.system is not SourceSystem.RAMP
