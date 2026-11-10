@@ -71,7 +71,8 @@ missing.
 - A QuickBooks Online sandbox through Intuit's MCP server
 - PDF reading for the PBC list, bank statements and invoices
 - A fake company dataset shaped like Ramp's documented transactions (we cannot
-  see Ramp's demo transactions), with planted mistakes mixed into clean transactions so we can measure false alarms
+  see Ramp's demo transactions), with planted mistakes mixed into clean
+  transactions so we can measure false alarms
 - A test set based on AU-C 500 (audit evidence) that scores each result and
   checks the agent never makes up a document, run in Braintrust
 - Slack and email drafts for follow-ups
