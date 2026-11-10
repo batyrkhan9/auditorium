@@ -118,11 +118,17 @@ name = "auditorium-evals"
 version = "0.0.0"
 source = { editable = "evals" }
 dependencies = [
+    { name = "auditorium-agent" },
+    { name = "auditorium-connectors" },
     { name = "auditorium-contracts" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "auditorium-contracts", editable = "contracts" }]
+requires-dist = [
+    { name = "auditorium-agent", editable = "agent" },
+    { name = "auditorium-connectors", editable = "connectors" },
+    { name = "auditorium-contracts", editable = "contracts" },
+]
 
 [[package]]
 name = "auditorium-ui"

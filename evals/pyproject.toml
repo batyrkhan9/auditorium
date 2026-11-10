@@ -3,10 +3,12 @@ name = "auditorium-evals"
 version = "0.0.0"
 description = "Scores a run against the sealed answer key."
 requires-python = ">=3.12"
-dependencies = ["auditorium-contracts"]
+dependencies = ["auditorium-contracts", "auditorium-agent", "auditorium-connectors"]
 
 [tool.uv.sources]
 auditorium-contracts = { workspace = true }
+auditorium-agent = { workspace = true }
+auditorium-connectors = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]
