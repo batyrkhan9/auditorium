@@ -289,3 +289,67 @@ def test_no_sources_and_no_snapshot_is_a_problem(tmp_path):
     assert c.validate_run(tmp_path / "run") == [
         "no sources were given and the run folder has no snapshot"
     ]
+
+
+# --- Review round 3 ---
+
+
+def snapshot_run(tmp_path, sources):
+    """A run that logged its fingerprints and saved a snapshot, as the agent does."""
+    run = tmp_path / "run"
+    log = c.LogWriter(run / c.LOG, "run_1")
+    log.append("system", c.LogAction.RUN_STARTED, ts=TS)
+    c.log_source_fingerprints(log, sources)
+    result = period_result()
+    c.write_jsonl(run / c.RESULTS, [result])
+    log.append("agent", c.LogAction.CHECK_RECORDED, subject_ids=[result.id], ts=TS)
+    c.write_json(
+        run / c.RUN_MANIFEST,
+        c.RunManifest(
+            run_id="run_1",
+            mode="preflight",
+            started_at=TS,
+            period_start=date(2025, 1, 1),
+            period_end=date(2025, 12, 31),
+            sources=sources.describe(),
+            contract_version=c.CONTRACT_VERSION,
+        ),
+    )
+    c.snapshot_sources(sources, run / c.SOURCES_SNAPSHOT, sources.dataset.manifest)
+    return run, log
+
+
+class UnknownApprovals(c.LocalSources):
+    """A source that cannot say whether anything was approved, like Ramp's MCP server."""
+
+    def transactions(self):
+        return [t.model_copy(update={"approvals": None}) for t in super().transactions()]
+
+
+def test_a_snapshot_keeps_an_unknown_approval_chain(tmp_path):
+    build_dataset(tmp_path / "data")
+    sources = UnknownApprovals(tmp_path / "data")
+    run, _ = snapshot_run(tmp_path, sources)
+
+    saved = c.LocalSources(run / c.SOURCES_SNAPSHOT)
+    assert [t.approvals for t in saved.transactions()] == [None]
+    # Untouched, the snapshot is what the run fetched.
+    assert c.fingerprint_sources(saved) == c.fingerprint_sources(sources)
+    assert c.validate_run(run) == []
+    # Unknown and never-sent are different data, so they fingerprint differently.
+    plain = c.fingerprint_sources(c.LocalSources(tmp_path / "data"))
+    assert plain["transactions"] != c.fingerprint_sources(sources)["transactions"]
+
+
+def test_a_logged_download_is_not_taken_for_a_fingerprint(tmp_path):
+    build_dataset(tmp_path / "data")
+    run, log = snapshot_run(tmp_path, c.LocalSources(tmp_path / "data"))
+    # The agent logs each document it downloads: a source call with a sha256 and no `call`.
+    log.append(
+        "agent",
+        c.LogAction.SOURCE_CALL,
+        subject_ids=["doc_inv_2041"],
+        detail={"document_id": "doc_inv_2041", "sha256": "ab" * 32},
+        ts=TS,
+    )
+    assert c.validate_run(run) == []

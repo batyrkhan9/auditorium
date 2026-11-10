@@ -14,6 +14,7 @@ import sys
 
 from . import (
     LocalSources,
+    LogDamaged,
     repair_log,
     validate_dataset,
     validate_run,
@@ -49,7 +50,11 @@ def main() -> int:
     elif args.command == "verify-log":
         problems = verify_log(args.log)
     elif args.command == "repair-log":
-        print(repair_log(args.log))
+        try:
+            print(repair_log(args.log))
+        except LogDamaged as refused:
+            print(f"PROBLEM  {refused}", file=sys.stderr)
+            return 1
         problems = verify_log(args.log)
     else:
         problems = export_schemas(check=args.check)

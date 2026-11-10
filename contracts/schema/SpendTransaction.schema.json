@@ -126,7 +126,7 @@
           "type": "null"
         }
       ],
-      "description": "The steps of the approval chain. An empty list means it was never sent for approval. None means the source could not say, which is not the same thing.",
+      "description": "The steps of the approval chain. An empty list means it was never sent for approval. None means the source could not say, which is not the same thing. None is always written out as null, so it is still None when the record is read back.",
       "title": "Approvals"
     },
     "category": {

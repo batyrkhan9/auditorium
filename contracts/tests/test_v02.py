@@ -1,7 +1,7 @@
 """Contract 0.2.0: the changes that came out of mapping real Ramp and QuickBooks payloads."""
 
 import threading
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 import auditorium_contracts as c
 import pytest
@@ -155,3 +155,60 @@ def test_synthetic_is_set_per_source_and_read_from_the_run():
     )
     assert c.RunManifest(**manifest, sources=[live, real]).synthetic_data is True
     assert c.RunManifest(**manifest, sources=[real]).synthetic_data is False
+
+
+# --- Review round 3 ---
+
+
+def a_transaction(**changes):
+    values = dict(
+        id="ramp:transaction:t1",
+        kind="card_expense",
+        source=c.SourceRef(system="ramp", record_type="transaction", record_id="t1"),
+        vendor_name="Cobalt Air",
+        amount_cents=41_650,
+        transaction_date=date(2025, 3, 11),
+    )
+    return c.SpendTransaction(**{**values, **changes})
+
+
+def test_an_unknown_approval_chain_is_still_unknown_after_it_is_written(tmp_path):
+    # None means the source could not say. An empty list means never sent for approval.
+    unknown = a_transaction(approvals=None)
+    never_sent = a_transaction(id="ramp:transaction:t2")
+    c.write_jsonl(tmp_path / "transactions.jsonl", [unknown, never_sent])
+    back = c.read_jsonl(tmp_path / "transactions.jsonl", c.SpendTransaction)
+    assert back[0].approvals is None and back[1].approvals == []
+    assert back == [unknown, never_sent]
+    # Every way of writing a record without None values keeps it.
+    assert unknown.model_dump(mode="json", exclude_none=True)["approvals"] is None
+    assert "memo" not in unknown.model_dump(mode="json", exclude_none=True)
+    # Leaving the field out on purpose still leaves it out.
+    assert "approvals" not in unknown.model_dump(exclude={"approvals"})
+    assert "approvals" not in unknown.model_dump(include={"id"})
+
+
+def test_repair_refuses_a_last_event_that_was_edited(tmp_path):
+    path, writer = started_log(tmp_path)
+    writer.sign_off("Dana Reyes", "t#period", "disputed", "see invoice")
+    written = path.read_bytes()
+    edited = written.replace(b"disputed", b"accepted")  # a whole, well-formed line
+    assert edited != written and edited.endswith(b"\n")
+    path.write_bytes(edited)
+
+    with pytest.raises(c.LogDamaged, match="edited"):
+        c.repair_log(path)
+    # Nothing was removed, so the edit is still there for verify_log to report.
+    assert path.read_bytes() == edited
+    assert not (tmp_path / "log.jsonl.damaged").exists()
+    assert c.verify_log(path) != []
+
+
+def test_repair_log_command_reports_an_edited_log_and_fails(tmp_path, monkeypatch, capsys):
+    from auditorium_contracts.__main__ import main
+
+    path, writer = started_log(tmp_path)
+    path.write_bytes(path.read_bytes().replace(b'"agent"', b'"reviewer"'))
+    monkeypatch.setattr("sys.argv", ["auditorium_contracts", "repair-log", str(path)])
+    assert main() == 1
+    assert "edited" in capsys.readouterr().err

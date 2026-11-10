@@ -15,7 +15,14 @@ from datetime import date, datetime
 from enum import StrEnum
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    SerializationInfo,
+    model_serializer,
+    model_validator,
+)
 
 Sha256 = Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
 # An accounting period is a calendar month, written YYYY-MM.
@@ -126,9 +133,26 @@ class SpendTransaction(Record):
     approvals: list[Approval] | None = Field(
         default_factory=list,
         description="The steps of the approval chain. An empty list means it was never sent "
-        "for approval. None means the source could not say, which is not the same thing.",
+        "for approval. None means the source could not say, which is not the same thing. "
+        "None is always written out as null, so it is still None when the record is read back.",
     )
     raw: dict[str, Any] | None = Field(None, description="The record as the source returned it.")
+
+    @model_serializer(mode="wrap")
+    def _keep_unknown_approvals(self, handler, info: SerializationInfo) -> dict[str, Any]:
+        """Write `approvals: null` even when the caller asked to leave None values out.
+
+        Files and fingerprints are written without None values. Dropped, an unknown
+        chain would read back as the default, an empty list, which claims the
+        transaction was never sent for approval.
+        """
+        data = handler(self)
+        left_out = "approvals" in (info.exclude or ()) or (
+            info.include is not None and "approvals" not in info.include
+        )
+        if self.approvals is None and not left_out:
+            data["approvals"] = None
+        return data
 
 
 class LedgerEntryType(StrEnum):

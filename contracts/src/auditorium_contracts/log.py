@@ -150,13 +150,22 @@ class LogDamaged(Exception):
     """The log's last line is cut off or unreadable. Nothing is written until it is repaired."""
 
 
-def _is_whole_event(line: bytes) -> bool:
+def _event_state(line: bytes) -> str:
+    """'whole', 'unreadable' (what a crash leaves) or 'edited' (what a crash cannot leave).
+
+    A crash cuts a line short, so it no longer reads as an event. A line that reads
+    as a complete event but does not match its own hash was changed after it was written.
+    """
     try:
         raw = json.loads(line)
         LogEvent.model_validate(raw)
     except (ValueError, ValidationError):
-        return False
-    return raw["hash"] == event_hash(raw)
+        return "unreadable"
+    return "whole" if raw["hash"] == event_hash(raw) else "edited"
+
+
+def _is_whole_event(line: bytes) -> bool:
+    return _event_state(line) == "whole"
 
 
 def _tail(handle, path: Path) -> tuple[int, str]:
@@ -186,6 +195,10 @@ def repair_log(path: Path | str) -> str:
     line ending gets one. A cut-off or unreadable last line is removed and kept in
     `<log>.damaged`, so nothing is destroyed. Damage earlier in the file is not
     repaired: `verify_log` reports it, and that log should be treated as tampered.
+
+    A last line that reads as a complete event but does not match its own hash is
+    not crash damage: someone edited it. That is refused with `LogDamaged` and the
+    file is left exactly as it was, so the edit stays visible to `verify_log`.
     """
     path = Path(path)
     with path.open("r+b") as handle, _exclusive(handle):
@@ -198,6 +211,12 @@ def repair_log(path: Path | str) -> str:
             return "The last event was complete but had no line ending. Added it."
         removed = []
         while lines and not (lines[-1].endswith(b"\n") and _is_whole_event(lines[-1])):
+            if _event_state(lines[-1]) == "edited":
+                raise LogDamaged(
+                    f"{path}: line {len(lines)} reads as a complete event but does not match "
+                    "its own hash. A crash cannot do that; the line was edited after it was "
+                    "written. Nothing was changed. Treat this log as tampered."
+                )
             removed.insert(0, lines.pop())
         if not removed:
             return "The log ends cleanly. Nothing to repair."

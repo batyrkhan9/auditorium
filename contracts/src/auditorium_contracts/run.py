@@ -162,7 +162,11 @@ def _snapshot_problems(root: Path, log: tuple[LogEvent, ...]) -> list[str]:
     logged = {
         event.detail["call"]: event.detail["sha256"]
         for event in log
-        if event.action is LogAction.SOURCE_CALL and "sha256" in event.detail
+        # Only fingerprint events carry both. The agent also logs other source calls,
+        # a document download for one, and those are not fingerprints.
+        if event.action is LogAction.SOURCE_CALL
+        and "call" in event.detail
+        and "sha256" in event.detail
     }
     if not logged:
         return ["snapshot: the log holds no source fingerprints, so it cannot be tied to the fetch"]

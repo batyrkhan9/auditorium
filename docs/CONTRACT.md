@@ -60,7 +60,9 @@ Other rules for live sources:
   `rejected` or `pending`. A pending step may have no single approver yet.
   An empty list means it was never sent for approval. `None` means the source
   could not say. Those are different, and the agent must not treat the second
-  as the first.
+  as the first. `None` is written out as `"approvals": null` in files and in
+  fingerprints, so it is still `None` when read back. A record with no
+  `approvals` key at all reads as an empty list, as it always has.
 - `raw` holds the record as the source returned it, minus anything short-lived
   or secret such as presigned download links. It is saved in snapshots.
 - `SpendTransaction.paid_date`: for a bill, the day payment left; for a card
@@ -122,6 +124,13 @@ same words. Documents need a text layer.
   removes the damaged end, keeps it in `<log>.damaged`, and the agent redoes
   the step that was being written. Damage anywhere but the end is not repaired;
   treat that log as tampered.
+- **Repair only removes what a crash can leave**: a last line that is cut off
+  or does not read as an event. A last line that reads as a complete event but
+  does not match its own hash was edited. `repair-log` refuses it, changes
+  nothing, and `verify-log` keeps reporting it.
+- A `source_call` event is a fingerprint only when its detail has both `call`
+  and `sha256`. The agent may log other source calls, such as a document
+  download, with whatever detail it likes.
 - **Sign-off on one result:** `sign_off(reviewer, result_id, decision, comment,
   result_sha256=shown)`, where `shown` is `result_hash()` of the result as the
   page displayed it. Pass `result=` too (the result as it is now) and a sign-off
