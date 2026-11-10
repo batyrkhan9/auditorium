@@ -2,6 +2,9 @@
 
 python -m auditorium_agent preflight DATASET_DIR [--out RUN_DIR]
 python -m auditorium_agent sample DATASET_DIR --request SAMPLE.json [--out RUN_DIR]
+
+Add --claude to let Claude read the documents plain code cannot settle. It needs
+credentials in the environment: uv run --env-file .env python -m auditorium_agent ...
 """
 
 from __future__ import annotations
@@ -11,9 +14,10 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
-from auditorium_contracts import LocalSources, SampleRequest, validate_run
+from auditorium_contracts import LocalSources, SampleRequest, load_run, validate_run
 
 from .preflight import run_preflight
+from .reader import DEFAULT_MAX_CALLS, ClaudeReader
 from .sample import run_sample
 
 
@@ -26,7 +30,22 @@ def main() -> int:
     for command in (preflight, sample):
         command.add_argument("dataset")
         command.add_argument("--out", help="run folder to create (default: runs/<run id>)")
+        command.add_argument(
+            "--claude", action="store_true", help="ask Claude where plain code cannot settle it"
+        )
+        command.add_argument(
+            "--max-claude-calls",
+            type=int,
+            default=DEFAULT_MAX_CALLS,
+            help=f"stop asking Claude after this many requests (default {DEFAULT_MAX_CALLS})",
+        )
     args = parser.parse_args()
+
+    reader = ClaudeReader(max_calls=args.max_claude_calls) if args.claude else None
+    if reader and (problem := reader.problem()):
+        print(f"Cannot use Claude: {problem}.", file=sys.stderr)
+        print("Run with: uv run --env-file .env python -m auditorium_agent ...", file=sys.stderr)
+        return 2
 
     sources = LocalSources(args.dataset)
     manifest = sources.dataset.manifest
@@ -37,6 +56,7 @@ def main() -> int:
         fiscal_year_end=manifest.fiscal_year_end,
         run_id=run_id,
         dataset_id=manifest.dataset_id,
+        reader=reader,
     )
     vendors = {txn.id: txn.vendor_name for txn in sources.transactions()}
 
@@ -61,6 +81,10 @@ def main() -> int:
                 print(f"    {by_id[draft_id].channel} draft to {by_id[draft_id].to}")
         done = f"{len(packets)} packets and {len(drafts)} drafts"
 
+    used = load_run(out).manifest.models
+    if args.claude:
+        print(f"\nClaude requests made: {reader.calls} of at most {reader.max_calls}.", end=" ")
+        print(f"Models that answered: {', '.join(used) or 'none'}")
     problems = validate_run(out, sources)
     for problem in problems:
         print(f"PROBLEM  {problem}", file=sys.stderr)

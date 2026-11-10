@@ -35,6 +35,7 @@ class ServicePeriod:
     end: date
     page: int  # 1-based
     quote: str  # the line it was read from, as it appears in the document
+    read_by: str | None = None  # the model that read the dates, when plain code could not
 
 
 def _dates_on(line: str) -> list[date]:

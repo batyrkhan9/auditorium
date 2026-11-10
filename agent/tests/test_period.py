@@ -27,6 +27,7 @@ def test_sample_statuses(tmp_path):
     assert {txn: status for txn, status in statuses.items() if status != "pass"} == {
         "ramp:bill:b_1001": "fail",  # the pitch example
         "ramp:bill:b_1004": "needs_review",  # no service period, recorded just after year end
+        "ramp:bill:b_1012": "needs_review",  # dates given in words; settled only with a reader
         "ramp:card:c_2002": "not_applicable",  # not in the books at all
     }
     # December work accrued in December, and a wrong amount in the books, are not period errors.

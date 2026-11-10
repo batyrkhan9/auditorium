@@ -42,8 +42,13 @@ def _month(day: date) -> str:
     return day.strftime("%B %Y")
 
 
-def _delivered(txn: SpendTransaction, books: Books) -> tuple[date, date, Evidence, bool]:
-    """When the cost was incurred: start, end, the evidence, and whether a document states it."""
+def _delivered(
+    txn: SpendTransaction, books: Books, ask_model: bool = False
+) -> tuple[date, date, Evidence, bool]:
+    """When the cost was incurred: start, end, the evidence, and whether a document states it.
+
+    With `ask_model`, a document the patterns cannot read is passed to the model reader.
+    """
     if txn.kind is TransactionKind.CARD_EXPENSE:
         day = txn.transaction_date
         evidence = RecordEvidence(
@@ -57,13 +62,23 @@ def _delivered(txn: SpendTransaction, books: Books) -> tuple[date, date, Evidenc
     for document_id in txn.document_ids:
         if document_id not in books.documents:
             continue
-        stated = find_service_period(books.read_document(document_id))
+        pages = books.read_document(document_id)
+        stated = find_service_period(pages)
+        if stated is None and ask_model:
+            stated = books.ask_service_period(document_id, pages)
         if stated:
+            note = "When the work was done, as the invoice states it."
+            if stated.read_by:
+                note = (
+                    f"When the work was done. {stated.read_by} read the dates "
+                    f"{stated.start} to {stated.end} from this line. The line is checked "
+                    "against the document; the dates are the model's reading of it."
+                )
             evidence = DocumentEvidence(
                 document_id=document_id,
                 page=stated.page,
                 quote=stated.quote,
-                note="When the work was done, as the invoice states it.",
+                note=note,
             )
             return stated.start, stated.end, evidence, True
     day = txn.transaction_date
@@ -118,6 +133,10 @@ def check_period(txn: SpendTransaction, books: Books, run_id: str) -> CheckResul
         note="The date the books recorded it.",
     )
     start, end, delivered_evidence, stated = _delivered(txn, books)
+    if not stated and books.side(recorded) == books.side(end) == 1:
+        # Recorded just after year end with no dates the patterns can find. This is the one
+        # case that turns on when the work was done, so it is the one case worth a model call.
+        start, end, delivered_evidence, stated = _delivered(txn, books, ask_model=True)
     evidence = [delivered_evidence, recorded_evidence]
     periods = {"recorded": recorded, "expected": end}
     recorded_side, end_side = books.side(recorded), books.side(end)

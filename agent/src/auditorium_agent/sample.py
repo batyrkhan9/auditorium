@@ -43,6 +43,7 @@ from .books import Books
 from .drafts import drafts_for
 from .matching import vendor_key
 from .preflight import CHECKS, _git_commit, _verified
+from .reader import Reader
 from .receipt_reader import amounts_on, lines_of
 from .resolve import resolve
 
@@ -104,6 +105,7 @@ def run_sample(
     fiscal_year_end: date,
     run_id: str | None = None,
     dataset_id: str | None = None,
+    reader: Reader | None = None,
 ) -> tuple[list[EvidencePacket], list[FollowUpDraft]]:
     out_dir = Path(out_dir)
     if out_dir.exists() and any(out_dir.iterdir()):
@@ -113,7 +115,7 @@ def run_sample(
 
     log = LogWriter(out_dir / LOG, run_id)
     log.append("system", LogAction.RUN_STARTED, detail={"mode": "sample", "sample_id": request.id})
-    books = Books.open(sources, log, fiscal_year_start, fiscal_year_end)
+    books = Books.open(sources, log, fiscal_year_start, fiscal_year_end, reader)
 
     results: dict[str, CheckResult] = {}
     drafts: dict[str, FollowUpDraft] = {}
@@ -209,6 +211,7 @@ def run_sample(
             dataset_id=dataset_id,
             sample_id=request.id,
             sources=sources.describe(),
+            models=sorted(books.models_used),
             git_commit=_git_commit(),
             contract_version=CONTRACT_VERSION,
         ),

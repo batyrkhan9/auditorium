@@ -38,7 +38,9 @@ def _quote(document_id: str, line: Line, note: str) -> DocumentEvidence:
 
 def _assess(txn: SpendTransaction, document_id: str, books: Books, what: str):
     """Compare one attached document with the transaction: status, issue, summary, rationale, evidence."""
-    lines = lines_of(books.read_document(document_id))
+    article = "An" if what == "invoice" else "A"
+    pages = books.read_document(document_id)
+    lines = lines_of(pages)
     amount = _money(txn.amount_cents)
     if not lines:
         document = books.documents[document_id]
@@ -52,7 +54,7 @@ def _assess(txn: SpendTransaction, document_id: str, books: Books, what: str):
         return (
             CheckStatus.NEEDS_REVIEW,
             None,
-            f"A {what} is attached but it has no readable text.",
+            f"{article} {what} is attached but it has no readable text.",
             "The file cannot be compared with the transaction automatically. A person should open it.",
             [unreadable],
         )
@@ -60,17 +62,41 @@ def _assess(txn: SpendTransaction, document_id: str, books: Books, what: str):
     name = find_name(lines, txn.vendor_name, txn.invoice_number)
     shown = find_amount(lines, txn.amount_cents)
     total = stated_total(lines)
+    read_by = None
+    if shown and not name:
+        # The amount is right but the name is not the card statement's. Whether two names
+        # mean one business is a judgement plain code cannot make, so ask the model reader.
+        asked = books.ask_merchant(document_id, txn.vendor_name, pages)
+        if asked:
+            name, read_by = asked
     evidence = []
-    if name:
+    if name and read_by:
+        note = (
+            f"Names the business. {read_by} read it as the same merchant as "
+            f"'{txn.vendor_name}' on the card statement."
+        )
+        evidence.append(_quote(document_id, name, note))
+    elif name:
         evidence.append(_quote(document_id, name, "Ties the document to this vendor."))
     if shown:
         evidence.append(_quote(document_id, shown, "Shows the amount of this transaction."))
 
+    if name and shown and read_by:
+        return (
+            CheckStatus.PASS,
+            None,
+            f"{article} {what} for {amount} is attached. It names the merchant differently from "
+            f"the card statement's '{txn.vendor_name}'.",
+            f"The attached {what} shows the amount. Its merchant name differs from the card "
+            f"statement's, and {read_by} read the two as the same business. The quoted line "
+            "lets a reviewer confirm that.",
+            evidence,
+        )
     if name and shown:
         return (
             CheckStatus.PASS,
             None,
-            f"A {what} from {txn.vendor_name} for {amount} is attached.",
+            f"{article} {what} from {txn.vendor_name} for {amount} is attached.",
             f"The attached {what} names the vendor and shows the amount of the transaction.",
             evidence,
         )
@@ -142,6 +168,7 @@ def check_receipt(txn: SpendTransaction, books: Books, run_id: str) -> CheckResu
 
     is_bill = txn.kind is TransactionKind.VENDOR_BILL
     what = "invoice" if is_bill else "receipt"
+    article = "An" if is_bill else "A"
     amount = _money(txn.amount_cents)
     policy = books.policy
     threshold = policy.receipt_required_from_cents
@@ -176,7 +203,7 @@ def check_receipt(txn: SpendTransaction, books: Books, run_id: str) -> CheckResu
             CheckStatus.FAIL,
             f"No {what} is attached to this {amount} {'bill' if is_bill else 'card charge'} "
             f"from {txn.vendor_name}.",
-            f"A {what} is required and Ramp holds no document for this transaction.",
+            f"{article} {what} is required and Ramp holds no document for this transaction.",
             [*required, listed],
             IssueCode.RECEIPT_MISSING,
         )

@@ -3,7 +3,10 @@ name = "auditorium-agent"
 version = "0.0.0"
 description = "The audit agent: four checks, sample requests, drafts, the log."
 requires-python = ">=3.12"
-dependencies = ["auditorium-contracts"]
+dependencies = [
+    "anthropic>=2.7.0",
+    "auditorium-contracts",
+]
 
 [tool.uv.sources]
 auditorium-contracts = { workspace = true }

@@ -118,6 +118,19 @@ CASES = [
         text="Apple Store\nReceipt\nDate: February 11, 2025\nDisplay adapter and monitor\n"
         "Total: $1,150.00\n",
     ),
+    dict(  # December work billed in January, said in words no pattern catches. No accrual.
+        key="b_1012", vendor="Ironwood Design Studio", cents=360_000, day=date(2026, 1, 6),
+        invoice="2291", booked=date(2026, 1, 6),
+        text="Ironwood Design Studio\nInvoice 2291\nInvoice date: January 6, 2026\n" + BILL_TO
+        + "This invoice covers the design sprint we ran for you in the last two weeks of December 2025.\n"
+        "Total: $3,600.00\n",
+    ),
+    dict(  # The card statement codes the merchant; the receipt spells it out.
+        key="c_2007", vendor="SQ *BLUEBTL OAK", cents=8_640, day=date(2025, 9, 3),
+        booked=date(2025, 9, 3),
+        text="Blue Bottle Coffee\nOakland, Broadway\nSeptember 3, 2025\n"
+        "Team offsite coffee and pastries\nTotal: $86.40\n",
+    ),
 ]  # fmt: skip
 
 BANK_STATEMENTS = {

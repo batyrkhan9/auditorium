@@ -24,6 +24,7 @@ from auditorium_contracts import (
 
 from .books import Books
 from .checks import check_approval, check_ledger_match, check_period, check_receipt
+from .reader import Reader
 
 CHECKS = (check_receipt, check_approval, check_ledger_match, check_period)
 
@@ -77,6 +78,7 @@ def run_preflight(
     fiscal_year_end: date,
     run_id: str | None = None,
     dataset_id: str | None = None,
+    reader: Reader | None = None,
 ) -> list[CheckResult]:
     out_dir = Path(out_dir)
     if out_dir.exists() and any(out_dir.iterdir()):
@@ -86,7 +88,7 @@ def run_preflight(
 
     log = LogWriter(out_dir / LOG, run_id)
     log.append("system", LogAction.RUN_STARTED, detail={"mode": "preflight"})
-    books = Books.open(sources, log, fiscal_year_start, fiscal_year_end)
+    books = Books.open(sources, log, fiscal_year_start, fiscal_year_end, reader)
 
     results = []
     for txn in books.transactions:
@@ -115,6 +117,7 @@ def run_preflight(
             period_end=fiscal_year_end,
             dataset_id=dataset_id,
             sources=sources.describe(),
+            models=sorted(books.models_used),
             git_commit=_git_commit(),
             contract_version=CONTRACT_VERSION,
         ),
