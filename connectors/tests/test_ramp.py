@@ -307,6 +307,28 @@ def test_connect_sources_without_ramp_settings_is_local(tmp_path, monkeypatch):
     assert all(use.mode == "local" for use in sources.describe())
 
 
+def test_connect_sources_without_credentials_is_local_for_every_system(tmp_path, monkeypatch):
+    build_local(tmp_path / "dataset")
+    for name in (
+        "RAMP_MCP_URL",
+        "RAMP_MCP_TOKEN",
+        *(k for k in os.environ if k.startswith("QBO_")),
+    ):
+        monkeypatch.delenv(name, raising=False)
+    local = c.LocalSources(tmp_path / "dataset")
+    sources = connect_sources(tmp_path / "dataset", cache_dir=tmp_path / "cache")
+    uses = {use.system: use for use in sources.describe()}
+    assert sorted(uses) == ["bank", "company", "qbo", "ramp"]
+    assert all(use.mode == "local" for use in uses.values())
+    assert "RAMP_MCP_URL" in uses["ramp"].detail
+    assert "QBO_CLIENT_ID" in uses["qbo"].detail
+    assert sources.ledger_entries() == local.ledger_entries()
+    assert sources.transactions() == local.transactions()
+    assert sources.documents() == local.documents()
+    assert sources.people() == local.people()
+    assert sources.policy() == local.policy()
+
+
 @pytest.mark.skipif(
     os.environ.get("AUDITORIUM_LIVE_RAMP") != "1",
     reason="live Ramp test: set AUDITORIUM_LIVE_RAMP=1, RAMP_MCP_URL and RAMP_MCP_TOKEN",
