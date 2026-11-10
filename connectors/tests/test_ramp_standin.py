@@ -1,11 +1,15 @@
-"""The Ramp stand-in: a local MCP server over a contract dataset. No external network:
-the server runs on 127.0.0.1 on a free port for the test module.
+"""The Ramp stand-in: a local MCP server over a contract dataset, under Ramp's real tool
+names and response shapes. No external network: the server runs on 127.0.0.1 on a free
+port for the test module.
 
 Fields that do not survive the round trip (dataset -> stand-in -> connector), and why:
 - `raw`: the connector keeps the Ramp-shaped payload the stand-in sent, not the
   dataset record's own `raw`.
 - `Person.role`: Ramp's `role` is a permission level, not a job role, so the
   stand-in does not send it and the connector does not read it.
+- `approvals`: Ramp's MCP server exposes no approval chain for a transaction, so the
+  stand-in serves none and the connector leaves approvals empty (unknown, not unapproved).
+- A card's `department`: Ramp's MCP transaction record has none.
 - A bill's `department`: Ramp bills have none.
 - A card's `due_date` and `invoice_number`: Ramp card transactions have none.
 - `Document.path` and `filename`: files are downloaded into the connector's cache.
@@ -17,6 +21,7 @@ Fields that do not survive the round trip (dataset -> stand-in -> connector), an
 - Documents that no transaction names are not served.
 """
 
+import dataclasses
 import importlib.util
 import os
 from datetime import UTC, date, datetime
@@ -26,7 +31,12 @@ import auditorium_contracts as c
 import httpx
 import pytest
 from auditorium_connectors import RampSources, connect_ramp, connect_sources
-from auditorium_connectors.ramp import STANDIN_SERVER_NAME, McpRampClient
+from auditorium_connectors.ramp import (
+    APPROVALS_UNAVAILABLE,
+    DEFAULT_TOOLS,
+    STANDIN_SERVER_NAME,
+    McpRampClient,
+)
 from auditorium_connectors.ramp_standin import serving
 
 # Helpers shared with test_ramp.py. Tests run with --import-mode=importlib, so the
@@ -181,8 +191,30 @@ def connected(dataset, standin, tmp_path) -> RampSources:
 def test_transactions_survive_the_round_trip(connected):
     got = {t.id: t for t in connected.transactions()}
     assert set(got) == {CARD.id, REFUND.id, BILL.id}
+    lost = {"raw", "approvals", "department"}
     for original in (CARD, REFUND, BILL):
-        assert got[original.id].model_dump(exclude={"raw"}) == original.model_dump(exclude={"raw"})
+        assert got[original.id].model_dump(exclude=lost) == original.model_dump(exclude=lost)
+        assert got[original.id].approvals == [] and got[original.id].department is None
+    # The stand-in sends Ramp's shape: a decimal string, not cents.
+    assert got[REFUND.id].raw["amount_value"] == "-180.00"
+    assert "transaction_uuid" in got[CARD.id].raw
+
+
+def test_small_pages_read_the_same_records(standin):
+    def paged(key, size_argument):
+        call = DEFAULT_TOOLS[key]
+        arguments = {**call.arguments, size_argument: 1}
+        return dataclasses.replace(call, arguments=arguments)
+
+    tools = {
+        **DEFAULT_TOOLS,
+        "transactions": paged("transactions", "page_size"),
+        "bills": paged("bills", "limit"),
+        "users": paged("users", "page_size"),
+    }
+    one_by_one = McpRampClient(standin, "t", tools=tools, receipts_batch=1).fetch()
+    assert one_by_one == McpRampClient(standin, "t").fetch()
+    assert len(one_by_one.transactions) == 2 and len(one_by_one.users) == 2
 
 
 def test_people_survive_except_the_job_role(connected, dataset):
@@ -213,7 +245,8 @@ def test_the_standin_is_reported_local_and_never_live(connected, standin):
     uses = {use.system: use for use in connected.describe()}
     assert all(use.mode == "local" for use in uses.values())
     assert uses["ramp"].detail == (
-        f"Ramp stand-in MCP server at {standin}, serving dataset tiny; not Ramp"
+        f"Ramp stand-in MCP server at {standin}, serving dataset tiny; not Ramp; "
+        f"{APPROVALS_UNAVAILABLE}"
     )
 
 
@@ -256,7 +289,7 @@ def test_another_server_is_not_taken_for_the_standin(tmp_path, server):
     assert not sources.is_standin
     ramp = {use.system: use for use in sources.describe()}["ramp"]
     assert ramp.mode == "live"
-    assert ramp.detail == "Ramp MCP https://demo-mcp.ramp.com/mcp"
+    assert ramp.detail == f"Ramp MCP https://demo-mcp.ramp.com/mcp; {APPROVALS_UNAVAILABLE}"
 
 
 def test_unknown_files_are_not_served(standin):

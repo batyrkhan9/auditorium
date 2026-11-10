@@ -31,6 +31,10 @@ matches Ramp. Fields that do not survive the round trip are listed at the top of
 `connectors/tests/test_ramp_standin.py`. Any bearer token is accepted, and the
 server listens on 127.0.0.1 by default.
 
+**Update, same day.** We got a sandbox login. The stand-in now serves Ramp's real
+tool names and the captured response shapes (`2026-11-10-ramp-real-tools.md`), and
+still reports itself `local`.
+
 **What would change our mind.** A Ramp sandbox login. Then we point
 `RAMP_MCP_URL` at Ramp, record real payloads, fix the mapping where they differ,
 and keep the stand-in only for offline tests.

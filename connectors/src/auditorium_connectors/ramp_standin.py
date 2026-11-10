@@ -1,16 +1,19 @@
 """A local stand-in for Ramp's MCP server. It is not Ramp.
 
-Nobody on the team has a Ramp account, so we cannot reach Ramp's sandbox MCP
-server. This serves a contract dataset folder over MCP (streamable HTTP) in the
-payload shapes `ramp.py` reads, which follow Ramp's Developer API spec
-(https://docs.ramp.com/openapi/developer-api.json), so the whole connector path
-runs for real: tool calls, mapping, file download, content check, sha256, cache.
+It serves a contract dataset folder over MCP (streamable HTTP) under Ramp's real
+tool names and arguments, in the response shapes captured from Ramp's sandbox MCP
+server on 2026-11-10 (connectors/tests/fixtures/ramp_sandbox_capture.json), so the
+whole connector path runs for real offline: tool calls, paging, mapping, file
+download, content check, sha256, cache. Bills, bill invoices and receipts were not
+in the capture (the sandbox has none); those follow Ramp's Developer API shapes and
+are unconfirmed, like the connector's reading of them.
 
 It names itself `STANDIN_SERVER_NAME` in `initialize`, and `RampSources.describe()`
 then reports Ramp as `local`, never `live`.
 
 - The payloads are the inverse of `ramp.py`'s mapping. A Ramp field with no source
-  in the contract record is left out, never made up.
+  in the contract record is left out, never made up. Approvals are not served:
+  Ramp's MCP server exposes none for a transaction.
 - Any bearer token is accepted; there is no auth. It listens on 127.0.0.1 by default.
 - Files are served from the same server at `/files/<record_type>/<record_id>`.
 
@@ -25,6 +28,7 @@ import threading
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -33,6 +37,7 @@ from auditorium_contracts import (
     Dataset,
     Document,
     DocumentType,
+    Person,
     SpendTransaction,
     TransactionKind,
     load_dataset,
@@ -62,7 +67,18 @@ def _day(value: Any) -> str | None:
     return value.isoformat() if value else None
 
 
+def _utc_midnight(value: Any) -> str | None:
+    """A contract date as the UTC datetime Ramp writes card times in."""
+    return f"{value.isoformat()}T00:00:00+00:00" if value else None
+
+
+def _decimal(cents: int) -> str:
+    """Cents as Ramp's `amount_value`: a decimal string in major units ("431.41")."""
+    return str(Decimal(cents).scaleb(-2))
+
+
 def _gl_selection(category: str | None) -> list[dict[str, Any]] | None:
+    # The Developer API's selection shape; unconfirmed on the MCP server.
     if not category:
         return None
     return [{"name": category, "category_info": {"type": "GL_ACCOUNT"}}]
@@ -78,31 +94,32 @@ def _attachment_type(document: Document) -> str | None:
     return None
 
 
+def _page(items: list[Any], cursor: str | None, size: int) -> tuple[list[Any], str | None]:
+    """One page of `items` and the cursor of the next, None after the last."""
+    start = int(cursor) if cursor else 0
+    end = start + size
+    return items[start:end], (str(end) if end < len(items) else None)
+
+
 class RampPayloadBuilder:
-    """A dataset's Ramp records in the shapes of Ramp's Developer API."""
+    """A dataset's Ramp records in the shapes of Ramp's MCP server."""
 
     def __init__(self, dataset: Dataset, base_url: str):
         self.dataset = dataset
         self.base_url = base_url.rstrip("/")
         self.documents = documents = {d.id: d for d in dataset.documents}
+        self.people = {p.id: p for p in dataset.people}
         self.cards = [t for t in dataset.transactions if t.kind is TransactionKind.CARD_EXPENSE]
         self.bills = [t for t in dataset.transactions if t.kind is TransactionKind.VENDOR_BILL]
         # (record_type, Ramp id) -> the dataset document served there.
         self.files: dict[tuple[str, str], Document] = {}
-        self.receipts: list[dict[str, Any]] = []
+        self.receipts: dict[str, dict[str, Any]] = {}
         for card in self.cards:
             for document_id in card.document_ids:
                 document = documents[document_id]
                 key = ("receipt", document.source.record_id)
-                if key not in self.files:
-                    self.files[key] = document
-                    self.receipts.append(
-                        {
-                            "id": document.source.record_id,
-                            "receipt_url": self.url(*key),
-                            "transaction_id": card.source.record_id,
-                        }
-                    )
+                self.files[key] = document
+                self.receipts[key[1]] = {"id": key[1], "receipt_url": self.url(*key)}
         self.attachments: dict[str, list[dict[str, Any]]] = {}
         for bill in self.bills:
             attachments = []
@@ -124,28 +141,31 @@ class RampPayloadBuilder:
     def url(self, record_type: str, record_id: str) -> str:
         return f"{self.base_url}/files/{record_type}/{record_id}"
 
-    def transaction(self, card: SpendTransaction) -> dict[str, Any]:
-        return _present(
-            {
-                "id": card.source.record_id,
-                "merchant_name": card.vendor_name,
-                "user_transaction_time": _day(card.transaction_date),
-                "accounting_date": _day(card.accounting_date),
-                "settlement_date": _day(card.paid_date),
-                "entity_amount": {"currency": "USD", "value": card.amount_cents},
-                "memo": card.memo,
-                "accounting_field_selections": _gl_selection(card.category),
-                "card_holder": _present(
-                    {
-                        "user_id": _ramp_user(card.spender_id) if card.spender_id else None,
-                        "department_name": card.department,
-                    }
-                ),
-                "receipts": [self.documents[d].source.record_id for d in card.document_ids],
-            }
-        )
+    def transaction(self, card: SpendTransaction, submitted_items: bool) -> dict[str, Any]:
+        """A `ramp_get_transactions` record. Receipts and accounting categories only
+        when `submitted_items` was asked for, as Ramp's tool describes."""
+        spender = self.people.get(card.spender_id or "")
+        fields = {
+            "transaction_uuid": card.source.record_id,
+            "spent_by_user": spender.name if spender else None,
+            "spent_by_user_uuid": _ramp_user(card.spender_id) if card.spender_id else None,
+            "amount_value": _decimal(card.amount_cents),
+            "amount_currency": "USD",
+            "transaction_time": _utc_midnight(card.transaction_date),
+            "settlement_date": _day(card.paid_date),
+            "accounting_date": _utc_midnight(card.accounting_date),
+            "merchant_name": card.vendor_name,
+            "reason_or_justification": card.memo,
+        }
+        if submitted_items:
+            fields["receipt_uuids"] = [
+                self.documents[d].source.record_id for d in card.document_ids
+            ]
+            fields["accounting_categories"] = _gl_selection(card.category)
+        return _present(fields)
 
     def bill(self, bill: SpendTransaction) -> dict[str, Any]:
+        """A bill in the Developer API's shape (unconfirmed on the MCP server)."""
         return _present(
             {
                 "id": bill.source.record_id,
@@ -163,55 +183,30 @@ class RampPayloadBuilder:
                 "memo": bill.memo,
                 "accounting_field_selections": _gl_selection(bill.category),
                 "bill_owner": {"id": _ramp_user(bill.spender_id)} if bill.spender_id else None,
-                "attachments": self.attachments[bill.source.record_id],
             }
         )
 
-    def users(self) -> list[dict[str, Any]]:
+    def user(self, person: Person) -> dict[str, Any]:
         # The contract keeps one display name. Ramp splits first and last; rather than
         # guess the split, the whole name goes in first_name. Ramp's `role` is a
         # permission level, not the contract's job role, so it is left out.
-        return [
-            _present(
-                {
-                    "id": _ramp_user(person.id),
-                    "first_name": person.name,
-                    "email": person.email,
-                    "department_id": person.department,
-                    "manager_id": _ramp_user(person.manager_id) if person.manager_id else None,
-                }
-            )
-            for person in self.dataset.people
-        ]
-
-    def departments(self) -> list[dict[str, Any]]:
-        # The contract has department names only, so the name is also the id.
-        names = sorted({p.department for p in self.dataset.people if p.department})
-        return [{"id": name, "name": name} for name in names]
-
-    def approvals(self, entity_type: str, entity_ids: list[str]) -> list[dict[str, Any]]:
-        """One chain per requested id the dataset holds. Unknown ids are left out, which
-        the connector refuses rather than read as "no approvals"."""
-        pool = {"TRANSACTION": self.cards, "BILL": self.bills}.get(entity_type.upper())
-        if pool is None:
-            raise ValueError(f"entity_type must be TRANSACTION or BILL, not {entity_type!r}")
-        by_id = {t.source.record_id: t for t in pool}
-        return [
+        return _present(
             {
-                "entity_id": entity_id,
-                "entity_type": entity_type.lower(),
-                "approval_history": [
-                    {
-                        "user_id": _ramp_user(a.approver_id),
-                        "step_status": a.decision.upper(),
-                        "action_at": a.decided_at.isoformat(),
-                    }
-                    for a in by_id[entity_id].approvals
-                ],
+                "id": _ramp_user(person.id),
+                "first_name": person.name,
+                "email": person.email,
+                "department_name": person.department,
             }
-            for entity_id in entity_ids
-            if entity_id in by_id
-        ]
+        )
+
+    def org_chart(self, ramp_user: str) -> dict[str, Any]:
+        """`ramp_get_org_chart` for one user: the user and their direct reports.
+        `reporting_chain` is left out; its order is unconfirmed and nothing reads it."""
+        person = self.people.get(person_id(ramp_user))
+        if person is None:
+            raise ValueError(f"no user {ramp_user!r}")
+        reports = [p for p in self.people.values() if p.manager_id == person.id]
+        return {"user": self.user(person), "direct_reports": [self.user(p) for p in reports]}
 
 
 def build_server(dataset: Dataset, base_url: str) -> MCPServer:
@@ -224,37 +219,75 @@ def build_server(dataset: Dataset, base_url: str) -> MCPServer:
     )
     tools = {key: call.name for key, call in DEFAULT_TOOLS.items()}
 
+    # `rationale` has no default, as on Ramp, so a call without one fails.
+
     @server.tool(name=tools["transactions"])
-    def get_transactions(transactions_to_retrieve: str = ALL_TRANSACTIONS) -> dict[str, Any]:
-        """All card transactions in the dataset."""
+    def get_transactions(
+        rationale: str,
+        transactions_to_retrieve: str,
+        state: str | None = None,
+        page_size: int = 50,
+        next_page_cursor: str | None = None,
+        include_count: bool = True,
+        details_to_include_in_response: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Card transactions in the dataset, a page at a time."""
         if transactions_to_retrieve != ALL_TRANSACTIONS:
             raise ValueError(f"only transactions_to_retrieve={ALL_TRANSACTIONS!r} is served")
-        return {"data": [payloads.transaction(t) for t in payloads.cards]}
+        if state not in (None, "all"):
+            raise ValueError("the dataset does not say which state a transaction is in")
+        submitted = "submitted_items" in (details_to_include_in_response or ())
+        records = [payloads.transaction(t, submitted) for t in payloads.cards]
+        page, cursor = _page(records, next_page_cursor, page_size)
+        answer = {"transactions": page, "next_page_cursor": cursor}
+        return {**answer, "total_count": len(records)} if include_count else answer
 
     @server.tool(name=tools["bills"])
-    def get_bills() -> dict[str, Any]:
-        """All vendor bills in the dataset."""
-        return {"data": [payloads.bill(b) for b in payloads.bills]}
+    def list_bills(
+        rationale: str,
+        limit: int = 10,
+        page_cursor: str | None = None,
+        include_paid: bool = True,
+        include_archived: bool = False,
+    ) -> dict[str, Any]:
+        """Vendor bills in the dataset, a page at a time."""
+        records = [payloads.bill(b) for b in payloads.bills if include_paid or not b.paid_date]
+        page, cursor = _page(records, page_cursor, limit)
+        return {"bills": page, "total_found": len(records), "next_page_cursor": cursor}
+
+    @server.tool(name=tools["bill_invoices"])
+    def get_bill_invoices(rationale: str, bill_id: str) -> dict[str, Any]:
+        """A bill's invoice files, with download URLs on this server."""
+        if bill_id not in payloads.attachments:
+            raise ValueError(f"no bill {bill_id!r}")
+        return {"attachments": payloads.attachments[bill_id]}
 
     @server.tool(name=tools["receipts"])
-    def get_receipts() -> dict[str, Any]:
-        """Receipts attached to card transactions, with download URLs on this server."""
-        return {"data": payloads.receipts}
+    def get_receipt_details(rationale: str, receipt_uuids: list[str]) -> dict[str, Any]:
+        """The receipts asked for, with download URLs on this server."""
+        return {"receipts": [payloads.receipts[r] for r in receipt_uuids if r in payloads.receipts]}
 
     @server.tool(name=tools["users"])
-    def get_all_reduced_users() -> dict[str, Any]:
-        """The dataset's people."""
-        return {"data": payloads.users()}
+    def list_users(
+        rationale: str,
+        page_size: int = 20,
+        page_cursor: str | None = None,
+        include_agents: bool = False,
+    ) -> dict[str, Any]:
+        """The dataset's people. Like Ramp, the cursor is the last user id of a page."""
+        users = [payloads.user(p) for p in payloads.people.values()]
+        ids = [u["id"] for u in users]
+        start = ids.index(page_cursor) + 1 if page_cursor else 0
+        page = users[start : start + page_size]
+        more = start + page_size < len(users)
+        return {"users": page, "next_page": page[-1]["id"] if more else None}
 
-    @server.tool(name=tools["departments"])
-    def get_departments() -> dict[str, Any]:
-        """Department names the dataset's people belong to."""
-        return {"data": payloads.departments()}
-
-    @server.tool(name=tools["approvals"])
-    def get_approvals(entity_type: str, entity_ids: list[str]) -> dict[str, Any]:
-        """Approval chains for card transactions (TRANSACTION) or bills (BILL)."""
-        return {"data": payloads.approvals(entity_type, entity_ids)}
+    @server.tool(name=tools["org_chart"])
+    def get_org_chart(rationale: str, user_id: str | None = None) -> dict[str, Any]:
+        """A user's direct reports. There is no signed-in user, so `user_id` is needed."""
+        if not user_id:
+            raise ValueError("the stand-in has no current user; pass user_id")
+        return payloads.org_chart(user_id)
 
     @server.custom_route("/files/{record_type}/{record_id}", methods=["GET"])
     async def file(request: Request) -> Response:

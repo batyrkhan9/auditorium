@@ -1,12 +1,16 @@
-"""Ramp mapping and fallback. No network: the payloads are synthetic fixtures shaped
-by Ramp's Developer API spec (see the `_synthetic` note in the fixture file).
+"""Ramp mapping, paging and fallback. No network.
+
+Card transactions, users, org charts, tool names, arguments and error answers come from
+`fixtures/ramp_sandbox_capture.json`, captured from Ramp's sandbox MCP server. Bills,
+bill invoices and receipts come from `fixtures/ramp_synthetic.json`, which is synthetic
+and unconfirmed: the sandbox business has none.
 
 One live test runs only with AUDITORIUM_LIVE_RAMP=1, RAMP_MCP_URL and RAMP_MCP_TOKEN set.
 """
 
 import json
 import os
-from datetime import UTC, date, datetime
+from datetime import date
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -16,28 +20,57 @@ import httpx
 import pytest
 from auditorium_connectors import LocalFallback, RampSources, connect_ramp, connect_sources
 from auditorium_connectors.ramp import (
+    APPROVALS_UNAVAILABLE,
+    DEFAULT_TOOLS,
     McpRampClient,
     RampMappingError,
     RampPayloads,
     RampUnavailable,
-    approval_chains,
+    ToolCall,
+    decimal_usd_cents,
+    managers,
     map_bill,
     map_card_transaction,
     map_user,
+    read_all,
     records_from,
     refusal_recorder,
     tool_payload,
 )
 
-FIXTURE = json.loads((Path(__file__).parent / "fixtures" / "ramp_synthetic.json").read_text())
-CARD, DECLINED, REFUND = FIXTURE["transactions"]
-BILL = FIXTURE["bills"][0]
-APPROVALS = {chain["entity_id"]: chain for chain in FIXTURE["approvals"]}
+FIXTURES = Path(__file__).parent / "fixtures"
+CAPTURE = json.loads((FIXTURES / "ramp_sandbox_capture.json").read_text())
+CAPTURED = {tool["name"]: tool for tool in CAPTURE["tools"]}
+SYNTHETIC = json.loads((FIXTURES / "ramp_synthetic.json").read_text())
+
+
+def captured(tool: str):
+    return CAPTURED[tool]["response"]
+
+
+# Real, from Ramp's sandbox.
+AIR_CANADA, DINNER, SNACK = captured("ramp_get_transactions")["transactions"]
+USERS = captured("ramp_list_users")["users"]
+ORG_CHART = captured("ramp_get_org_chart")
+DAVID = ORG_CHART["user"]["id"]
+# Synthetic and unconfirmed.
+BILL = SYNTHETIC["bills"][0]
+INVOICES = {bill: answer["attachments"] for bill, answer in SYNTHETIC["bill_invoices"].items()}
+RECEIPTS = SYNTHETIC["receipts"]["receipts"]
+# A captured transaction with a synthetic receipt attached: the sandbox has no receipts.
+WITH_RECEIPT = {**DINNER, "receipt_uuids": [RECEIPTS[0]["id"]]}
 
 
 def payloads(**changes) -> RampPayloads:
-    fields = {k: FIXTURE[k] for k in ("transactions", "bills", "receipts", "users", "departments")}
-    return RampPayloads(**{**fields, "approvals": APPROVALS, **changes})
+    fields = {
+        "transactions": [AIR_CANADA, WITH_RECEIPT, SNACK],
+        "bills": [BILL],
+        "bill_invoices": INVOICES,
+        "receipts": RECEIPTS,
+        "users": USERS,
+        "org_charts": {DAVID: ORG_CHART},
+    }
+    return RampPayloads(**{**fields, **changes})
 
 
 class FixtureClient:
@@ -163,48 +196,72 @@ def build_local(root: Path) -> c.LocalSources:
     return c.LocalSources(root)
 
 
-# --- mapping ---------------------------------------------------------------------
+# --- mapping real payloads ----------------------------------------------------------
 
 
-def test_card_transaction_maps_ramp_fields_and_keeps_raw():
-    txn = map_card_transaction(CARD, APPROVALS[CARD["id"]])
+def test_captured_card_transaction_maps_to_the_contract():
+    txn = map_card_transaction(AIR_CANADA)
 
-    assert txn.id == f"ramp:transaction:{CARD['id']}"
+    uuid = "2b7a80d1-475d-4dbb-90dc-88f8d9a982ef"
+    assert txn.id == f"ramp:transaction:{uuid}"
     assert txn.kind is c.TransactionKind.CARD_EXPENSE
-    assert txn.source == c.SourceRef(system="ramp", record_type="transaction", record_id=CARD["id"])
-    assert txn.vendor_name == "Blue Bottle Coffee"
-    assert txn.amount_cents == 4250
-    assert txn.transaction_date == date(2025, 12, 3)
-    assert txn.accounting_date == date(2025, 12, 4)
-    assert txn.paid_date == date(2025, 12, 5)  # a card is paid on its settlement date
-    assert txn.category == "6100 Meals"  # the GL_ACCOUNT selection, not Ramp's own category
-    assert txn.spender_id == "ramp:user:u-200"
-    assert txn.department == "Engineering"
+    assert txn.source == c.SourceRef(system="ramp", record_type="transaction", record_id=uuid)
+    assert txn.vendor_name == "Air Canada"
+    # Settled in USD; the CAD purchase amount stays in raw, unconverted.
+    assert txn.amount_cents == 43141
+    assert txn.raw["original_amount"] == "608.98" and txn.raw["original_currency"] == "CAD"
+    # Dates as Ramp wrote them (UTC), not moved to a local time zone.
+    assert txn.transaction_date == date(2026, 11, 29)
+    assert txn.accounting_date == date(2026, 11, 30)
+    assert txn.paid_date == date(2026, 12, 1)  # a card is paid on its settlement date
+    assert txn.memo == "Flight to Toronto"
+    # merchant_category ("Airlines") is Ramp's, not the books' category.
+    assert txn.category is None
+    assert txn.spender_id == "ramp:user:b6b46725-b181-454a-8094-f0e3e2f33e02"
+    assert txn.department is None  # Ramp's MCP transaction has no department
+    assert txn.document_ids == []
+    assert txn.approvals == []  # unknown, not unapproved: see APPROVALS_UNAVAILABLE
+    assert txn.raw == AIR_CANADA
+
+
+def test_amount_agrees_with_ramps_own_cents_for_the_same_transaction():
+    metadata = captured("ramp_get_full_transaction_metadata")
+    assert metadata["id"] == AIR_CANADA["transaction_uuid"]
+    assert map_card_transaction(AIR_CANADA).amount_cents == metadata["amount_cents"]
+
+
+@pytest.mark.parametrize(
+    ("value", "cents"),
+    [("431.41", 43141), ("14.05", 1405), ("-180.00", -18000), ("0.10", 10), ("12", 1200)],
+)
+def test_amount_value_becomes_exact_cents(value, cents):
+    assert decimal_usd_cents(value, "USD", "t") == cents
+
+
+@pytest.mark.parametrize("value", ["1.005", 431.41, 43141, "abc", "NaN", "Infinity", None])
+def test_an_amount_that_is_not_exact_cents_is_refused(value):
+    with pytest.raises(RampMappingError):
+        decimal_usd_cents(value, "USD", "t")
+
+
+def test_an_amount_not_settled_in_usd_is_refused_not_converted():
+    with pytest.raises(RampMappingError, match="settled in EUR"):
+        map_card_transaction({**AIR_CANADA, "amount_currency": "EUR"})
+
+
+def test_receipts_and_gl_account_are_read_when_ramp_sends_them():
+    # Shapes unconfirmed: the sandbox sent null for both (no receipts, no accounting provider).
+    gl = {"name": "6100 Meals", "category_info": {"type": "GL_ACCOUNT"}}
+    txn = map_card_transaction({**WITH_RECEIPT, "accounting_categories": [gl, "odd"]})
     assert txn.document_ids == ["ramp:receipt:r-900"]
-    assert txn.approvals == [
-        c.Approval(
-            approver_id="ramp:user:u-100",
-            decision="approved",
-            decided_at=datetime(2025, 12, 4, 10, tzinfo=UTC),
-        )
-    ]
-    assert txn.raw == CARD
-
-
-def test_a_card_transaction_without_a_settlement_date_has_no_paid_date():
-    assert map_card_transaction(DECLINED).paid_date is None
+    assert txn.category == "6100 Meals"
 
 
 def test_signed_urls_never_reach_raw():
     signature = "X-Amz-Signature=deadbeefcafe"
     signed = f"https://ramp-files.example/f.pdf?{signature}&X-Amz-Credential=AKIA#frag"
-    card = {**CARD, "receipt_urls": [signed], "nested": {"deep": [{"url": signed}]}}
-    bill = {
-        **BILL,
-        "attachments": [{"id": "att-500", "attachment_type": "INVOICE", "url": signed}],
-        "invoice_urls": [signed],
-        "note": f"see {signed} for the copy",
-    }
+    card = {**AIR_CANADA, "receipt_urls": [signed], "nested": {"deep": [{"url": signed}]}}
+    bill = {**BILL, "invoice_urls": [signed], "note": f"see {signed} for the copy"}
     records = [map_card_transaction(card), map_bill(bill)]
 
     dumped = "".join(r.model_dump_json() for r in records)
@@ -212,22 +269,14 @@ def test_signed_urls_never_reach_raw():
     assert "AKIA" not in dumped
     assert "frag" not in dumped
     # The record stays identifiable: scheme, host and path survive.
-    assert records[1].raw["attachments"][0]["url"] == "https://ramp-files.example/f.pdf"
     assert records[0].raw["nested"]["deep"][0]["url"] == "https://ramp-files.example/f.pdf"
     assert records[1].raw["note"] == "see https://ramp-files.example/f.pdf for the copy"
+    # Ramp's own transaction link has no query and is kept as is.
+    assert records[0].raw["transaction_link"] == AIR_CANADA["transaction_link"]
 
 
-def test_refund_keeps_its_negative_amount_and_no_invented_fields():
-    txn = map_card_transaction(REFUND)
-    assert txn.amount_cents == -18000
-    assert txn.accounting_date is None
-    assert txn.category is None
-    assert txn.memo is None
-    assert txn.approvals == []
-
-
-def test_bill_maps_invoice_dates_and_line_item_account():
-    txn = map_bill(BILL, APPROVALS[BILL["id"]])
+def test_synthetic_bill_maps_invoice_dates_attachments_and_line_item_account():
+    txn = map_bill(BILL, INVOICES[BILL["id"]])
 
     assert txn.id == f"ramp:bill:{BILL['id']}"
     assert txn.kind is c.TransactionKind.VENDOR_BILL
@@ -239,43 +288,88 @@ def test_bill_maps_invoice_dates_and_line_item_account():
     assert txn.paid_date == date(2026, 2, 5)
     assert txn.invoice_number == "INV-2041"
     assert txn.category == "6400 Professional Fees"
-    assert txn.spender_id == "ramp:user:u-100"
+    assert txn.spender_id == f"ramp:user:{DAVID}"
     assert txn.department is None  # a Ramp bill has no department
     assert txn.document_ids == ["ramp:bill_attachment:att-500"]
-    # The PENDING step is not a decision.
-    assert [a.decision for a in txn.approvals] == ["approved"]
+    assert txn.approvals == []
     assert txn.raw == BILL
 
 
-def test_user_maps_without_inventing_a_job_role():
-    departments = {d["id"]: d["name"] for d in FIXTURE["departments"]}
-    dana = map_user(FIXTURE["users"][1], departments)
-    assert dana == c.Person(
-        id="ramp:user:u-200",
-        name="Dana Reyes",
-        email="dana@example.com",
-        role=None,
-        department="Engineering",
-        manager_id="ramp:user:u-100",
+def test_captured_user_maps_without_inventing_a_job_role():
+    assert map_user(USERS[0]) == c.Person(
+        id="ramp:user:e2e3afa2-b7a2-4a7d-97f1-49ea99e01a12",
+        name="Akshit Khurana",
+        email="cardholder_23@example.com",
+        role=None,  # Ramp's "BUSINESS_USER" is a permission level
+        department="Implementations",
+        manager_id=None,
     )
 
 
-def test_non_usd_amount_is_refused():
-    euro = {**CARD, "entity_amount": {"currency": "EUR", "value": 4250}}
-    with pytest.raises(RampMappingError):
-        map_card_transaction(euro)
+def test_managers_come_from_the_captured_org_chart():
+    found = managers({DAVID: ORG_CHART})
+    assert found == {report["id"]: DAVID for report in ORG_CHART["direct_reports"]}
+    michael = ORG_CHART["direct_reports"][0]
+    person = map_user({**michael, "role": "BUSINESS_ADMIN"}, found[michael["id"]])
+    assert person.name == "Michael Scott"
+    assert person.manager_id == f"ramp:user:{DAVID}"
 
 
-# --- tool responses --------------------------------------------------------------
+def test_two_managers_for_one_person_is_refused():
+    other = {"direct_reports": [ORG_CHART["direct_reports"][0]]}
+    with pytest.raises(RampMappingError, match="two managers"):
+        managers({DAVID: ORG_CHART, "someone-else": other})
+
+
+# --- tools, arguments and responses ---------------------------------------------------
+
+# Arguments added per call, on top of a ToolCall's own.
+PER_CALL = {"bill_invoices": {"bill_id"}, "receipts": {"receipt_uuids"}, "org_chart": {"user_id"}}
+
+
+@pytest.mark.parametrize("key", sorted(DEFAULT_TOOLS))
+def test_tool_calls_fit_ramps_captured_schemas(key):
+    call = DEFAULT_TOOLS[key]
+    assert call.name in CAPTURE["tool_names"]
+    schema = CAPTURED[call.name]["input_schema"]
+    properties = schema["properties"]
+    sent = set(call.arguments) | PER_CALL.get(key, set())
+    assert set(schema.get("required", [])) <= sent
+    assert sent <= set(properties)
+    if call.cursor_argument:
+        assert call.cursor_argument in properties
+    for name, value in call.arguments.items():
+        rules = properties[name]
+        allowed = rules.get("enum") or (rules.get("items") or {}).get("enum")
+        if allowed:
+            assert set(value if isinstance(value, list) else [value]) <= set(allowed), name
+        if "maximum" in rules:
+            assert value <= rules["maximum"], name
+
+
+@pytest.mark.parametrize("key", ["transactions", "bills", "users"])
+def test_records_and_cursor_keys_are_ramps(key):
+    call = DEFAULT_TOOLS[key]
+    response = captured(call.name)
+    assert isinstance(response[call.records_key], list)
+    assert call.cursor_field in response
+
+
+def test_bill_invoice_and_receipt_shapes_are_still_unconfirmed():
+    # If these ever hold a response, replace the synthetic fixture with it.
+    for key in ("bill_invoices", "receipts"):
+        assert captured(DEFAULT_TOOLS[key].name) is None
+
+
+def structured(payload) -> SimpleNamespace:
+    return SimpleNamespace(content=[], is_error=False, structured_content=payload)
 
 
 def test_tool_payload_reads_structured_or_text_json_and_reports_errors():
-    text = SimpleNamespace(type="text", text='{"data": [{"id": "x"}]}')
+    users = DEFAULT_TOOLS["users"]
+    text = SimpleNamespace(type="text", text=json.dumps(captured("ramp_list_users")))
     as_text = SimpleNamespace(content=[text], is_error=False, structured_content=None)
-    assert records_from(tool_payload(as_text, "T"), "T") == [{"id": "x"}]
-
-    structured = SimpleNamespace(content=[], is_error=False, structured_content={"result": []})
-    assert records_from(tool_payload(structured, "T"), "T") == []
+    assert records_from(tool_payload(as_text, "T"), users) == USERS
 
     failed = SimpleNamespace(
         content=[SimpleNamespace(type="text", text="no scope")],
@@ -286,36 +380,99 @@ def test_tool_payload_reads_structured_or_text_json_and_reports_errors():
         tool_payload(failed, "T")
 
 
-def test_a_second_page_is_refused_rather_than_dropped():
-    with pytest.raises(RampUnavailable, match="more than one page"):
-        records_from({"data": [{"id": "x"}], "page": {"next": "https://next"}}, "T")
+@pytest.mark.parametrize(
+    ("tool", "message"),
+    [
+        ("ramp_search_receipts", "Receipt-content search is unavailable"),
+        ("ramp_get_tracking_categories", "No accounting provider access"),
+        ("ramp_get_approval_chain_details", "not found or is not accessible"),
+    ],
+)
+def test_ramps_error_answers_are_refused(tool, message):
+    with pytest.raises(RampUnavailable, match=message):
+        tool_payload(structured(captured(tool)), tool)
+
+
+def test_a_response_without_the_records_key_is_refused():
+    with pytest.raises(RampUnavailable, match="no 'users' list"):
+        records_from({"data": []}, DEFAULT_TOOLS["users"])
 
 
 @pytest.mark.parametrize(
     "payload",
     [
-        {"data": [{"id": "x"}], "total": 2},
-        {"data": [{"id": "x"}], "page": {"total_count": 40}},
-        {"data": [{"id": "x"}], "cursor": "abc"},
-        {"items": [{"id": "x"}], "truncated": True},
+        {"bills": [{"id": "x"}], "page": {"next": "https://next"}},
+        {"bills": [{"id": "x"}], "has_more": True},
+        {"bills": [{"id": "x"}], "next_page": "x"},
+        {"bills": [{"id": "x"}], "truncated": True},
     ],
 )
-def test_a_partial_response_is_refused(payload):
+def test_a_page_marker_the_tool_does_not_page_with_is_refused(payload):
     with pytest.raises(RampUnavailable, match="pagination not built"):
-        records_from(payload, "T")
+        records_from(payload, DEFAULT_TOOLS["bills"])
 
 
-def test_a_complete_response_with_a_count_is_read():
-    assert records_from({"data": [{"id": "x"}], "total": 1, "truncated": False}, "T") == [
-        {"id": "x"}
-    ]
+class Pages:
+    """A fake tool: answers by cursor, and records the arguments of every call."""
+
+    def __init__(self, pages):
+        self.pages = pages
+        self.calls = []
+
+    async def __call__(self, name, arguments):
+        self.calls.append(arguments)
+        return self.pages[arguments.get("next_page_cursor") or arguments.get("page_cursor")]
 
 
-def test_an_approval_chain_left_out_is_refused_not_read_as_no_approvals():
-    chains = [{"entity_id": "a"}]
-    assert approval_chains("TRANSACTION", ["a"], chains) == {"a": {"entity_id": "a"}}
-    with pytest.raises(RampUnavailable, match="no approval chain returned for 1 TRANSACTION"):
-        approval_chains("TRANSACTION", ["a", "b"], chains)
+def read(pages: Pages, key: str, **extra):
+    return anyio.run(lambda: read_all(pages, DEFAULT_TOOLS[key], **extra))
+
+
+def test_every_page_is_read_by_following_the_cursor():
+    first = captured("ramp_get_transactions")
+    rest = [{"transaction_uuid": f"t-{n}"} for n in range(1331)]
+    pages = Pages(
+        {
+            None: first,
+            "gAAAAA-redacted-cursor": {
+                "transactions": rest,
+                "total_count": 1334,
+                "next_page_cursor": None,
+            },
+        }
+    )
+    records = read(pages, "transactions")
+    assert len(records) == 1334
+    assert pages.calls[1]["next_page_cursor"] == "gAAAAA-redacted-cursor"
+    assert all(call["rationale"] for call in pages.calls)
+
+
+def test_users_page_by_ramps_next_page_user_id():
+    first = captured("ramp_list_users")
+    pages = Pages({None: first, first["next_page"]: {"users": [], "next_page": None}})
+    assert read(pages, "users") == USERS
+    assert pages.calls[1]["page_cursor"] == USERS[-1]["id"]
+
+
+def test_fewer_records_than_counted_is_refused():
+    first = captured("ramp_get_transactions")
+    pages = Pages({None: first, "gAAAAA-redacted-cursor": {"transactions": []}})
+    with pytest.raises(RampUnavailable, match="returned 3 of 1334 records"):
+        read(pages, "transactions")
+
+
+def test_a_repeated_cursor_is_refused_rather_than_looped():
+    page = {"bills": [{"id": "x"}], "next_page_cursor": "same"}
+    with pytest.raises(RampUnavailable, match="repeated a page cursor"):
+        read(Pages({None: page, "same": page}), "bills")
+
+
+def test_captured_departments_page_counts_more_than_it_holds():
+    # The capture cut 13 departments to 3; the same check refuses a real short answer.
+    call = ToolCall("ramp_departments", records_key="departments")
+    pages = Pages({None: captured("ramp_departments")})
+    with pytest.raises(RampUnavailable, match="returned 3 of 13"):
+        anyio.run(lambda: read_all(pages, call))
 
 
 def test_only_auth_refusals_are_recorded():
@@ -338,7 +495,7 @@ def test_our_own_reason_is_not_replaced_by_an_earlier_refusal(grouped):
 
     async def fetch(refused):
         refused.append("HTTP 403: forbidden")
-        error = RampUnavailable("tool GetBills returned more than one page")
+        error = RampUnavailable("tool ramp_list_bills returned more than one page")
         raise ExceptionGroup("task group", [error]) if grouped else error
 
     client._fetch = fetch
@@ -374,12 +531,18 @@ def test_ramp_sources_serves_ramp_live_and_the_rest_locally(tmp_path):
 
     assert isinstance(sources, RampSources)
     assert isinstance(sources, c.Sources)
-    modes = {use.system: use.mode for use in sources.describe()}
-    assert modes == {"ramp": "live", "qbo": "local", "bank": "local", "company": "local"}
+    uses = {use.system: use for use in sources.describe()}
+    assert {s: u.mode for s, u in uses.items()} == {
+        "ramp": "live",
+        "qbo": "local",
+        "bank": "local",
+        "company": "local",
+    }
+    assert uses["ramp"].detail == f"Ramp MCP https://demo-mcp.ramp.com/mcp; {APPROVALS_UNAVAILABLE}"
 
     ids = [t.id for t in sources.transactions()]
-    assert f"ramp:transaction:{DECLINED['id']}" not in ids
-    assert len(ids) == 3
+    assert len(ids) == 4
+    assert f"ramp:bill:{BILL['id']}" in ids
 
     documents = {d.id: d for d in sources.documents()}
     # Ramp's own files plus the local bank statement; the local copy of a Ramp receipt is not served.
@@ -398,7 +561,23 @@ def test_ramp_sources_serves_ramp_live_and_the_rest_locally(tmp_path):
 
     assert [e.id for e in sources.ledger_entries()] == ["qbo:Bill:147"]
     assert sources.policy().id == "policy-2025"
-    assert {p.id for p in sources.people()} == {"ramp:user:u-100", "ramp:user:u-200"}
+    assert {p.id for p in sources.people()} == {f"ramp:user:{u['id']}" for u in USERS}
+
+
+def test_pending_and_non_usd_transactions_are_left_out_and_reported(tmp_path):
+    pending = {**SNACK, "transaction_uuid": "p-1", "state": "PENDING"}
+    euro = {**SNACK, "transaction_uuid": "e-1", "amount_currency": "EUR"}
+    declined = {**SNACK, "transaction_uuid": "d-1", "state": "DECLINED"}
+    sources = connect_with(
+        tmp_path, FixtureClient(payloads(transactions=[AIR_CANADA, pending, euro, declined]))
+    )
+    assert isinstance(sources, RampSources)
+    assert [t.source.record_id for t in sources.transactions()] == [
+        AIR_CANADA["transaction_uuid"],
+        BILL["id"],
+    ]
+    detail = {u.system: u for u in sources.describe()}["ramp"].detail
+    assert detail.endswith("card transactions left out: 1 not settled in USD, 1 pending")
 
 
 @pytest.mark.parametrize(
@@ -417,6 +596,12 @@ def test_ramp_sources_serves_ramp_live_and_the_rest_locally(tmp_path):
             "t",
             FixtureClient(payloads(receipts=[])),
             "which Ramp did not return",
+        ),
+        (
+            "https://demo-mcp.ramp.com/mcp",
+            "t",
+            FixtureClient(payloads(receipts=[{"id": "r-900"}])),
+            "receipt r-900: Ramp returned no file URL",
         ),
     ],
 )
@@ -443,7 +628,7 @@ SIGNED = "https://ramp-files.example/r-900.pdf?X-Amz-Signature=deadbeef&X-Amz-Cr
 
 
 def test_a_failed_download_names_the_record_and_never_the_signed_url(tmp_path):
-    receipt = {**FIXTURE["receipts"][0], "receipt_url": SIGNED}
+    receipt = {**RECEIPTS[0], "receipt_url": SIGNED}
 
     def refuse(url: str, dest: Path) -> str:
         response = httpx.Response(403, request=httpx.Request("GET", url))
@@ -458,7 +643,7 @@ def test_a_failed_download_names_the_record_and_never_the_signed_url(tmp_path):
 
 
 def test_urls_in_a_reason_lose_their_query_string(tmp_path):
-    error = RampUnavailable(f"tool GetReceipts failed: see {SIGNED} for details")
+    error = RampUnavailable(f"tool ramp_get_receipt_details failed: see {SIGNED} for details")
     detail = {u.system: u for u in connect_with(tmp_path, FixtureClient(error)).describe()}
     assert "https://ramp-files.example/r-900.pdf for details" in detail["ramp"].detail
     assert "deadbeef" not in detail["ramp"].detail
@@ -480,7 +665,7 @@ def test_a_body_that_is_not_a_pdf_or_image_is_refused(tmp_path, download):
 
 
 def test_an_id_that_is_not_plain_never_becomes_a_path(tmp_path):
-    receipt = {**FIXTURE["receipts"][0], "id": "../../escaped"}
+    receipt = {**RECEIPTS[0], "id": "../../escaped"}
     sources = connect_with(tmp_path, FixtureClient(payloads(receipts=[receipt])))
     assert isinstance(sources, LocalFallback)
     assert "is not a plain id" in {u.system: u for u in sources.describe()}["ramp"].detail

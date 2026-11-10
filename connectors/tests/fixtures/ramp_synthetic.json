@@ -1,45 +1,5 @@
 {
-  "_synthetic": "NOT captured from a server. Hand-written on 2026-11-09 in the shapes of Ramp's Developer API OpenAPI spec (https://docs.ramp.com/openapi/developer-api.json: Transaction, Bill, Receipt, User, ApprovalsResource). Replace with recorded MCP payloads once a live connection works.",
-  "transactions": [
-    {
-      "id": "6a1b0f4e-0000-4000-8000-000000000001",
-      "state": "CLEARED",
-      "merchant_name": "Blue Bottle Coffee",
-      "merchant_descriptor": "BLUE BOTTLE #12 SAN FRANCISCO",
-      "user_transaction_time": "2025-12-03T17:42:10+00:00",
-      "accounting_date": "2025-12-04T00:00:00+00:00",
-      "settlement_date": "2025-12-05T00:00:00+00:00",
-      "entity_amount": {"currency": "USD", "value": 4250},
-      "memo": "Team coffee",
-      "card_holder": {"user_id": "u-200", "first_name": "Dana", "last_name": "Reyes", "department_name": "Engineering", "department_id": "d-eng"},
-      "receipts": ["r-900"],
-      "accounting_field_selections": [
-        {"display_name": "Meals", "name": "6100 Meals", "provider_name": "QuickBooks Online", "category_info": {"type": "GL_ACCOUNT", "name": "Category"}},
-        {"display_name": "Engineering", "name": "Engineering", "provider_name": "QuickBooks Online", "category_info": {"type": "COST_CENTER", "name": "Class"}}
-      ],
-      "sk_category_name": "Restaurants"
-    },
-    {
-      "id": "6a1b0f4e-0000-4000-8000-000000000002",
-      "state": "DECLINED",
-      "merchant_name": "Unknown Merchant",
-      "user_transaction_time": "2025-12-07T09:00:00+00:00",
-      "entity_amount": {"currency": "USD", "value": 99900},
-      "card_holder": {"user_id": "u-200"},
-      "receipts": []
-    },
-    {
-      "id": "6a1b0f4e-0000-4000-8000-000000000003",
-      "state": "CLEARED",
-      "merchant_name": "Delta Air Lines",
-      "user_transaction_time": "2025-12-10T12:00:00+00:00",
-      "accounting_date": null,
-      "entity_amount": {"currency": "USD", "value": -18000},
-      "original_transaction_id": "6a1b0f4e-0000-4000-8000-0000000000aa",
-      "card_holder": {"user_id": "u-200", "department_name": "Engineering"},
-      "receipts": []
-    }
-  ],
+  "_synthetic": "SYNTHETIC AND UNCONFIRMED. Hand-written, NOT captured from a server. Ramp's sandbox business has no bills and no receipts, so these shapes are still the Developer API's (https://docs.ramp.com/openapi/developer-api.json: Bill, Receipt) and the response keys of ramp_list_bills (`bills`, confirmed empty), ramp_get_bill_invoices (`attachments`, a guess) and ramp_get_receipt_details (`receipts`, a guess). Replace with recorded payloads once the sandbox holds a bill and a receipt. Card transactions, users and org charts come from ramp_sandbox_capture.json.",
   "bills": [
     {
       "id": "b7c2d3e4-0000-4000-8000-000000000010",
@@ -53,39 +13,23 @@
       "paid_at": "2026-02-05T15:30:00+00:00",
       "invoice_number": "INV-2041",
       "memo": "Advisory services",
-      "bill_owner": {"id": "u-100", "first_name": "Sam", "last_name": "Okafor"},
+      "bill_owner": {"id": "b6b46725-b181-454a-8094-f0e3e2f33e02", "first_name": "David", "last_name": "Wallace"},
       "accounting_field_selections": [],
       "line_items": [
         {"id": "li-1", "amount": {"amount": 1200000, "currency_code": "USD", "minor_unit_conversion_rate": 100}, "accounting_field_selections": [{"display_name": "Consulting", "name": "6400 Professional Fees", "external_id": "64", "id": "afs-1", "provider_name": "QuickBooks Online", "category_info": {"type": "GL_ACCOUNT", "name": "Category"}}]}
-      ],
-      "attachments": [
-        {"id": "att-500", "attachment_type": "INVOICE", "url": "https://example.invalid/presigned/att-500"}
-      ],
-      "invoice_urls": ["https://example.invalid/presigned/att-500"]
-    }
-  ],
-  "receipts": [
-    {"id": "r-900", "receipt_url": "https://example.invalid/presigned/r-900", "transaction_id": "6a1b0f4e-0000-4000-8000-000000000001", "user_id": "u-200", "created_at": "2025-12-03T18:00:00+00:00"}
-  ],
-  "users": [
-    {"id": "u-100", "first_name": "Sam", "last_name": "Okafor", "email": "sam@example.com", "role": "BUSINESS_ADMIN", "department_id": "d-fin", "manager_id": null, "is_manager": true, "status": "USER_ACTIVE"},
-    {"id": "u-200", "first_name": "Dana", "last_name": "Reyes", "email": "dana@example.com", "role": "BUSINESS_USER", "department_id": "d-eng", "manager_id": "u-100", "is_manager": false, "status": "USER_ACTIVE"}
-  ],
-  "departments": [
-    {"id": "d-fin", "name": "Finance"},
-    {"id": "d-eng", "name": "Engineering"}
-  ],
-  "approvals": [
-    {
-      "entity_id": "6a1b0f4e-0000-4000-8000-000000000001", "entity_type": "transaction", "status": "APPROVED", "next_approvers": [],
-      "approval_history": [{"action_at": "2025-12-04T10:00:00+00:00", "step_status": "APPROVED", "user_email": "sam@example.com", "user_id": "u-100"}]
-    },
-    {
-      "entity_id": "b7c2d3e4-0000-4000-8000-000000000010", "entity_type": "bill", "status": "APPROVED", "next_approvers": [],
-      "approval_history": [
-        {"action_at": "2026-01-09T08:00:00+00:00", "step_status": "PENDING", "user_email": "sam@example.com", "user_id": "u-100"},
-        {"action_at": "2026-01-09T09:15:00+00:00", "step_status": "APPROVED", "user_email": "sam@example.com", "user_id": "u-100"}
       ]
     }
-  ]
+  ],
+  "bill_invoices": {
+    "b7c2d3e4-0000-4000-8000-000000000010": {
+      "attachments": [
+        {"id": "att-500", "attachment_type": "INVOICE", "filename": "INV-2041.pdf", "url": "https://example.invalid/presigned/att-500"}
+      ]
+    }
+  },
+  "receipts": {
+    "receipts": [
+      {"id": "r-900", "receipt_url": "https://example.invalid/presigned/r-900"}
+    ]
+  }
 }

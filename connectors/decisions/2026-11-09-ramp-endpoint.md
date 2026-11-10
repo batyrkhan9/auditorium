@@ -30,7 +30,9 @@ say custom clients need their OAuth redirect URI allowlisted by Ramp.
 company's books, and the fallback keeps the agent unblocked while we wait for a
 token. Nothing is ever reported live unless it loaded completely.
 
-**Not verified yet.** No MCP payload has been seen. The mapper follows Ramp's
+**Not verified yet** (superseded on 2026-11-10 by `2026-11-10-ramp-real-tools.md`,
+after a real capture: real tool names, real card and user shapes, and approvals
+reported unavailable instead of failing the connection). No MCP payload has been seen. The mapper follows Ramp's
 Developer API OpenAPI spec, the tool names in `DEFAULT_TOOLS` are guesses (only
 `GetAllReducedUsers` is named in Ramp's docs), and the test fixtures are
 synthetic. A missing tool, a second page of results (or a total larger than what
