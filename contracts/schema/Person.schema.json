@@ -23,6 +23,7 @@
         }
       ],
       "default": null,
+      "description": "The join key between systems. A person in the company's records and a user in the card platform are the same person when their emails match.",
       "title": "Email"
     },
     "id": {
@@ -39,6 +40,7 @@
         }
       ],
       "default": null,
+      "description": "Person.id of their manager. The card platform's value is used live.",
       "title": "Manager Id"
     },
     "name": {

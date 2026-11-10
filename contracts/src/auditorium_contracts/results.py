@@ -174,6 +174,11 @@ class SourceUse(Record):
     system: SourceSystem
     mode: Literal["live", "local"]
     detail: str = Field(description="The endpoint or the dataset path that was used.")
+    synthetic: bool = Field(
+        False,
+        description="True when this source holds made-up data: our dataset, a vendor's demo "
+        "account, a sandbox. Whoever implements the source sets it.",
+    )
 
 
 class RunManifest(Record):
@@ -185,16 +190,21 @@ class RunManifest(Record):
     period_end: date
     dataset_id: str | None = None
     dataset_path: str | None = Field(
-        None, description="Where the dataset folder was when the run started, as it was given."
-    )
-    synthetic_data: bool = Field(
-        False, description="True when the run read made-up data. The screen must say so."
+        None,
+        description="The resolved path of the dataset folder when the run started. Check "
+        "dataset_id before trusting it: folders move. An absolute path names a user's home "
+        "folder, which matters if a run folder is ever committed.",
     )
     sample_id: str | None = None
     sources: list[SourceUse]
     models: list[str] = Field(default_factory=list)
     git_commit: str | None = None
     contract_version: str
+
+    @property
+    def synthetic_data(self) -> bool:
+        """True when any source the run read holds made-up data. The screen must say so."""
+        return any(source.synthetic for source in self.sources)
 
 
 class ExpectedResult(Record):

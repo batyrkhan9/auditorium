@@ -49,7 +49,11 @@ class SourceRef(Record):
 class Person(Record):
     id: str
     name: str
-    email: str | None = None
+    email: str | None = Field(
+        None,
+        description="The join key between systems. A person in the company's records and a "
+        "user in the card platform are the same person when their emails match.",
+    )
     role: str | None = Field(
         None,
         description="Job role, e.g. 'cfo'. Approval rules match on it. It comes from the "
@@ -59,20 +63,29 @@ class Person(Record):
         None, description="Permission level in the card platform, e.g. Ramp's BUSINESS_ADMIN."
     )
     department: str | None = None
-    manager_id: str | None = None
+    manager_id: str | None = Field(
+        None, description="Person.id of their manager. The card platform's value is used live."
+    )
 
 
 class Approval(Record):
-    """One step of a transaction's approval chain. No steps at all means it was never routed."""
+    """One step of a transaction's approval chain."""
 
-    approver_id: str = Field(description="Person.id of whoever decided, or is being asked to.")
+    approver_id: str | None = Field(
+        None,
+        description="Person.id of whoever decided, or is being asked to. Empty only for a "
+        "pending step assigned to a group and not yet to one person.",
+    )
     decision: Literal["approved", "rejected", "pending"]
-    decided_at: datetime | None = Field(None, description="Empty only while pending.")
+    decided_at: datetime | None = Field(None, description="Empty while pending, and only then.")
 
     @model_validator(mode="after")
     def _decided(self) -> Approval:
-        if self.decision != "pending" and self.decided_at is None:
-            raise ValueError("an approval that was approved or rejected states when")
+        if self.decision == "pending":
+            if self.decided_at is not None:
+                raise ValueError("a pending approval has no decision time yet")
+        elif self.decided_at is None or self.approver_id is None:
+            raise ValueError("an approval that was approved or rejected states who and when")
         return self
 
 
@@ -102,14 +115,19 @@ class SpendTransaction(Record):
     category: str | None = Field(
         None,
         description="The accounting category coded in Ramp. When a bill is split across "
-        "several, this is the largest line's; the full split stays in `raw`.",
+        "several, this is the largest line's, and the first of them if two tie. The full "
+        "split stays in `raw`.",
     )
     spender_id: str | None = Field(None, description="Person.id of the cardholder or requester.")
     department: str | None = None
     document_ids: list[str] = Field(
         default_factory=list, description="Receipts or invoices attached in Ramp."
     )
-    approvals: list[Approval] = Field(default_factory=list)
+    approvals: list[Approval] | None = Field(
+        default_factory=list,
+        description="The steps of the approval chain. An empty list means it was never sent "
+        "for approval. None means the source could not say, which is not the same thing.",
+    )
     raw: dict[str, Any] | None = Field(None, description="The record as the source returned it.")
 
 
@@ -128,7 +146,8 @@ class LedgerLine(Record):
         None,
         description="The accounting system's own type for the account, e.g. QuickBooks' "
         "'Expense' or 'Other Current Liability'. Tells an accrual from an expense "
-        "without reading the account's name.",
+        "without reading the account's name. Use QuickBooks' AccountType names exactly, so "
+        "the loader can send them on unchanged.",
     )
     side: Literal["debit", "credit"]
     amount_cents: int = Field(ge=0)
@@ -136,7 +155,9 @@ class LedgerLine(Record):
     vendor_name: str | None = Field(
         None, description="The vendor named on this line. Journal entries name one per line."
     )
-    department: str | None = None
+    department: str | None = Field(
+        None, description="Only a department set on this line. The entry's own is on the entry."
+    )
 
 
 class LedgerEntry(Record):
@@ -146,11 +167,20 @@ class LedgerEntry(Record):
     source: SourceRef
     entry_type: LedgerEntryType
     txn_date: date
-    vendor_name: str | None = None
+    vendor_name: str | None = Field(
+        None,
+        description="The entry's vendor. On a journal entry it is set only when every line "
+        "names the same vendor; otherwise read the lines.",
+    )
     doc_number: str | None = None
     memo: str | None = None
     department: str | None = Field(
         None, description="Set on the whole entry where the system does that (QuickBooks Location)."
+    )
+    payment_type: str | None = Field(
+        None,
+        description="How an expense was paid, in QuickBooks' own words: 'Cash', 'Check' or "
+        "'CreditCard'. QuickBooks requires it on every expense, so the dataset sets it.",
     )
     total_cents: int
     lines: list[LedgerLine] = Field(default_factory=list)
@@ -169,12 +199,14 @@ class DocumentType(StrEnum):
 
 
 def default_origin(document_type: DocumentType | str) -> Literal["external", "internal"]:
-    """Where a document of this type comes from, when the source system does not say.
+    """Where a document of this type comes from. Use it only when the source gives no signal.
 
-    Policies are the company's own. Everything else here is produced by a vendor,
-    a bank or the auditor.
+    Receipts, invoices, bank statements, contracts and the auditor's own requests are
+    produced outside the company. A policy is the company's own. So is anything of an
+    unknown type: calling it external would claim it is stronger evidence than we know.
     """
-    return "internal" if DocumentType(document_type) is DocumentType.POLICY else "external"
+    internal = (DocumentType.POLICY, DocumentType.OTHER)
+    return "internal" if DocumentType(document_type) in internal else "external"
 
 
 class Document(Record):

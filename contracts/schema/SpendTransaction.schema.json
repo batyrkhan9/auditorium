@@ -2,12 +2,20 @@
   "$defs": {
     "Approval": {
       "additionalProperties": false,
-      "description": "One step of a transaction's approval chain. No steps at all means it was never routed.",
+      "description": "One step of a transaction's approval chain.",
       "properties": {
         "approver_id": {
-          "description": "Person.id of whoever decided, or is being asked to.",
-          "title": "Approver Id",
-          "type": "string"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Person.id of whoever decided, or is being asked to. Empty only for a pending step assigned to a group and not yet to one person.",
+          "title": "Approver Id"
         },
         "decided_at": {
           "anyOf": [
@@ -20,7 +28,7 @@
             }
           ],
           "default": null,
-          "description": "Empty only while pending.",
+          "description": "Empty while pending, and only then.",
           "title": "Decided At"
         },
         "decision": {
@@ -34,7 +42,6 @@
         }
       },
       "required": [
-        "approver_id",
         "decision"
       ],
       "title": "Approval",
@@ -108,11 +115,19 @@
       "type": "integer"
     },
     "approvals": {
-      "items": {
-        "$ref": "#/$defs/Approval"
-      },
-      "title": "Approvals",
-      "type": "array"
+      "anyOf": [
+        {
+          "items": {
+            "$ref": "#/$defs/Approval"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "The steps of the approval chain. An empty list means it was never sent for approval. None means the source could not say, which is not the same thing.",
+      "title": "Approvals"
     },
     "category": {
       "anyOf": [
@@ -124,7 +139,7 @@
         }
       ],
       "default": null,
-      "description": "The accounting category coded in Ramp. When a bill is split across several, this is the largest line's; the full split stays in `raw`.",
+      "description": "The accounting category coded in Ramp. When a bill is split across several, this is the largest line's, and the first of them if two tie. The full split stays in `raw`.",
       "title": "Category"
     },
     "department": {
