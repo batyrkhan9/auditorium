@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% from "_macros.html" import status as pill, decision %}
+{% block title %}Results · {{ manifest.run_id }}{% endblock %}
+{% block content %}
+<div class="cards">
+  <div class="card"><div class="n">{{ run.results | length }}</div><div class="l">results</div></div>
+  {% for s in statuses %}
+  <a class="card" href="/?status={{ s }}" style="text-decoration:none;color:inherit"><div class="n">{{ counts.get(s, 0) }}</div><div class="l">{{ pill(s) }}</div></a>
+  {% endfor %}
+  <div class="card"><div class="n">{{ signed }} / {{ run.results | length }}</div><div class="l">signed off</div></div>
+</div>
+
+<table aria-label="Counts by check and status" style="width:auto">
+  <thead><tr><th>Check</th>{% for s in statuses %}<th class="num">{{ s | replace("_", " ") }}</th>{% endfor %}</tr></thead>
+  <tbody>
+  {% for name, row in matrix.items() %}
+  <tr><td><a href="/?check={{ name }}">{{ name }}</a></td>{% for s in statuses %}<td class="num">{{ row.get(s, 0) or "" }}</td>{% endfor %}</tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+{% if run.scorecard %}
+<h2>Scorecard</h2>
+<p class="small muted">Written by the eval at {{ run.scorecard.scored_at }}. Evidence that did not verify: <strong>{{ run.scorecard.evidence_unverified }}</strong> of {{ run.scorecard.evidence_total }}.</p>
+{% endif %}
+
+<h2>Results</h2>
+<form class="filters" method="get" action="/">
+  <label>Status
+    <select name="status" onchange="this.form.submit()">
+      <option value="">All</option>
+      {% for s in statuses %}<option value="{{ s }}" {{ "selected" if s == status }}>{{ s | replace("_", " ") }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>Check
+    <select name="check" onchange="this.form.submit()">
+      <option value="">All</option>
+      {% for c in checks %}<option value="{{ c }}" {{ "selected" if c == check }}>{{ c }}</option>{% endfor %}
+    </select>
+  </label>
+  <noscript><button type="submit">Filter</button></noscript>
+  {% if status or check %}<a href="/" class="small">Clear filters</a>{% endif %}
+  <span class="small muted">{{ rows | length }} shown</span>
+</form>
+
+<table>
+  <thead><tr><th>Transaction</th><th>Check</th><th>Status</th><th>Issue</th><th>Summary</th><th>Evidence</th><th>Sign-off</th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+  {% set t = transactions.get(r.transaction_id) %}
+  {% set vs = verifications[r.id] %}
+  {% set nfail = vs | selectattr("state", "equalto", "failed") | list | length %}
+  {% set nok = vs | selectattr("state", "equalto", "verified") | list | length %}
+  <tr class="{{ 'group' if loop.index0 and rows[loop.index0 - 1].transaction_id != r.transaction_id }}" data-result="{{ r.id }}"{% if r.id in drift %} data-drift="{{ drift[r.id] }}"{% endif %}>
+    <td>{% if t %}<strong>{{ t.vendor_name }}</strong> <span class="num">{{ t.amount_cents | money }}</span><br><span class="small muted">{{ t.kind.value | replace("_", " ") }} · {{ t.transaction_date }}</span><br>{% endif %}<code class="small">{{ r.transaction_id }}</code></td>
+    <td>{{ r.check.value }}</td>
+    <td>{{ pill(r.status.value) }}{% if r.id in drift %}<br><span class="drift small">log says {{ drift[r.id] | replace("_", " ") }}</span>{% endif %}</td>
+    <td>{% for code in r.issue_codes %}<code>{{ code.value }}</code><br>{% endfor %}</td>
+    <td><a href="/result?id={{ r.id | q }}">{{ r.summary }}</a></td>
+    <td class="small">
+      {% if nfail %}<span class="v failed">{{ nfail }} not verified against {{ basis.kind }}</span>
+      {% elif nok == vs | length %}<span class="v verified">{{ nok }} verified against {{ basis.kind }}</span>
+      {% elif live %}<span class="v live_unchecked">{{ vs | length }} unchecked (live run)</span>
+      {% else %}<span class="v unchecked">{{ vs | length }} not checked</span>{% endif %}
+    </td>
+    {% set st = signoff_state.get(r.id) %}
+    <td class="small"{% if st %} data-signoff-state="{{ st.state }}"{% endif %}>{% if st %}{{ decision(st.event.detail.get("decision")) }}<br>{{ st.event.actor_id }}{% if st.state == "changed" %}<br><span class="drift">changed since</span>{% elif st.state == "unpinned" %}<br><span class="muted">not pinned</span>{% endif %}{% else %}<span class="muted">none</span>{% endif %}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="7" class="muted">No results match.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<h2 id="run-signoff">Sign-off on the whole run</h2>
+{% if run_signoff %}
+{% set e = run_signoff.event %}
+<p data-run-signoff="{{ 'problem' if run_signoff.problems else 'ok' }}">Latest: {{ decision(e.detail.get("decision")) }} by {{ e.actor_id }} at <a href="/log#seq-{{ e.seq }}">log line {{ e.seq }}</a>, {{ e.ts.strftime("%Y-%m-%d %H:%M UTC") }}{% if e.detail.get("comment") %}: {{ e.detail.get("comment") }}{% endif %}.</p>
+{% if run_signoff.problems %}
+<div class="banner bad" role="alert"><strong>This run sign-off no longer covers the run.</strong>
+  <ul style="margin:4px 0 0">{% for p in run_signoff.problems %}<li>{{ p }}</li>{% endfor %}</ul>
+</div>
+{% else %}
+<p class="small v verified">It pins <code>results.jsonl</code> and <code>run.json</code>, and both are unchanged since.</p>
+{% endif %}
+{% else %}
+<p class="muted">Nobody has signed off on the run yet.</p>
+{% endif %}
+{% if error %}<div class="banner bad" role="alert" data-signoff-error>{{ error }}</div>{% endif %}
+{% if log_damage %}
+<p class="v failed" data-run-signoff-form="damaged">Run sign-off is disabled because the step log is damaged.</p>
+{% elif chain %}
+<p class="v failed" data-run-signoff-form="broken">Run sign-off is disabled because the step log's chain is broken.</p>
+{% elif in_progress or not finished_logged %}
+<p class="v unchecked" data-run-signoff-form="in-progress">Run in progress. The run can be signed off once it has finished and its log holds <code>run_finished</code>.</p>
+{% else %}
+<form method="post" action="/signoff-run" class="filters" data-run-signoff-form="open">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <input type="hidden" name="results_sha256" value="{{ file_hashes.results_sha256 }}">
+  <input type="hidden" name="run_sha256" value="{{ file_hashes.run_sha256 }}">
+  <label>Your name <input name="reviewer" required autocomplete="name"></label>
+  <label>Decision
+    <select name="decision" required>
+      <option value="accepted">Accepted</option>
+      <option value="disputed">Disputed</option>
+    </select>
+  </label>
+  <label style="flex:1;min-width:240px">Note <input name="note" placeholder="Optional"></label>
+  <button type="submit">Sign off the run</button>
+</form>
+<p class="small muted">Pins <code>results.jsonl</code> and <code>run.json</code> as this page showed them. If either changes before you submit, the sign-off is refused; if either changes afterwards, the screen says so.</p>
+{% endif %}
+{% endblock %}

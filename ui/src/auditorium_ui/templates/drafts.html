@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% from "_macros.html" import draft_card %}
+{% block title %}Follow-up drafts · {{ manifest.run_id }}{% endblock %}
+{% block content %}
+<h2>Follow-up drafts</h2>
+<div class="banner warn" role="note"><strong>Drafts only.</strong> The agent never sends a message, and this screen cannot send one. A person reads each draft and sends it themselves.</div>
+{% for d in run.drafts %}<div id="{{ d.id }}">{{ draft_card(d) }}</div>{% else %}<p class="muted">This run has no follow-up drafts.</p>{% endfor %}
+{% endblock %}

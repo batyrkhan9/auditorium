@@ -3,7 +3,12 @@ name = "auditorium-ui"
 version = "0.0.0"
 description = "The screen: results, evidence, the log and reviewer sign-off."
 requires-python = ">=3.12"
-dependencies = ["auditorium-contracts"]
+dependencies = [
+    "auditorium-contracts",
+    "jinja2>=3.1.6",
+    "starlette>=1.10.0",
+    "uvicorn>=0.54.0",
+]
 
 [tool.uv.sources]
 auditorium-contracts = { workspace = true }
@@ -11,6 +16,11 @@ auditorium-contracts = { workspace = true }
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "httpx2>=2.16.0",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/auditorium_ui"]

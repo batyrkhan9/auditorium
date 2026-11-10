@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% from "_macros.html" import evidence_item %}
+{% block title %}Evidence packets · {{ manifest.run_id }}{% endblock %}
+{% block content %}
+<h2>Evidence packets</h2>
+<p class="small muted">One packet per line of the auditor's sample, with the evidence lined up and what could not be found.</p>
+{% for packet, items in packets %}
+{% set line = lines.get(packet.sample_line) %}
+<section class="evidence" style="border-left-width:1px" data-packet="{{ packet.id }}">
+  <h2 style="margin-top:4px">Sample line {{ packet.sample_line }}{% if line %}: {{ line.description }}{% endif %}</h2>
+  <dl class="kv">
+    {% if line %}<dt>Auditor asked for</dt><dd>{{ line.description }}{% if line.vendor_name %} · {{ line.vendor_name }}{% endif %}{% if line.amount_cents is not none %} · {{ line.amount_cents | money }}{% endif %}{% if line.transaction_date %} · {{ line.transaction_date }}{% endif %}{% if line.reference %} · ref {{ line.reference }}{% endif %}</dd>{% endif %}
+    <dt>Matched transaction</dt><dd>{% if packet.transaction_id %}<code>{{ packet.transaction_id }}</code>{% else %}<span class="v failed">not matched</span>{% endif %}</dd>
+    {% if packet.result_ids %}<dt>Results</dt><dd>{% for r in packet.result_ids %}<a href="/result?id={{ r | q }}"><code>{{ r }}</code></a>{% if not loop.last %}, {% endif %}{% endfor %}</dd>{% endif %}
+    {% if packet.draft_ids %}<dt>Drafts</dt><dd>{% for d in packet.draft_ids %}<a href="/drafts#{{ d }}"><code>{{ d }}</code></a>{% if not loop.last %}, {% endif %}{% endfor %}</dd>{% endif %}
+  </dl>
+  {% if packet.missing %}
+  <div class="banner warn"><strong>Missing:</strong>
+    <ul style="margin:4px 0 0">{% for m in packet.missing %}<li>{{ m }}</li>{% endfor %}</ul>
+  </div>
+  {% endif %}
+  {% for item, v in items %}{{ evidence_item(item.evidence, v, doc_sources, role=item.role) }}{% else %}<p class="muted">No evidence items.</p>{% endfor %}
+</section>
+{% else %}
+<p class="muted">This run has no evidence packets. Packets are produced in sample mode.</p>
+{% endfor %}
+{% endblock %}
