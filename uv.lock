@@ -64,7 +64,7 @@ requires-dist = [{ name = "auditorium-contracts", editable = "contracts" }]
 
 [[package]]
 name = "auditorium-contracts"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "contracts" }
 dependencies = [
     { name = "pydantic" },

@@ -40,6 +40,12 @@
       "format": "date",
       "title": "Fiscal Year Start",
       "type": "string"
+    },
+    "synthetic": {
+      "default": false,
+      "description": "True when the company and its records are made up, as ours are.",
+      "title": "Synthetic",
+      "type": "boolean"
     }
   },
   "required": [
