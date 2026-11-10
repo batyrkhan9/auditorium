@@ -15,7 +15,16 @@ from .dataset import (
     write_json,
     write_jsonl,
 )
-from .log import GENESIS, LogAction, LogEvent, LogWriter, event_hash, read_log, verify_log
+from .log import (
+    GENESIS,
+    LogAction,
+    LogEvent,
+    LogWriter,
+    event_hash,
+    read_log,
+    result_hash,
+    verify_log,
+)
 from .records import (
     AccountingPeriod,
     Approval,
@@ -34,6 +43,7 @@ from .records import (
     SpendPolicy,
     SpendTransaction,
     TransactionKind,
+    default_origin,
     period_of,
 )
 from .results import (
@@ -70,7 +80,7 @@ from .run import (
 )
 from .text import normalize, page_texts, quote_on_page
 
-CONTRACT_VERSION = "0.1.0"
+CONTRACT_VERSION = "0.2.0"
 
 __all__ = [
     "CONTRACT_VERSION",
@@ -122,6 +132,7 @@ __all__ = [
     "SpendPolicy",
     "SpendTransaction",
     "TransactionKind",
+    "default_origin",
     "event_hash",
     "load_dataset",
     "load_run",
@@ -131,6 +142,7 @@ __all__ = [
     "quote_on_page",
     "read_jsonl",
     "read_log",
+    "result_hash",
     "result_id",
     "sha256_file",
     "validate_dataset",

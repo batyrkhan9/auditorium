@@ -51,6 +51,20 @@ def build_dataset(root):
                 txn_date=date(2026, 1, 8),
                 vendor_name="Northwind Advisory LLC",
                 total_cents=1_200_000,
+                lines=[
+                    c.LedgerLine(
+                        account="Professional Fees",
+                        account_type="Expense",
+                        side="debit",
+                        amount_cents=1_200_000,
+                    ),
+                    c.LedgerLine(
+                        account="Accounts Payable",
+                        account_type="Accounts Payable",
+                        side="credit",
+                        amount_cents=1_200_000,
+                    ),
+                ],
             )
         ],
     )
@@ -160,3 +174,19 @@ def test_answer_key_line_parses():
 
 def test_schema_files_are_current():
     assert export_schemas(check=True) == []
+
+
+def test_result_edited_after_sign_off_is_caught(tmp_path):
+    build_dataset(tmp_path / "data")
+    sources = c.LocalSources(tmp_path / "data")
+    result = period_result()
+    build_run(tmp_path / "run", sources, result)
+    c.LogWriter(tmp_path / "run" / c.LOG, "run_1").sign_off(
+        "Dana Reyes", result.id, "accepted", ts=TS, result=result
+    )
+    assert c.validate_run(tmp_path / "run", sources) == []
+
+    edited = result.model_copy(update={"summary": "Nothing to see here."})
+    c.write_jsonl(tmp_path / "run" / c.RESULTS, [edited])
+    problems = c.validate_run(tmp_path / "run", sources)
+    assert problems == [f"result {result.id}: changed after it was signed off"]

@@ -184,6 +184,12 @@ class RunManifest(Record):
     period_start: date = Field(description="First day of the period under audit.")
     period_end: date
     dataset_id: str | None = None
+    dataset_path: str | None = Field(
+        None, description="Where the dataset folder was when the run started, as it was given."
+    )
+    synthetic_data: bool = Field(
+        False, description="True when the run read made-up data. The screen must say so."
+    )
     sample_id: str | None = None
     sources: list[SourceUse]
     models: list[str] = Field(default_factory=list)

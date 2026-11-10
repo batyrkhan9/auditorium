@@ -59,6 +59,19 @@
       "default": null,
       "title": "Dataset Id"
     },
+    "dataset_path": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Where the dataset folder was when the run started, as it was given.",
+      "title": "Dataset Path"
+    },
     "finished_at": {
       "anyOf": [
         {
@@ -137,6 +150,12 @@
       "format": "date-time",
       "title": "Started At",
       "type": "string"
+    },
+    "synthetic_data": {
+      "default": false,
+      "description": "True when the run read made-up data. The screen must say so.",
+      "title": "Synthetic Data",
+      "type": "boolean"
     }
   },
   "required": [

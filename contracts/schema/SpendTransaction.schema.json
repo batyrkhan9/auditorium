@@ -2,21 +2,32 @@
   "$defs": {
     "Approval": {
       "additionalProperties": false,
+      "description": "One step of a transaction's approval chain. No steps at all means it was never routed.",
       "properties": {
         "approver_id": {
-          "description": "Person.id of whoever decided.",
+          "description": "Person.id of whoever decided, or is being asked to.",
           "title": "Approver Id",
           "type": "string"
         },
         "decided_at": {
-          "format": "date-time",
-          "title": "Decided At",
-          "type": "string"
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Empty only while pending.",
+          "title": "Decided At"
         },
         "decision": {
           "enum": [
             "approved",
-            "rejected"
+            "rejected",
+            "pending"
           ],
           "title": "Decision",
           "type": "string"
@@ -24,8 +35,7 @@
       },
       "required": [
         "approver_id",
-        "decision",
-        "decided_at"
+        "decision"
       ],
       "title": "Approval",
       "type": "object"
@@ -114,7 +124,7 @@
         }
       ],
       "default": null,
-      "description": "The accounting category coded in Ramp.",
+      "description": "The accounting category coded in Ramp. When a bill is split across several, this is the largest line's; the full split stays in `raw`.",
       "title": "Category"
     },
     "department": {
@@ -192,6 +202,7 @@
         }
       ],
       "default": null,
+      "description": "Bill: the day payment left. Card: the settlement date.",
       "title": "Paid Date"
     },
     "raw": {

@@ -19,6 +19,19 @@
           "title": "Account",
           "type": "string"
         },
+        "account_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The accounting system's own type for the account, e.g. QuickBooks' 'Expense' or 'Other Current Liability'. Tells an accrual from an expense without reading the account's name.",
+          "title": "Account Type"
+        },
         "amount_cents": {
           "minimum": 0,
           "title": "Amount Cents",
@@ -55,6 +68,19 @@
           ],
           "title": "Side",
           "type": "string"
+        },
+        "vendor_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The vendor named on this line. Journal entries name one per line.",
+          "title": "Vendor Name"
         }
       },
       "required": [
@@ -105,6 +131,19 @@
   "additionalProperties": false,
   "description": "One entry in the accounting system (QuickBooks). `txn_date` sets its period.",
   "properties": {
+    "department": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Set on the whole entry where the system does that (QuickBooks Location).",
+      "title": "Department"
+    },
     "doc_number": {
       "anyOf": [
         {

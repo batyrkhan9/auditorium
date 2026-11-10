@@ -45,6 +45,19 @@
       "title": "Name",
       "type": "string"
     },
+    "platform_role": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Permission level in the card platform, e.g. Ramp's BUSINESS_ADMIN.",
+      "title": "Platform Role"
+    },
     "role": {
       "anyOf": [
         {
@@ -55,7 +68,7 @@
         }
       ],
       "default": null,
-      "description": "Job role, e.g. 'cfo'. Approval rules match on it.",
+      "description": "Job role, e.g. 'cfo'. Approval rules match on it. It comes from the company's own records, never from the card platform's permission levels.",
       "title": "Role"
     }
   },

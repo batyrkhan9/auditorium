@@ -24,7 +24,7 @@ from typing import Any
 from pydantic import BaseModel, ValidationError
 
 from .dataset import Sources, read_jsonl
-from .log import LogAction, LogEvent, read_log, verify_log
+from .log import LogAction, LogEvent, read_log, result_hash, verify_log
 from .results import (
     CheckResult,
     DocumentEvidence,
@@ -180,6 +180,17 @@ def validate_run(root: Path | str, sources: Sources) -> list[str]:
         for linked in packet.draft_ids:
             if linked not in drafts:
                 problems.append(f"packet {packet.id}: unknown draft {linked}")
+
+    by_id = {result.id: result for result in run.results}
+    for event in run.log:
+        signed = event.detail.get("result_sha256")
+        if event.action is not LogAction.SIGNOFF or not signed:
+            continue
+        for subject in event.subject_ids:
+            if subject not in by_id:
+                problems.append(f"log line {event.seq}: signs off unknown result {subject}")
+            elif result_hash(by_id[subject]) != signed:
+                problems.append(f"result {subject}: changed after it was signed off")
 
     logged = {
         subject
