@@ -13,6 +13,7 @@ from auditorium_contracts import (
     CheckResult,
     CheckStatus,
     IssueCode,
+    Person,
     SpendTransaction,
     TransactionKind,
     result_id,
@@ -33,6 +34,25 @@ def _day(moment) -> str:
     return f"{moment:%B} {moment.day}, {moment.year}"
 
 
+def rules_that_apply(txn: SpendTransaction, books: Books) -> list[tuple[int, ApprovalRule]]:
+    """The policy's approval rules that cover this transaction, with their position in the policy."""
+    return [
+        (index, rule)
+        for index, rule in enumerate(books.policy.approval_rules)
+        if txn.kind in rule.kinds and abs(txn.amount_cents) >= rule.min_amount_cents
+    ]
+
+
+def required_approvers(txn: SpendTransaction, rule: ApprovalRule, books: Books) -> list[Person]:
+    """The people this rule names as approver for this transaction. Empty if the records do not say."""
+    people = books.people
+    if rule.approver_role == "manager":
+        spender = people.get(txn.spender_id or "")
+        manager = people.get(spender.manager_id or "") if spender else None
+        return [manager] if manager else []
+    return [p for p in people.values() if (p.role or "").lower() == rule.approver_role.lower()]
+
+
 def _judge(txn: SpendTransaction, index: int, rule: ApprovalRule, books: Books, what: str):
     """Test one rule that applies: status, issue, summary, rationale, evidence."""
     policy, people = books.policy, books.people
@@ -44,9 +64,10 @@ def _judge(txn: SpendTransaction, index: int, rule: ApprovalRule, books: Books, 
         record_evidence("policy", policy, f"{at}.approver_role", "Who the rule says must approve."),
     ]
     spender = people.get(txn.spender_id or "")
+    holders = required_approvers(txn, rule, books)
 
     if rule.approver_role == "manager":
-        manager = people.get(spender.manager_id or "") if spender else None
+        manager = holders[0] if holders else None
         if manager is None:
             if txn.spender_id:
                 evidence.append(record_evidence("transaction", txn, "spender_id", "The spender."))
@@ -63,9 +84,6 @@ def _judge(txn: SpendTransaction, index: int, rule: ApprovalRule, books: Books, 
             record_evidence("person", spender, "manager_id", f"{spender.name}'s manager.")
         )
     else:
-        holders = [
-            p for p in people.values() if (p.role or "").lower() == rule.approver_role.lower()
-        ]
         if not holders:
             return (
                 CheckStatus.NEEDS_REVIEW,

@@ -29,7 +29,7 @@ CASES = [
     ),
     dict(  # December work recorded in January, but accrued on December 31.
         key="b_1002", vendor="Harlow & Finch LLP", cents=450_000, day=date(2026, 1, 10),
-        invoice="883", booked=date(2026, 1, 10),
+        invoice="883", booked=date(2026, 1, 10), paid=date(2026, 1, 24),
         text="Harlow & Finch LLP\nInvoice 883\nInvoice date: January 10, 2026\n" + BILL_TO
         + "Legal services\nService period: 12/01/2025 - 12/31/2025\nAmount due: $4,500.00\n",
     ),
@@ -120,6 +120,35 @@ CASES = [
     ),
 ]  # fmt: skip
 
+BANK_STATEMENTS = {
+    "2025-03": "First Harbor Bank\nStatement for March 2025\nLarkspur Labs, Inc. Operating account\n"
+    "03/10/2025  ACH debit  SABLE FREIGHT  9,000.00\n"
+    "03/28/2025  ACH debit  GUSTO PAYROLL  48,210.55\n",
+    # The Harlow & Finch bill was paid in January too, and is not on this statement.
+    "2026-01": "First Harbor Bank\nStatement for January 2026\nLarkspur Labs, Inc. Operating account\n"
+    "01/22/2026  ACH debit  NORTHWIND ADVISORY  12,000.00\n"
+    "01/30/2026  ACH debit  GUSTO PAYROLL  51,904.10\n",
+}
+
+# What an auditor would send: lines copied from the ledger, with no internal ids.
+SAMPLE_REQUEST = c.SampleRequest(
+    id="sample-1",
+    auditor="Hale & Whitlock LLP",
+    received_on=date(2026, 2, 16),
+    items=[
+        c.SampleItem(line=1, description="Northwind Advisory, consulting", vendor_name="Northwind Advisory", amount_cents=1_200_000, transaction_date=date(2026, 1, 8), reference="INV-2041"),
+        c.SampleItem(line=2, description="Hotel Kabuki", vendor_name="Hotel Kabuki", amount_cents=31_240, transaction_date=date(2025, 7, 22)),
+        c.SampleItem(line=3, description="Quillon Security, pen test", vendor_name="Quillon Security", amount_cents=820_000, reference="QS-88"),
+        c.SampleItem(line=4, description="Meridian Analytics", vendor_name="Meridian Analytics", amount_cents=640_000),
+        # The auditor copied the ledger's amount, which is not what Ramp has.
+        c.SampleItem(line=5, description="Pinecrest Staffing", vendor_name="Pinecrest Staffing", amount_cents=158_000, transaction_date=date(2025, 10, 20)),
+        c.SampleItem(line=6, description="Harlow & Finch, legal", vendor_name="Harlow & Finch", amount_cents=450_000, reference="883"),
+        # Two monthly bills fit this line.
+        c.SampleItem(line=7, description="Cloudline Hosting", vendor_name="Cloudline Hosting", amount_cents=230_000),
+        c.SampleItem(line=8, description="Zephyr Catering, offsite lunch", vendor_name="Zephyr Catering", amount_cents=41_500, transaction_date=date(2025, 8, 2)),
+    ],
+)  # fmt: skip
+
 
 def main():
     (ROOT / "documents").mkdir(parents=True, exist_ok=True)
@@ -198,6 +227,22 @@ def main():
         )
     )
 
+    for month, text in BANK_STATEMENTS.items():
+        path = ROOT / "documents" / f"bank-{month}.txt"
+        path.write_text(text)
+        documents.append(
+            c.Document(
+                id=f"doc_bank_{month}",
+                type="bank_statement",
+                source=c.SourceRef(system="bank", record_type="statement", record_id=month),
+                origin="external",
+                path=f"documents/bank-{month}.txt",
+                media_type="text/plain",
+                sha256=c.sha256_file(path),
+            )
+        )
+    c.write_json(ROOT / "samples" / f"{SAMPLE_REQUEST.id}.json", SAMPLE_REQUEST)
+
     c.write_json(
         ROOT / "manifest.json",
         c.DatasetManifest(
@@ -216,11 +261,29 @@ def main():
     c.write_jsonl(
         ROOT / "people.jsonl",
         [
-            c.Person(id="p_ceo", name="Maya Okafor", role="ceo"),
-            c.Person(id="p_cfo", name="Dana Reyes", role="cfo", manager_id="p_ceo"),
-            c.Person(id="p_mgr", name="Priya Nair", role="engineering manager", manager_id="p_ceo"),
-            c.Person(id="p_eng", name="Tom Alvarez", role="engineer", manager_id="p_mgr"),
-        ],
+            c.Person(id="p_ceo", name="Maya Okafor", role="ceo", email="maya@larkspur.example"),
+            c.Person(
+                id="p_cfo",
+                name="Dana Reyes",
+                role="cfo",
+                email="dana@larkspur.example",
+                manager_id="p_ceo",
+            ),
+            c.Person(
+                id="p_mgr",
+                name="Priya Nair",
+                role="engineering manager",
+                email="priya@larkspur.example",
+                manager_id="p_ceo",
+            ),
+            c.Person(
+                id="p_eng",
+                name="Tom Alvarez",
+                role="engineer",
+                email="tom@larkspur.example",
+                manager_id="p_mgr",
+            ),
+        ],  # fmt: skip
     )
     c.write_json(
         ROOT / "policy.json",

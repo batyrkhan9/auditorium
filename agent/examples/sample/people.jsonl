@@ -1,4 +1,4 @@
-{"id":"p_ceo","name":"Maya Okafor","role":"ceo"}
-{"id":"p_cfo","name":"Dana Reyes","role":"cfo","manager_id":"p_ceo"}
-{"id":"p_mgr","name":"Priya Nair","role":"engineering manager","manager_id":"p_ceo"}
-{"id":"p_eng","name":"Tom Alvarez","role":"engineer","manager_id":"p_mgr"}
+{"id":"p_ceo","name":"Maya Okafor","email":"maya@larkspur.example","role":"ceo"}
+{"id":"p_cfo","name":"Dana Reyes","email":"dana@larkspur.example","role":"cfo","manager_id":"p_ceo"}
+{"id":"p_mgr","name":"Priya Nair","email":"priya@larkspur.example","role":"engineering manager","manager_id":"p_ceo"}
+{"id":"p_eng","name":"Tom Alvarez","email":"tom@larkspur.example","role":"engineer","manager_id":"p_mgr"}

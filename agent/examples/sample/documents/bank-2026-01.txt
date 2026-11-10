@@ -1,0 +1,5 @@
+First Harbor Bank
+Statement for January 2026
+Larkspur Labs, Inc. Operating account
+01/22/2026  ACH debit  NORTHWIND ADVISORY  12,000.00
+01/30/2026  ACH debit  GUSTO PAYROLL  51,904.10

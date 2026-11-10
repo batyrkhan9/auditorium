@@ -1,0 +1,62 @@
+{
+  "id": "sample-1",
+  "auditor": "Hale & Whitlock LLP",
+  "received_on": "2026-02-16",
+  "items": [
+    {
+      "line": 1,
+      "description": "Northwind Advisory, consulting",
+      "transaction_date": "2026-01-08",
+      "vendor_name": "Northwind Advisory",
+      "amount_cents": 1200000,
+      "reference": "INV-2041"
+    },
+    {
+      "line": 2,
+      "description": "Hotel Kabuki",
+      "transaction_date": "2025-07-22",
+      "vendor_name": "Hotel Kabuki",
+      "amount_cents": 31240
+    },
+    {
+      "line": 3,
+      "description": "Quillon Security, pen test",
+      "vendor_name": "Quillon Security",
+      "amount_cents": 820000,
+      "reference": "QS-88"
+    },
+    {
+      "line": 4,
+      "description": "Meridian Analytics",
+      "vendor_name": "Meridian Analytics",
+      "amount_cents": 640000
+    },
+    {
+      "line": 5,
+      "description": "Pinecrest Staffing",
+      "transaction_date": "2025-10-20",
+      "vendor_name": "Pinecrest Staffing",
+      "amount_cents": 158000
+    },
+    {
+      "line": 6,
+      "description": "Harlow & Finch, legal",
+      "vendor_name": "Harlow & Finch",
+      "amount_cents": 450000,
+      "reference": "883"
+    },
+    {
+      "line": 7,
+      "description": "Cloudline Hosting",
+      "vendor_name": "Cloudline Hosting",
+      "amount_cents": 230000
+    },
+    {
+      "line": 8,
+      "description": "Zephyr Catering, offsite lunch",
+      "transaction_date": "2025-08-02",
+      "vendor_name": "Zephyr Catering",
+      "amount_cents": 41500
+    }
+  ]
+}
