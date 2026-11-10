@@ -43,6 +43,8 @@ plant anything on Ramp's side.
 run on their own demo company. Or a way to create card transactions in the
 sandbox, which would let the whole dataset live in Ramp.
 
-**Still open, not ours alone.** The PRD still says the dataset is matched to
-the Ramp demo transactions. That line is wrong either way and is being changed
-on `shared/ramp-sandbox-writes`.
+**What happened next.** Both of us agreed the PRD change (pull request #20,
+merged 2026-11-10). The connectors loaded 68 of the 70 bills into the Ramp
+sandbox; the 2 unpaid ones stay in the dataset. For a bill read live,
+requester, approvals and paid date come from the dataset through the stamp, so
+the key applies to all four checks (board #19).
