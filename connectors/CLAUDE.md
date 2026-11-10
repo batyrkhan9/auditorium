@@ -39,9 +39,9 @@ answers 404 for is left off its transaction and named in `describe()`; see
 ## Ramp bill loader (sandbox only, dry run by default)
 
 `ramp_loader.py` creates the dataset's bills in the Ramp sandbox, stamped
-`auditorium-ref: <id>` in the memo. Do not run `--write` until the PRD change on
-`shared/ramp-sandbox-writes` is agreed. With stamped bills in Ramp, `connect_sources`
-serves them live and card transactions from the dataset. See
+`auditorium-ref: <id>` in the memo. `--write` to the sandbox only, as agreed in #18.
+With stamped bills in Ramp, `connect_sources` serves them live (requester, approvals,
+paid date from the dataset via the stamp) and card transactions from the dataset. See
 `decisions/2026-11-10-ramp-bill-loader.md`.
 
 ```

@@ -1,13 +1,13 @@
 """Loading the dataset's bills into the Ramp sandbox, and reading them back. No network.
 
-Ramp is an httpx.MockTransport. Request bodies follow Ramp's OpenAPI spec (no write
-has been made to the sandbox). Read payloads are CAPTURED from demo-api.ramp.com
+Ramp is an httpx.MockTransport. Request bodies follow Ramp's OpenAPI spec; the
+refusal of a bill whose vendor has no owner is the sandbox's answer on 2026-11-10. Read payloads are CAPTURED from demo-api.ramp.com
 (`fixtures/ramp_api_capture.json`); the stamped bill is a captured bill edited by hand.
 """
 
 import importlib.util
 import json
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from urllib.parse import parse_qs
 
@@ -19,16 +19,19 @@ from auditorium_connectors import ConnectedSources, LocalFallback, QboLedger
 from auditorium_connectors.ramp_api import ApiPayloads, ApiRampSources
 from auditorium_connectors.ramp_loader import (
     READ_SCOPES,
+    REPLACED_KEY,
     WRITE_SCOPES,
     LoadedBillsSources,
     PlannedBill,
     RampLoaderClient,
+    RampUnavailable,
     RampWriteRefused,
     load_bills,
     loaded_ref,
     main,
     plan_dataset,
     strip_ref,
+    vendor_owner,
 )
 
 _spec = importlib.util.spec_from_file_location(
@@ -46,6 +49,16 @@ SECRET = "secret-test-0001"
 CAPTURE = json.loads((Path(__file__).parent / "fixtures" / "ramp_api_capture.json").read_text())
 SAVE_TIME_BILLS = CAPTURE["bills"]["data"]
 OWNER = SAVE_TIME_BILLS[0]["bill_owner"]["id"]
+# The business's account holder, as GET /users lists them (a captured user, edited).
+BUSINESS_OWNER = {
+    **CAPTURE["users"]["data"][0],
+    "id": "user-owner",
+    "first_name": "David",
+    "last_name": "Wallace",
+    "role": "BUSINESS_OWNER",
+    "status": "USER_ACTIVE",
+}
+USERS = [*CAPTURE["users"]["data"], BUSINESS_OWNER]
 ENTITIES = [
     {"id": "ent-money", "entity_name": "Save Money Inc", "is_primary": False, "currency": "USD"},
     {"id": "ent-time", "entity_name": "Save Time Inc", "is_primary": True, "currency": "USD"},
@@ -55,6 +68,11 @@ RENT = "ramp:bill:rent-jan"
 CONSULTING = "ramp:bill:consulting-dec"
 UNPAID = "ramp:bill:unpaid-feb"
 CARD = "ramp:transaction:card-1"
+PAM = "local:person:pam"
+HOLLY = "local:person:holly"
+RENT_APPROVAL = c.Approval(
+    approver_id=HOLLY, decision="approved", decided_at=datetime(2026, 1, 5, 9, 30)
+)
 
 
 def _bill(txn_id, vendor, cents, docs, paid=date(2026, 1, 20), memo="Office rent", **extra):
@@ -114,7 +132,14 @@ def build_dataset(root: Path) -> c.LocalSources:
     c.write_jsonl(
         root / "transactions.jsonl",
         [
-            _bill(RENT, "Blake Street Properties LLC", 840_000, ["ramp:bill_attachment:inv-rent"]),
+            _bill(
+                RENT,
+                "Blake Street Properties LLC",
+                840_000,
+                ["ramp:bill_attachment:inv-rent"],
+                spender_id=PAM,
+                approvals=[RENT_APPROVAL],
+            ),
             _bill(
                 CONSULTING,
                 "Ridgeline Strategy Group LLC",
@@ -128,15 +153,34 @@ def build_dataset(root: Path) -> c.LocalSources:
             card,
         ],
     )
+    c.write_jsonl(
+        root / "people.jsonl",
+        [c.Person(id=PAM, name="Pam Beesly"), c.Person(id=HOLLY, name="Holly Flax")],
+    )
     return c.LocalSources(root)
+
+
+def missing_owner_error(n: int) -> dict:
+    """Ramp's DeveloperApiErrorResponse; the error id differs on every request."""
+    return {
+        "error_v2": {
+            "error_code": "BILL_PAY_7001",
+            "message": "Bill requires a vendor owner for creation",
+            "error_id": f"{n:08x}",
+            "additional_info": {},
+            "notes": "MissingVendorOwnerForBill",
+        }
+    }
 
 
 class FakeRampWriter:
     """Ramp's Developer API for the loader: token, list and create endpoints."""
 
-    def __init__(self, bills=(), vendors=()):
+    def __init__(self, bills=(), vendors=(), users=USERS):
         self.bills = [*SAVE_TIME_BILLS, *bills]
-        self.vendors = [{"id": "v-figma", "name": "Figma"}, *vendors]
+        self.vendors = [{"id": "v-figma", "name": "Figma", "vendor_owner_id": "user-owner"}]
+        self.vendors += vendors
+        self.users = list(users)
         self.requests: list[httpx.Request] = []
         self.token_scopes: list[list[str]] = []
         self.created = 0
@@ -153,13 +197,24 @@ class FakeRampWriter:
             "/developer/v1/bills": self.bills,
             "/developer/v1/vendors": self.vendors,
             "/developer/v1/entities": ENTITIES,
+            "/developer/v1/users": self.users,
         }
         if method == "GET":
             return httpx.Response(200, json={"data": listing[path], "page": {"next": None}})
+        if path == "/developer/v1/bills":
+            # As the sandbox answered on 2026-11-10: no bill for a vendor without an owner.
+            vendor = next(
+                v for v in self.vendors if v["id"] == json.loads(request.content)["vendor_id"]
+            )
+            if not vendor.get("vendor_owner_id"):
+                return httpx.Response(400, json=missing_owner_error(len(self.requests)))
         self.created += 1
         new_id = f"new-{self.created}"
         if path == "/developer/v1/vendors":
-            self.vendors.append({"id": new_id, "name": json.loads(request.content)["name"]})
+            body = json.loads(request.content)
+            self.vendors.append(
+                {"id": new_id, "name": body["name"], "vendor_owner_id": body.get("vendor_owner_id")}
+            )
         elif path == "/developer/v1/bills":
             self.bills.append({"id": new_id, **json.loads(request.content), "attachments": []})
         return httpx.Response(201, json={"id": new_id})
@@ -203,7 +258,7 @@ def test_plan_body_keeps_invoice_dates_number_amount_and_memo(tmp_path):
         "line_items": [{"amount": "8400.00", "memo": "Office rent"}],
         "memo": f"Office rent\nauditorium-ref: {RENT}",
         "payment_method": "PAID_MANUALLY",
-        "payment_date": "2026-01-20",
+        "payment_details": {"manual_payment_method": "OTHER", "payment_date": "2026-01-20"},
         "use_default_vendor_contact": True,
         "enable_accounting_sync": False,
     }
@@ -271,6 +326,57 @@ def test_load_creates_vendors_bills_and_attachments(tmp_path):
     assert loaded_ref(bill) == RENT
 
 
+def test_new_vendors_are_owned_by_the_business_owner(tmp_path):
+    fake = FakeRampWriter()
+    report = load_bills(*plans(tmp_path), client(fake))
+    owners = {json.loads(r.content)["vendor_owner_id"] for r in fake.posts("/developer/v1/vendors")}
+    assert owners == {"user-owner"}
+    assert "new vendors owned by David Wallace (user-owner" in report.summary()
+    assert "never the bills' requester" in report.summary()
+
+
+def test_vendor_owner_is_the_one_active_business_owner():
+    admin = {**BUSINESS_OWNER, "id": "user-admin", "role": "BUSINESS_ADMIN"}
+    assert vendor_owner([admin, BUSINESS_OWNER])["id"] == "user-owner"
+    with pytest.raises(RampUnavailable, match="0 active BUSINESS_OWNER"):
+        vendor_owner([admin, {**BUSINESS_OWNER, "status": "USER_SUSPENDED"}])
+    with pytest.raises(RampUnavailable, match="2 active BUSINESS_OWNER"):
+        vendor_owner([BUSINESS_OWNER, {**BUSINESS_OWNER, "id": "user-other"}])
+
+
+def test_an_existing_vendor_without_an_owner_skips_its_bill_instead_of_failing(tmp_path):
+    ownerless = {"id": "v-blake", "name": "Blake Street Properties LLC"}
+    fake = FakeRampWriter(vendors=[ownerless])
+    report = load_bills(*plans(tmp_path), client(fake))
+    assert "has no owner" in report.skipped[RENT]
+    assert RENT not in report.created and not report.failed
+    assert [json.loads(r.content)["vendor_id"] for r in fake.posts("/developer/v1/bills")] == [
+        "new-1"  # only Ridgeline's bill, for the vendor the loader created with an owner
+    ]
+
+
+def test_ramp_refusing_bills_without_a_vendor_owner_prints_one_line(tmp_path):
+    """The first real load: vendors created without an owner, every bill refused."""
+
+    class OwnerlessVendors(RampLoaderClient):
+        def create_vendor(self, name, owner_id):
+            slug = name.lower().replace(" ", "-")
+            body = {"name": name, "business_vendor_contacts": {"email": f"ap+{slug}@example.com"}}
+            return self._post("/developer/v1/vendors", json=body)["id"]
+
+    fake = FakeRampWriter()
+    loader = OwnerlessVendors(
+        "client-test", SECRET, BASE, write=True, transport=httpx.MockTransport(fake)
+    )
+    report = load_bills(*plans(tmp_path), loader)
+    assert sorted(report.failed) == [CONSULTING, RENT] and not report.created
+    failed = [line for line in report.summary().splitlines() if "failed" in line][1:]
+    assert failed == [
+        f"  failed 2 ({RENT}, {CONSULTING}): RampApiError: POST /developer/v1/bills: HTTP 400 "
+        'BILL_PAY_7001 "Bill requires a vendor owner for creation" (MissingVendorOwnerForBill)'
+    ]
+
+
 def test_attachment_upload_is_multipart_with_file_and_type(tmp_path):
     fake = FakeRampWriter()
     load_bills(*plans(tmp_path), client(fake))
@@ -290,7 +396,9 @@ def test_attachment_upload_is_multipart_with_file_and_type(tmp_path):
 
 
 def test_an_existing_vendor_is_matched_by_name_ignoring_case_and_spacing(tmp_path):
-    fake = FakeRampWriter(vendors=[{"id": "v-blake", "name": "blake  street properties llc"}])
+    fake = FakeRampWriter(
+        vendors=[{"id": "v-blake", "name": "blake  street properties llc", "vendor_owner_id": "u"}]
+    )
     report = load_bills(*plans(tmp_path), client(fake))
     assert report.new_vendors == ["Ridgeline Strategy Group LLC"]
     bodies = [json.loads(r.content) for r in fake.posts("/developer/v1/bills")]
@@ -488,10 +596,32 @@ def test_documents_follow_where_each_record_is_served_from(tmp_path):
     assert sources.document_file("local:receipt:1").name == "local-receipt.txt"
 
 
-def test_people_are_the_datasets_plus_ramp_people_the_live_bills_name(tmp_path):
+def test_a_live_bill_takes_requester_approvals_and_paid_date_from_the_dataset(tmp_path):
     sources = mixed(tmp_path)
-    # build_local has no people; Save Time's other users are not named by a live bill.
-    assert [p.id for p in sources.people()] == [f"ramp:user:{OWNER}"]
+    live = next(t for t in sources.transactions() if t.id == "ramp:bill:ramp-rent")
+    assert live.spender_id == PAM
+    assert live.approvals == [RENT_APPROVAL]
+    assert live.paid_date == date(2026, 1, 20)
+    # Everything else is Ramp's; Ramp's own values for the three stay in raw.
+    assert (
+        live.amount_cents == 840_000 and live.invoice_number == SAVE_TIME_BILLS[0]["invoice_number"]
+    )
+    assert (
+        live.raw["bill_owner"]["id"] == OWNER
+        and live.raw["paid_at"] == SAVE_TIME_BILLS[0]["paid_at"]
+    )
+    replaced = live.raw[REPLACED_KEY]
+    assert replaced["spender_id"] == f"ramp:user:{OWNER}"
+    assert replaced["approvals"] == [] and set(replaced) == {"spender_id", "approvals", "paid_date"}
+
+
+def test_the_bill_owner_is_never_presented_as_a_requester_or_person(tmp_path):
+    sources = mixed(tmp_path)
+    owner = f"ramp:user:{OWNER}"
+    assert owner not in {t.spender_id for t in sources.transactions()}
+    assert owner not in {a.approver_id for t in sources.transactions() for a in t.approvals}
+    # Only the dataset's people: the live bills name no Ramp user.
+    assert sorted(p.id for p in sources.people()) == [HOLLY, PAM]
 
 
 def test_describe_states_the_split(tmp_path):
@@ -501,6 +631,10 @@ def test_describe_states_the_split(tmp_path):
         "Ramp Developer API at demo-api.ramp.com | bills: 1 of 3 from Ramp (stamped), 2 from "
         f"dataset tiny (not found in Ramp: {CONSULTING}, {UNPAID}); card transactions: 1 from "
         "dataset tiny (Ramp cannot create card transactions)"
+    )
+    assert (
+        "requester, approvals, paid date from dataset tiny via the stamp; Ramp cannot hold them"
+        in use.detail
     )
     assert "other Ramp records ignored (not stamped from this dataset" in use.detail
 

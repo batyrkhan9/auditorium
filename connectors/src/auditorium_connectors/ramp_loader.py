@@ -8,7 +8,9 @@ can map a live bill back to the dataset.
 
 Reader: `LoadedBillsSources` serves the bills Ramp holds with that stamp live, and
 the dataset's card transactions from the dataset, because Ramp's API cannot create
-card transactions. Ramp's own demo records (Save Time Inc) are left out.
+card transactions. A live bill's requester, approvals and paid date come from the
+dataset record its stamp names, because Ramp cannot hold them. Ramp's own demo
+records (Save Time Inc) are left out.
 
 Writing is a dry run unless asked: the CLI writes only with `--write`, and only to
 the sandbox host. See connectors/decisions/2026-11-10-ramp-bill-loader.md.
@@ -22,6 +24,7 @@ import argparse
 import os
 import re
 import sys
+from collections import defaultdict
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -49,11 +52,12 @@ SANDBOX_HOST = "demo-api.ramp.com"
 # Same stamp as the QuickBooks loader (qbo.REF_PREFIX).
 REF_PREFIX = "auditorium-ref: "
 _REF = re.compile(re.escape(REF_PREFIX) + r"(\S+)")
-READ_SCOPES = ("bills:read", "vendors:read", "entities:read")
+READ_SCOPES = ("bills:read", "vendors:read", "entities:read", "users:read")
 WRITE_SCOPES = ("bills:write", "vendors:write")
 BILLS_PATH = "/developer/v1/bills"
 VENDORS_PATH = "/developer/v1/vendors"
 ENTITIES_PATH = "/developer/v1/entities"
+USERS_PATH = "/developer/v1/users"
 MEMO_MAX = 1000  # the spec's maxLength for a bill memo
 # Ramp requires a contact email to create a vendor, and the dataset has none. This
 # domain is reserved (RFC 2606) and never delivers. The email never comes back into
@@ -65,10 +69,11 @@ NOT_CARRIED = (
     "category (Ramp codes a bill with accounting-field ids from a connected ERP; the "
     "sandbox has no accounting connection)",
     "department (a bill has no department field)",
-    "spender (the create call takes no bill owner)",
+    "spender (the create call takes no requester; Ramp makes the vendor's owner the bill "
+    "owner, which is Ramp bookkeeping, not who asked for the spend)",
     "approvals (only Ramp approvers can make them)",
     "paid date (Ramp sets paid_at itself; the loader sends the dataset's paid date as "
-    "payment_date)",
+    "payment_details.payment_date)",
 )
 
 
@@ -164,7 +169,12 @@ def plan_bill(txn: SpendTransaction, local: LocalSources) -> PlannedBill:
         "memo": memo,
         # Recorded as paid outside Ramp: nothing is scheduled or sent to the vendor.
         "payment_method": "PAID_MANUALLY",
-        "payment_date": txn.paid_date.isoformat(),
+        # The sandbox answers PAYMENTS_7002 "Unsupported payment method" without these.
+        # OTHER: the dataset does not say how the bill was paid.
+        "payment_details": {
+            "manual_payment_method": "OTHER",
+            "payment_date": txn.paid_date.isoformat(),
+        },
         "use_default_vendor_contact": True,
         # Never pushed on to an accounting system connected to the sandbox.
         "enable_accounting_sync": False,
@@ -259,14 +269,33 @@ class RampLoaderClient(RampApiClient):
         )
         if response.status_code not in (200, 201):
             raise RampApiError(
-                f"POST {path}: HTTP {response.status_code} {self._scrub(response.text[:300])}",
+                f"POST {path}: HTTP {response.status_code} {self._error(response)}",
                 response.status_code,
             )
         return response.json()
 
-    def create_vendor(self, name: str) -> str:
+    def _error(self, response: httpx.Response) -> str:
+        """Ramp's `error_v2` as `CODE "message" (notes)`, without the per-request error
+        id, so the same refusal reads the same for every bill. Raw text otherwise."""
+        try:
+            error = response.json().get("error_v2")
+        except (ValueError, AttributeError):
+            error = None
+        if not isinstance(error, dict) or not error.get("error_code"):
+            return self._scrub(response.text[:300])
+        text = f'{error["error_code"]} "{error.get("message") or ""}"'
+        if error.get("notes"):
+            text += f" ({error['notes']})"
+        return self._scrub(text)
+
+    def create_vendor(self, name: str, owner_id: str) -> str:
         slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or "vendor"
-        body = {"name": name, "business_vendor_contacts": {"email": f"ap+{slug}@{CONTACT_DOMAIN}"}}
+        body = {
+            "name": name,
+            "business_vendor_contacts": {"email": f"ap+{slug}@{CONTACT_DOMAIN}"},
+            # Ramp refuses a bill whose vendor has no owner, and sets one only here.
+            "vendor_owner_id": owner_id,
+        }
         return self._post(VENDORS_PATH, json=body)["id"]
 
     def create_bill(self, body: Mapping[str, Any]) -> str:
@@ -300,19 +329,53 @@ class RampLoadReport:
     failed: dict[str, str] = field(default_factory=dict)
     new_vendors: list[str] = field(default_factory=list)
     attachments: int = 0
+    vendor_owner: str = ""
 
     def summary(self) -> str:
         verb = "" if self.write else "would "
         lines = [
             self.checked,
+            self.vendor_owner,
             f"{verb}create {len(self.new_vendors)} vendors, {len(self.created)} bills, "
             f"{self.attachments} attachments; already loaded {len(self.already_loaded)}, "
             f"skipped {len(self.skipped)}, failed {len(self.failed)}",
         ]
-        lines += [f"  skipped {k}: {v}" for k, v in self.skipped.items()]
-        lines += [f"  failed {k}: {v}" for k, v in self.failed.items()]
+        lines += _grouped("skipped", self.skipped)
+        lines += _grouped("failed", self.failed, self.created)
         lines.append("not carried into Ramp: " + "; ".join(NOT_CARRIED))
         return "\n".join(line for line in lines if line)
+
+
+def _grouped(
+    what: str, reasons: Mapping[str, str], created: Mapping[str, str] | None = None
+) -> list[str]:
+    """One line per distinct reason, naming the first few bills it applies to."""
+    by_reason: dict[str, list[str]] = defaultdict(list)
+    for ref, reason in reasons.items():
+        by_reason[reason].append(ref)
+    lines = []
+    for reason, refs in by_reason.items():
+        named = ", ".join(refs[:3]) + (", ..." if len(refs) > 3 else "")
+        made = sum(ref in (created or {}) for ref in refs)
+        made_note = f"; {made} of them created in Ramp before it failed" if made else ""
+        lines.append(f"  {what} {len(refs)} ({named}){made_note}: {reason}")
+    return lines
+
+
+def vendor_owner(users: Iterable[Mapping[str, Any]]) -> Mapping[str, Any]:
+    """The Ramp user who owns the vendors the loader creates. Ramp refuses a bill whose
+    vendor has no owner (BILL_PAY_7001), and the API sets the owner only when it
+    creates a vendor. The business's one active BUSINESS_OWNER: the account holder,
+    who owns Save Time's own vendors in the sandbox too. Ramp bookkeeping only: the
+    reader takes a loaded bill's requester from the dataset, never from this owner."""
+    owners = [
+        u for u in users if u.get("role") == "BUSINESS_OWNER" and u.get("status") == "USER_ACTIVE"
+    ]
+    if len(owners) != 1:
+        raise RampUnavailable(
+            f"Ramp has {len(owners)} active BUSINESS_OWNER users, not one, to own new vendors"
+        )
+    return owners[0]
 
 
 def _name_key(name: str) -> str:
@@ -358,10 +421,16 @@ def load_bills(
         ref = loaded_ref(bill)
         if ref:
             existing.setdefault(ref, bill)
-    vendors: dict[str, list[str]] = {}
+    vendors: dict[str, list[Mapping[str, Any]]] = {}
     for vendor in client.get_all(VENDORS_PATH, {"include_draft": "true"}):
-        vendors.setdefault(_name_key(vendor.get("name") or ""), []).append(vendor["id"])
+        vendors.setdefault(_name_key(vendor.get("name") or ""), []).append(vendor)
     entity = primary_entity(client.get_all(ENTITIES_PATH, {}))
+    owner = vendor_owner(client.get_all(USERS_PATH, {}))
+    owner_name = " ".join(filter(None, (owner.get("first_name"), owner.get("last_name"))))
+    report.vendor_owner = (
+        f"new vendors owned by {owner_name or owner['id']} ({owner['id']}, the business's "
+        "BUSINESS_OWNER; Ramp bookkeeping, never the bills' requester)"
+    )
     wanted = {plan.txn.id for plan in plans}
     report.checked = (
         f"Ramp at {httpx.URL(client.base_url).host} read with scopes {' '.join(client.scopes)}"
@@ -375,9 +444,14 @@ def load_bills(
         if len(found) > 1:
             raise Skip(f"Ramp has {len(found)} vendors named {name!r}; not guessing which")
         if found:
-            return found[0]
-        new = client.create_vendor(name) if write else f"(new vendor {name})"
-        vendors[_name_key(name)] = [new]
+            if not found[0].get("vendor_owner_id"):
+                raise Skip(
+                    "its Ramp vendor has no owner, and Ramp refuses a bill for a vendor "
+                    "without one (BILL_PAY_7001); the API sets an owner only on create"
+                )
+            return found[0]["id"]
+        new = client.create_vendor(name, owner["id"]) if write else f"(new vendor {name})"
+        vendors[_name_key(name)] = [{"id": new, "vendor_owner_id": owner["id"]}]
         report.new_vendors.append(name)
         return new
 
@@ -405,8 +479,8 @@ def load_bills(
         except Skip as reason:
             report.skipped[ref] = str(reason)
         except (RampUnavailable, httpx.HTTPError, OSError) as error:
-            done = f"bill created as {report.created[ref]}; " if ref in report.created else ""
-            report.failed[ref] = f"{done}{type(error).__name__}: {error}"
+            # A bill created before an upload failed stays in `created`.
+            report.failed[ref] = f"{type(error).__name__}: {error}"
     return report
 
 
@@ -432,13 +506,36 @@ def stamped_bills(ramp: Sources, local: LocalSources) -> dict[str, SpendTransact
     return found
 
 
+# What Ramp cannot hold for a loaded bill. A live bill takes these from the dataset
+# record its stamp names; Ramp's own values stay in `raw` (see `from_dataset`).
+FROM_DATASET = ("spender_id", "approvals", "paid_date")
+REPLACED_KEY = "auditorium_replaced_from_dataset"
+
+
+def from_dataset(live: SpendTransaction, record: SpendTransaction) -> SpendTransaction:
+    """`live` with requester, approvals and paid date from the dataset's `record` of the
+    same bill. Ramp makes the vendor's owner the bill owner, has no approvals the
+    loader could make, and sets paid_at itself, so none of them is the bill's own.
+    What Ramp had for them is kept under `raw[REPLACED_KEY]`; the rest of `raw` is the
+    bill as Ramp returned it (`bill_owner`, `paid_at`)."""
+    replaced = live.model_dump(mode="json", include=set(FROM_DATASET))
+    return live.model_copy(
+        update={
+            **{name: getattr(record, name) for name in FROM_DATASET},
+            "raw": {**(live.raw or {}), REPLACED_KEY: replaced},
+        }
+    )
+
+
 class LoadedBillsSources:
     """The dataset's bills as Ramp holds them, live, where the loader put them there;
     everything else Ramp-side from the dataset. Records Ramp holds that the loader did
     not stamp from this dataset (Save Time's) are left out.
 
     A live bill keeps its Ramp id; its stamp stays in `raw["memo"]` (see `loaded_ref`)
-    and is cut from `memo`. A dataset bill not found in Ramp is served from the dataset.
+    and is cut from `memo`. Its requester, approvals and paid date come from the
+    dataset record the stamp names (`from_dataset`). A dataset bill not found in Ramp
+    is served from the dataset.
     Ledger, bank and policy come from the dataset, as with any Ramp path.
     """
 
@@ -446,8 +543,10 @@ class LoadedBillsSources:
         self.ramp = ramp
         self.local = local
         live = stamped_bills(ramp, local)
+        dataset = {t.id: t for t in local.transactions()}
         self.live = {
-            ref: txn.model_copy(update={"memo": strip_ref(txn.memo)}) for ref, txn in live.items()
+            ref: from_dataset(txn.model_copy(update={"memo": strip_ref(txn.memo)}), dataset[ref])
+            for ref, txn in live.items()
         }
         self.ignored = len(ramp.transactions()) - len(live)
         self._transactions = [self.live.get(t.id, t) for t in local.transactions()]
@@ -487,6 +586,8 @@ class LoadedBillsSources:
                 f"{_ramp_label(self.ramp)} | {split}",
                 f"card transactions: {len(cards)} from dataset {dataset_id} (Ramp cannot "
                 "create card transactions)",
+                f"requester, approvals, paid date from dataset {dataset_id} via the stamp; "
+                "Ramp cannot hold them",
                 f"people: {self.local_people} from dataset, "
                 f"{len(self._people) - self.local_people} from Ramp",
                 f"{self.ignored} other Ramp records ignored (not stamped from this dataset, or a "
