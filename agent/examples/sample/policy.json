@@ -2,5 +2,24 @@
   "id": "policy_2025",
   "effective_from": "2025-01-01",
   "receipt_required_from_cents": 7500,
-  "approval_rules": []
+  "approval_rules": [
+    {
+      "id": "card_500",
+      "description": "Card charges of $500 or more need the spender's manager.",
+      "kinds": [
+        "card_expense"
+      ],
+      "min_amount_cents": 50000,
+      "approver_role": "manager"
+    },
+    {
+      "id": "bill_5000",
+      "description": "Vendor bills of $5,000 or more need the CFO.",
+      "kinds": [
+        "vendor_bill"
+      ],
+      "min_amount_cents": 500000,
+      "approver_role": "cfo"
+    }
+  ]
 }

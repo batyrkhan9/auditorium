@@ -6,7 +6,7 @@ It exists so the agent can run before the real dataset does. Rebuild with:
     uv run python agent/examples/make_sample.py
 """
 
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import auditorium_contracts as c
@@ -16,11 +16,14 @@ BILL_TO = "Bill to: Larkspur Labs, Inc.\n"
 
 # Each case: the Ramp side, the invoice or receipt text, and how the books recorded it.
 # `booked` is the ledger date (None = not in the books). `booked_cents` overrides the
-# ledger amount. `copies` is how many ledger entries exist.
+# ledger amount. `copies` is how many ledger entries exist. `approvals` is who approved
+# it and when. `paid` is the day a bill was paid. Everyone's spender is Tom (p_eng).
+# Policy: card charges from $500 need the spender's manager; bills from $5,000 need the CFO.
 CASES = [
     dict(  # The pitch example: December work, invoiced and recorded in January, no accrual.
         key="b_1001", vendor="Northwind Advisory LLC", cents=1_200_000, day=date(2026, 1, 8),
         invoice="INV-2041", booked=date(2026, 1, 8),
+        approvals=[("p_cfo", date(2026, 1, 9))], paid=date(2026, 1, 22),
         text="Northwind Advisory LLC\nInvoice INV-2041\nInvoice date: January 8, 2026\n" + BILL_TO
         + "Strategy consulting\nServices rendered: December 1 - December 31, 2025\nTotal due: $12,000.00\n",
     ),
@@ -62,11 +65,12 @@ CASES = [
     ),
     dict(  # Clean card charge.
         key="c_2001", vendor="Delta Air Lines", cents=128_400, day=date(2025, 10, 3),
-        booked=date(2025, 10, 3),
+        booked=date(2025, 10, 3), approvals=[("p_mgr", date(2025, 10, 4))],
         text="Delta Air Lines\nReceipt\nDate: October 3, 2025\nSFO to JFK\nTotal charged: $1,284.00\n",
     ),
     dict(  # Card charge that never reached the books.
         key="c_2002", vendor="Figma", cents=54_000, day=date(2025, 9, 12), booked=None,
+        approvals=[("p_mgr", date(2025, 9, 13))],
         text="Figma, Inc.\nReceipt\nDate: September 12, 2025\nProfessional plan\nTotal: $540.00\n",
     ),
     dict(  # Over the receipt threshold with nothing attached.
@@ -85,9 +89,34 @@ CASES = [
     ),
     dict(  # Somebody attached another vendor's invoice.
         key="b_1008", vendor="Meridian Analytics", cents=640_000, day=date(2025, 4, 9),
-        invoice="M-204", booked=date(2025, 4, 9),
+        invoice="M-204", booked=date(2025, 4, 9), approvals=[("p_cfo", date(2025, 4, 10))],
         text="Kestrel Print Shop\nInvoice 5512\nInvoice date: March 30, 2025\n" + BILL_TO
         + "Conference banners\nTotal: $310.00\n",
+    ),
+    dict(  # Over the bill threshold and nobody approved it.
+        key="b_1009", vendor="Quillon Security", cents=820_000, day=date(2025, 5, 20),
+        invoice="QS-88", booked=date(2025, 5, 20),
+        text="Quillon Security\nInvoice QS-88\nInvoice date: May 20, 2025\n" + BILL_TO
+        + "Penetration test\nTotal: $8,200.00\n",
+    ),
+    dict(  # Approved, but by an engineering manager where the rule requires the CFO.
+        key="b_1010", vendor="Redwood Recruiting", cents=750_000, day=date(2025, 6, 3),
+        invoice="RR-410", booked=date(2025, 6, 3), approvals=[("p_mgr", date(2025, 6, 4))],
+        text="Redwood Recruiting\nInvoice RR-410\nInvoice date: June 3, 2025\n" + BILL_TO
+        + "Placement fee\nTotal: $7,500.00\n",
+    ),
+    dict(  # The CFO approved it four days after it was paid.
+        key="b_1011", vendor="Sable Freight", cents=900_000, day=date(2025, 3, 3),
+        invoice="SF-2207", booked=date(2025, 3, 3), paid=date(2025, 3, 10),
+        approvals=[("p_cfo", date(2025, 3, 14))],
+        text="Sable Freight\nInvoice SF-2207\nInvoice date: March 3, 2025\n" + BILL_TO
+        + "Equipment shipping\nTotal: $9,000.00\n",
+    ),
+    dict(  # The spender approved their own card charge.
+        key="c_2006", vendor="Apple Store", cents=115_000, day=date(2025, 2, 11),
+        booked=date(2025, 2, 11), approvals=[("p_eng", date(2025, 2, 11))],
+        text="Apple Store\nReceipt\nDate: February 11, 2025\nDisplay adapter and monitor\n"
+        "Total: $1,150.00\n",
     ),
 ]  # fmt: skip
 
@@ -124,6 +153,15 @@ def main():
                 amount_cents=case["cents"],
                 transaction_date=case["day"],
                 invoice_number=case.get("invoice"),
+                paid_date=case.get("paid"),
+                approvals=[
+                    c.Approval(
+                        approver_id=person,
+                        decision="approved",
+                        decided_at=datetime(day.year, day.month, day.day, 15, tzinfo=UTC),
+                    )
+                    for person, day in case.get("approvals", [])
+                ],
                 spender_id="p_eng",
                 document_ids=[f"doc_{key}"] if case["text"] else [],
             )
@@ -178,8 +216,10 @@ def main():
     c.write_jsonl(
         ROOT / "people.jsonl",
         [
-            c.Person(id="p_cfo", name="Dana Reyes", role="cfo"),
-            c.Person(id="p_eng", name="Tom Alvarez", role="engineer", manager_id="p_cfo"),
+            c.Person(id="p_ceo", name="Maya Okafor", role="ceo"),
+            c.Person(id="p_cfo", name="Dana Reyes", role="cfo", manager_id="p_ceo"),
+            c.Person(id="p_mgr", name="Priya Nair", role="engineering manager", manager_id="p_ceo"),
+            c.Person(id="p_eng", name="Tom Alvarez", role="engineer", manager_id="p_mgr"),
         ],
     )
     c.write_json(
@@ -188,7 +228,22 @@ def main():
             id="policy_2025",
             effective_from=date(2025, 1, 1),
             receipt_required_from_cents=7500,
-            approval_rules=[],
+            approval_rules=[
+                c.ApprovalRule(
+                    id="card_500",
+                    description="Card charges of $500 or more need the spender's manager.",
+                    kinds=["card_expense"],
+                    min_amount_cents=50_000,
+                    approver_role="manager",
+                ),
+                c.ApprovalRule(
+                    id="bill_5000",
+                    description="Vendor bills of $5,000 or more need the CFO.",
+                    kinds=["vendor_bill"],
+                    min_amount_cents=500_000,
+                    approver_role="cfo",
+                ),
+            ],
         ),
     )
     problems = c.validate_dataset(ROOT)

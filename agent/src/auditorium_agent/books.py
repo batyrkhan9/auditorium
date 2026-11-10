@@ -10,6 +10,7 @@ from auditorium_contracts import (
     LedgerEntry,
     LogAction,
     LogWriter,
+    Person,
     SearchEvidence,
     SourceIndex,
     Sources,
@@ -32,6 +33,7 @@ class Books:
     ledger: list[LedgerEntry]
     documents: dict[str, Document]
     policy: SpendPolicy
+    people: dict[str, Person]
     index: SourceIndex
     matches: dict[str, Match]  # transaction id -> its ledger entry, paired one-to-one
 
@@ -55,6 +57,7 @@ class Books:
             ledger=ledger,
             documents={d.id: d for d in documents},
             policy=sources.policy(),
+            people={p.id: p for p in sources.people()},
             index=SourceIndex(sources),
             matches=match_ledger(transactions, ledger),
         )
