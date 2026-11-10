@@ -1,0 +1,10 @@
+{
+  "dataset_id": "copperline-fy2025-v1",
+  "company_name": "Copperline, Inc.",
+  "contract_version": "0.2.0",
+  "fiscal_year_start": "2025-01-01",
+  "fiscal_year_end": "2025-12-31",
+  "coverage_end": "2026-02-28",
+  "synthetic": true,
+  "description": "A made-up company for scoring the agent. Every person, vendor, document and record in it is invented."
+}

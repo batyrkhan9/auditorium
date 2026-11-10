@@ -23,8 +23,17 @@ from typing import Any
 
 from pydantic import BaseModel, ValidationError
 
-from .dataset import Sources, read_jsonl
-from .log import LogAction, LogEvent, read_log, verify_log
+from .dataset import LocalSources, Sources, fingerprint_sources, read_jsonl, sha256_file
+from .layout import (
+    DRAFTS,
+    LOG,
+    PACKETS,
+    RESULTS,
+    RUN_MANIFEST,
+    SCORECARD,
+    SOURCES_SNAPSHOT,
+)
+from .log import LogAction, LogEvent, read_log, result_hash, verify_log
 from .results import (
     CheckResult,
     DocumentEvidence,
@@ -36,13 +45,6 @@ from .results import (
     SearchEvidence,
 )
 from .text import quote_on_page
-
-RUN_MANIFEST = "run.json"
-RESULTS = "results.jsonl"
-PACKETS = "packets.jsonl"
-DRAFTS = "drafts.jsonl"
-LOG = "log.jsonl"
-SCORECARD = "scorecard.json"
 
 
 @dataclass(frozen=True)
@@ -90,6 +92,14 @@ class SourceIndex:
             "policy": {policy.id: policy},
         }
         self.all_ids = {record_id for kind in self.records.values() for record_id in kind}
+        self._file_checked: dict[str, bool] = {}
+
+    def file_is_the_recorded_one(self, document_id: str, file: Path) -> bool:
+        """True if the file's bytes match the document's recorded sha256. Hashed once per run."""
+        if document_id not in self._file_checked:
+            recorded = self.records["document"][document_id].sha256
+            self._file_checked[document_id] = sha256_file(file) == recorded
+        return self._file_checked[document_id]
 
 
 def _field(record: BaseModel, path: str) -> Any:
@@ -112,6 +122,8 @@ def verify_evidence(
         file = index.sources.document_file(evidence.document_id)
         if not file.is_file():
             return f"document {evidence.document_id} has no file"
+        if not index.file_is_the_recorded_one(evidence.document_id, file):
+            return f"document {evidence.document_id}: the file served is not the one its sha256 records"
         if not quote_on_page(file, evidence.page, evidence.quote):
             return f"quote not found on page {evidence.page} of {evidence.document_id}: {evidence.quote!r}"
         return None
@@ -136,8 +148,47 @@ def verify_evidence(
     return None
 
 
-def validate_run(root: Path | str, sources: Sources) -> list[str]:
-    """Problems with a run folder. An empty list means the eval and the screen can rely on it."""
+def verified_against(root: Path | str, sources: Sources | None) -> str:
+    """What a clean `validate_run` proves: 'snapshot' or 'the sources given'.
+
+    Say which, never just 'verified'. A snapshot shows the evidence matches what the
+    run fetched. It does not show the fetch was honest; only the live sources do that.
+    """
+    return "the sources given" if sources is not None else "snapshot"
+
+
+def _snapshot_problems(root: Path, log: tuple[LogEvent, ...]) -> list[str]:
+    """Compare the run's snapshot with the fingerprints logged when the data was fetched."""
+    logged = {
+        event.detail["call"]: event.detail["sha256"]
+        for event in log
+        # Only fingerprint events carry both. The agent also logs other source calls,
+        # a document download for one, and those are not fingerprints.
+        if event.action is LogAction.SOURCE_CALL
+        and "call" in event.detail
+        and "sha256" in event.detail
+    }
+    if not logged:
+        return ["snapshot: the log holds no source fingerprints, so it cannot be tied to the fetch"]
+    try:
+        current = fingerprint_sources(LocalSources(root / SOURCES_SNAPSHOT))
+    except (OSError, ValidationError, ValueError) as error:
+        return [f"snapshot: cannot be loaded ({error})"]
+    return [
+        f"snapshot: {call} is not what the run fetched"
+        for call, digest in sorted(current.items())
+        if logged.get(call) != digest
+    ]
+
+
+def validate_run(root: Path | str, sources: Sources | None = None) -> list[str]:
+    """Problems with a run folder. An empty list means the eval and the screen can rely on it.
+
+    Evidence is verified against `sources`: the ones the run really used. Without
+    them it is verified against the run's own snapshot (`sources/`), which is first
+    checked against the fingerprints the run logged when it fetched the data.
+    See `verified_against` for what each of the two proves.
+    """
     root = Path(root)
     try:
         run = load_run(root)
@@ -145,6 +196,16 @@ def validate_run(root: Path | str, sources: Sources) -> list[str]:
         return [f"cannot load run: {error}"]
 
     problems = verify_log(root / LOG)
+    has_snapshot = (root / SOURCES_SNAPSHOT).is_dir()
+    if has_snapshot:
+        problems += _snapshot_problems(root, run.log)
+    if sources is None:
+        if not has_snapshot:
+            return [*problems, "no sources were given and the run folder has no snapshot"]
+        try:
+            sources = LocalSources(root / SOURCES_SNAPSHOT)
+        except (OSError, ValidationError, ValueError) as error:
+            return [*problems, f"snapshot: cannot be loaded ({error})"]
     index = SourceIndex(sources)
     run_id = run.manifest.run_id
 
@@ -180,6 +241,31 @@ def validate_run(root: Path | str, sources: Sources) -> list[str]:
         for linked in packet.draft_ids:
             if linked not in drafts:
                 problems.append(f"packet {packet.id}: unknown draft {linked}")
+
+    # Only the latest sign-off of each thing counts: a result signed again after a change is fine.
+    by_id = {result.id: result for result in run.results}
+    latest: dict[str, LogEvent] = {}
+    finished_at_seq = None
+    for event in run.log:
+        if event.action is LogAction.RUN_FINISHED:
+            finished_at_seq = event.seq
+        if event.action is LogAction.SIGNOFF:
+            for subject in event.subject_ids:
+                latest[subject] = event
+    for subject, event in latest.items():
+        if event.detail.get("scope") == "run":
+            if finished_at_seq is None or event.seq < finished_at_seq:
+                problems.append(f"log line {event.seq}: the run was signed off before it finished")
+            for key, name in (("results_sha256", RESULTS), ("run_sha256", RUN_MANIFEST)):
+                pinned = event.detail.get(key)
+                if pinned and pinned != sha256_file(root / name):
+                    problems.append(f"{name}: changed after the run was signed off")
+            continue
+        signed = event.detail.get("result_sha256")
+        if subject not in by_id:
+            problems.append(f"log line {event.seq}: signs off unknown result {subject}")
+        elif signed and result_hash(by_id[subject]) != signed:
+            problems.append(f"result {subject}: changed after it was signed off")
 
     logged = {
         subject
