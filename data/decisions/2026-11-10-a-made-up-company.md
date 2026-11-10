@@ -8,7 +8,7 @@ about 200 PDFs and one auditor sample request.
 
 **Everything is invented.** People, vendors, merchants, the bank and the
 auditor do not exist. Emails use `copperline.example`. The manifest is marked
-synthetic once the contract has that field.
+synthetic.
 
 **Why this size.** Small enough to read end to end and to run the agent on in
 minutes. Large enough that most transactions are ordinary, so false alarms can

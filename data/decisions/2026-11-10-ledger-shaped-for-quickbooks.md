@@ -12,7 +12,12 @@ by the generator and written as soon as the installed contract has those
 fields. Regenerating after v0.2 merges fills them in; nothing else changes.
 Checked against the `shared/contract-v0.2` branch.
 
-**Until then** the loader guesses account types from names, so account names
+**Done on 2026-11-10.** Contract v0.2 merged and the generator was rerun. Every
+ledger line now has `account_type`, every expense has `payment_type`, and the
+manifest says `synthetic`. Ledger ids, transactions, documents and the answer
+key did not change, so nothing already loaded into a sandbox has to be reloaded.
+
+**Before that** the loader guessed account types from names, so account names
 were chosen to guess right: the card account is called `Ramp Card`, and no
 expense account contains "card", "bank", "cash" or "payable". The connectors'
 planner accepts all 255 entries of the v0.1 output and skips none.
