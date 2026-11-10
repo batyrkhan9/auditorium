@@ -1,0 +1,1289 @@
+{
+  "_source": "captured from demo-api.ramp.com on 2026-11-10",
+  "_notes": "Ramp's demo business, read with client credentials, GET only. Each list is the first page at page_size 5 (page.next keeps its path only). receipts_for_transactions: GET /developer/v1/receipts/{id} for each receipt the captured transactions name. receipt_single and receipt_transaction: the receipt whose file Ramp's file host answered 404 (NoSuchKey) for, and its transaction. Sanitized: e-mail domains moved to example.com, URL query strings (CloudFront signatures) cut. Everything else is as Ramp returned it.",
+  "transactions": {
+    "data": [
+      {
+        "entity_amount": {
+          "value": 43141,
+          "currency": "USD"
+        },
+        "all_requirements_met_and_approved": false,
+        "entity_id": "403eb1d0-9789-4fb1-92eb-07d770e0d069",
+        "receipts": [
+          "5afddcd1-98c3-494f-88af-d08a9df37048"
+        ],
+        "card_present": false,
+        "accounting_date": "2026-11-30T08:37:40+00:00",
+        "merchant_amount": {
+          "value": 60898,
+          "currency": "CAD"
+        },
+        "state": "CLEARED",
+        "user_transaction_time": "2026-11-29T08:37:40+00:00",
+        "fund_id": "d9f0a422-6452-49ec-b610-aed6b86156a4",
+        "merchant_name": "Air Canada",
+        "network_merchant_id": "082416862432846",
+        "card_holder": {
+          "employee_id": null,
+          "location_name": "New York City",
+          "location_id": "f94369e0-3c7c-45c7-b2f2-ea71cdd67e67",
+          "department_name": "Executive",
+          "first_name": "David",
+          "user_id": "b6b46725-b181-454a-8094-f0e3e2f33e02",
+          "department_id": "443d12cc-f995-44ee-b020-39408bc91af9",
+          "last_name": "Wallace"
+        },
+        "merchant_category_code_description": null,
+        "memo": "Flight to Toronto",
+        "disputes": [],
+        "merchant_category_code": null,
+        "merchant_location": {
+          "country": "US",
+          "postal_code": "25988",
+          "state": "WI",
+          "city": "Lake Angela"
+        },
+        "synced_at": null,
+        "merchant_descriptor": "Air Canada",
+        "currency_code": "USD",
+        "original_transaction_id": null,
+        "updated_at": "2026-11-30T08:37:40+00:00",
+        "card_id": "d9605e68-89f1-4d03-9123-2f1c7d0b7000",
+        "sk_category_id": 4,
+        "trip_id": "75e68d71-ca91-5a9e-94e8-35f932c141aa",
+        "sync_status": "NOT_SYNC_READY",
+        "line_items": [],
+        "sk_category_name": "Airlines",
+        "id": "2b7a80d1-475d-4dbb-90dc-88f8d9a982ef",
+        "minor_unit_conversion_rate": 100,
+        "policy_violations": [],
+        "original_transaction_amount": {
+          "amount": 60898,
+          "currency_code": "CAD",
+          "minor_unit_conversion_rate": 100
+        },
+        "statement_id": "a041e596-1ffa-41f1-9253-13f1ba9e8386",
+        "posting_gl_account": null,
+        "accounting_field_selections": [],
+        "amount": 431.41,
+        "settlement_date": "2026-11-30T08:37:40+00:00",
+        "limit_id": "d9f0a422-6452-49ec-b610-aed6b86156a4",
+        "accounting_categories": [],
+        "merchant_id": "0781780b-d1cc-469a-9a78-0ee4bf83d969",
+        "trip_name": "Client Visits in Toronto"
+      },
+      {
+        "entity_amount": {
+          "value": 27676,
+          "currency": "USD"
+        },
+        "all_requirements_met_and_approved": false,
+        "entity_id": "403eb1d0-9789-4fb1-92eb-07d770e0d069",
+        "receipts": [
+          "871d3267-f2b8-44cf-b85b-b49ce7babaee"
+        ],
+        "card_present": false,
+        "accounting_date": "2026-11-16T08:38:36+00:00",
+        "merchant_amount": {
+          "value": 27676,
+          "currency": "USD"
+        },
+        "state": "CLEARED",
+        "user_transaction_time": "2026-11-15T08:38:36+00:00",
+        "fund_id": "21aaf8c3-9272-474b-8ab9-f29fd7b62db4",
+        "merchant_name": "La Pecora Bianca",
+        "network_merchant_id": "399876731711591",
+        "card_holder": {
+          "employee_id": null,
+          "location_name": "London",
+          "location_id": "33f23666-df76-4199-b6d5-de9a550aed09",
+          "department_name": "Customer Success",
+          "first_name": "Paola",
+          "user_id": "2c974fbf-a48e-43f1-8beb-d6a398e3a6a5",
+          "department_id": "f7407cf4-b007-4482-8b67-521e20ef21f2",
+          "last_name": "Noun"
+        },
+        "merchant_category_code_description": null,
+        "memo": "The best dinner ever",
+        "disputes": [],
+        "merchant_category_code": null,
+        "merchant_location": {
+          "country": "US",
+          "postal_code": "98965",
+          "state": "DC",
+          "city": "Lake Scott"
+        },
+        "synced_at": null,
+        "merchant_descriptor": "La Pecora Bianca",
+        "currency_code": "USD",
+        "original_transaction_id": null,
+        "updated_at": "2026-11-16T08:38:36+00:00",
+        "card_id": "ce9d353d-569e-4931-a5a9-99764b6bc3c2",
+        "sk_category_id": 19,
+        "trip_id": null,
+        "sync_status": "NOT_SYNC_READY",
+        "line_items": [],
+        "sk_category_name": "Restaurants",
+        "id": "8973bd63-fff3-4725-93bd-73f0603cabe9",
+        "minor_unit_conversion_rate": 100,
+        "policy_violations": [],
+        "original_transaction_amount": {
+          "amount": 27676,
+          "currency_code": "USD",
+          "minor_unit_conversion_rate": 100
+        },
+        "spend_program_id": "178b98e3-f45a-4ba9-82f5-e2b3adc3d4df",
+        "statement_id": "a041e596-1ffa-41f1-9253-13f1ba9e8386",
+        "posting_gl_account": null,
+        "accounting_field_selections": [],
+        "amount": 276.76,
+        "settlement_date": "2026-11-16T08:38:36+00:00",
+        "limit_id": "21aaf8c3-9272-474b-8ab9-f29fd7b62db4",
+        "accounting_categories": [],
+        "merchant_id": "590ddb44-5e4b-4c86-9dd0-14f123ec4872",
+        "trip_name": null
+      },
+      {
+        "entity_amount": {
+          "value": 1405,
+          "currency": "USD"
+        },
+        "all_requirements_met_and_approved": false,
+        "entity_id": "a628ef25-0982-4eff-8d93-2e26b162e175",
+        "receipts": [
+          "866a554a-e11d-4f4e-b63b-8bbbc7fc1a2c"
+        ],
+        "card_present": false,
+        "accounting_date": "2026-11-15T08:38:36+00:00",
+        "merchant_amount": {
+          "value": 1405,
+          "currency": "USD"
+        },
+        "state": "CLEARED",
+        "user_transaction_time": "2026-11-14T08:38:36+00:00",
+        "fund_id": "f7165968-5765-4c16-b3bd-5519f3f6afae",
+        "merchant_name": "Juice Press",
+        "network_merchant_id": "770158419662674",
+        "card_holder": {
+          "employee_id": null,
+          "location_name": "Seattle",
+          "location_id": "f5fe5b68-73bf-46d0-95ec-52363fba23fc",
+          "department_name": "Finance & Accounting",
+          "first_name": "Angela",
+          "user_id": "8d99a2a2-1ab4-4d56-9de6-feeb850086c3",
+          "department_id": "24b53519-ffaa-4239-8531-397c534e8f00",
+          "last_name": "Martin"
+        },
+        "merchant_category_code_description": null,
+        "memo": "Snack",
+        "disputes": [],
+        "merchant_category_code": null,
+        "merchant_location": {
+          "country": "US",
+          "postal_code": "43790",
+          "state": "RI",
+          "city": "East Marcfurt"
+        },
+        "synced_at": null,
+        "merchant_descriptor": "Juice Press",
+        "currency_code": "USD",
+        "original_transaction_id": null,
+        "updated_at": "2026-11-15T08:38:36+00:00",
+        "card_id": "15c4e84e-bb1b-4893-9a45-1d2405679491",
+        "sk_category_id": 19,
+        "trip_id": null,
+        "sync_status": "NOT_SYNC_READY",
+        "line_items": [],
+        "sk_category_name": "Restaurants",
+        "id": "17c03a6f-3a03-49d3-9543-bf5420be0214",
+        "minor_unit_conversion_rate": 100,
+        "policy_violations": [],
+        "original_transaction_amount": {
+          "amount": 1405,
+          "currency_code": "USD",
+          "minor_unit_conversion_rate": 100
+        },
+        "spend_program_id": "178b98e3-f45a-4ba9-82f5-e2b3adc3d4df",
+        "statement_id": "a041e596-1ffa-41f1-9253-13f1ba9e8386",
+        "posting_gl_account": null,
+        "accounting_field_selections": [],
+        "amount": 14.05,
+        "settlement_date": "2026-11-15T08:38:36+00:00",
+        "limit_id": "f7165968-5765-4c16-b3bd-5519f3f6afae",
+        "accounting_categories": [],
+        "merchant_id": "bd5a09c6-28a7-455c-ad46-71416c9cb6b9",
+        "trip_name": null
+      },
+      {
+        "entity_amount": {
+          "value": 8881,
+          "currency": "USD"
+        },
+        "all_requirements_met_and_approved": false,
+        "entity_id": "403eb1d0-9789-4fb1-92eb-07d770e0d069",
+        "receipts": [
+          "500ffab7-e55c-4d36-9832-03afbbae1e94"
+        ],
+        "card_present": false,
+        "accounting_date": "2026-11-14T08:38:36+00:00",
+        "merchant_amount": {
+          "value": 8881,
+          "currency": "USD"
+        },
+        "state": "CLEARED",
+        "user_transaction_time": "2026-11-13T08:38:36+00:00",
+        "fund_id": "21aaf8c3-9272-474b-8ab9-f29fd7b62db4",
+        "merchant_name": "SEA",
+        "network_merchant_id": "640122944589032",
+        "card_holder": {
+          "employee_id": null,
+          "location_name": "London",
+          "location_id": "33f23666-df76-4199-b6d5-de9a550aed09",
+          "department_name": "Customer Success",
+          "first_name": "Paola",
+          "user_id": "2c974fbf-a48e-43f1-8beb-d6a398e3a6a5",
+          "department_id": "f7407cf4-b007-4482-8b67-521e20ef21f2",
+          "last_name": "Noun"
+        },
+        "merchant_category_code_description": null,
+        "memo": "Dinner during travel",
+        "disputes": [],
+        "merchant_category_code": null,
+        "merchant_location": {
+          "country": "US",
+          "postal_code": "71043",
+          "state": "NC",
+          "city": "South Jayview"
+        },
+        "synced_at": null,
+        "merchant_descriptor": "SEA",
+        "currency_code": "USD",
+        "original_transaction_id": null,
+        "updated_at": "2026-11-14T08:38:36+00:00",
+        "card_id": "ce9d353d-569e-4931-a5a9-99764b6bc3c2",
+        "sk_category_id": 19,
+        "trip_id": null,
+        "sync_status": "NOT_SYNC_READY",
+        "line_items": [],
+        "sk_category_name": "Restaurants",
+        "id": "f79d63b0-e9ac-49cb-8853-ade89e003fe0",
+        "minor_unit_conversion_rate": 100,
+        "policy_violations": [],
+        "original_transaction_amount": {
+          "amount": 8881,
+          "currency_code": "USD",
+          "minor_unit_conversion_rate": 100
+        },
+        "spend_program_id": "178b98e3-f45a-4ba9-82f5-e2b3adc3d4df",
+        "statement_id": "a041e596-1ffa-41f1-9253-13f1ba9e8386",
+        "posting_gl_account": null,
+        "accounting_field_selections": [],
+        "amount": 88.81,
+        "settlement_date": "2026-11-14T08:38:36+00:00",
+        "limit_id": "21aaf8c3-9272-474b-8ab9-f29fd7b62db4",
+        "accounting_categories": [],
+        "merchant_id": "8db83b46-b529-4f7d-821e-646133173da3",
+        "trip_name": null
+      },
+      {
+        "entity_amount": {
+          "value": 33602,
+          "currency": "USD"
+        },
+        "all_requirements_met_and_approved": false,
+        "entity_id": "403eb1d0-9789-4fb1-92eb-07d770e0d069",
+        "receipts": [
+          "5cde3526-b2d0-401e-b3d6-8735eaa3698c"
+        ],
+        "card_present": false,
+        "accounting_date": "2026-11-13T08:38:36+00:00",
+        "merchant_amount": {
+          "value": 33602,
+          "currency": "USD"
+        },
+        "state": "CLEARED",
+        "user_transaction_time": "2026-11-12T08:38:36+00:00",
+        "fund_id": "60ebf3ca-21a1-4967-a6eb-b2ba8d751796",
+        "merchant_name": "NONONO",
+        "network_merchant_id": "030951508646730",
+        "card_holder": {
+          "employee_id": null,
+          "location_name": "New York City",
+          "location_id": "f94369e0-3c7c-45c7-b2f2-ea71cdd67e67",
+          "department_name": "Executive",
+          "first_name": "Michael",
+          "user_id": "783bc20c-08ca-4769-a2f3-6454fd17ee77",
+          "department_id": "443d12cc-f995-44ee-b020-39408bc91af9",
+          "last_name": "Scott"
+        },
+        "merchant_category_code_description": null,
+        "memo": "Dinner with executives",
+        "disputes": [],
+        "merchant_category_code": null,
+        "merchant_location": {
+          "country": "US",
+          "postal_code": "51559",
+          "state": "KS",
+          "city": "Lewisside"
+        },
+        "synced_at": null,
+        "merchant_descriptor": "NONONO",
+        "currency_code": "USD",
+        "original_transaction_id": null,
+        "updated_at": "2026-11-13T08:38:36+00:00",
+        "card_id": "f1c0b5ad-05ed-41a0-8079-3a6ab8501bbd",
+        "sk_category_id": 19,
+        "trip_id": null,
+        "sync_status": "NOT_SYNC_READY",
+        "line_items": [],
+        "sk_category_name": "Restaurants",
+        "id": "aa835a3a-0963-468c-a50d-fe747a7a090c",
+        "minor_unit_conversion_rate": 100,
+        "policy_violations": [],
+        "original_transaction_amount": {
+          "amount": 33602,
+          "currency_code": "USD",
+          "minor_unit_conversion_rate": 100
+        },
+        "spend_program_id": "178b98e3-f45a-4ba9-82f5-e2b3adc3d4df",
+        "statement_id": "a041e596-1ffa-41f1-9253-13f1ba9e8386",
+        "posting_gl_account": null,
+        "accounting_field_selections": [],
+        "amount": 336.02,
+        "settlement_date": "2026-11-13T08:38:36+00:00",
+        "limit_id": "60ebf3ca-21a1-4967-a6eb-b2ba8d751796",
+        "accounting_categories": [],
+        "merchant_id": "e8e163ac-af63-4ae7-826d-b2ac5d015903",
+        "trip_name": null
+      }
+    ],
+    "page": {
+      "next": "https://demo-api.ramp.com/developer/v1/transactions",
+      "total_count": 1458,
+      "total_count_capped": false
+    }
+  },
+  "bills": {
+    "data": [
+      {
+        "approval_status": "APPROVED",
+        "invoice_number": "594896",
+        "entity_id": "403eb1d0-9789-4fb1-92eb-07d770e0d069",
+        "enable_accounting_sync": true,
+        "accounting_date": "2026-11-10T00:00:00+00:00",
+        "payment": {
+          "amount": {
+            "amount": 54937,
+            "currency_code": "USD",
+            "minor_unit_conversion_rate": 100
+          },
+          "customer_friendly_payment_id": "MM5HASDM3R",
+          "payment_date": "2026-11-10T00:00:00+00:00",
+          "details": {
+            "approval_status": null,
+            "source_bank_account_id": "b160690a-9151-4577-b6dc-9945a7f060bc",
+            "vendor_account_id": "d8d06876-70ed-4566-ab23-e18e783d42af",
+            "is_same_day": false,
+            "schema_type": "VendorPaymentDetailsSchema"
+          },
+          "id": "d879d8af-b68d-4b93-8533-95bef2fe0db8",
+          "trace_id": null,
+          "payment_method": "ACH",
+          "effective_date": "2026-11-10T00:00:00+00:00"
+        },
+        "is_payment_sync_ready": true,
+        "purchase_order_ids": [],
+        "item_receipt_ids": [],
+        "draft_bill_created_at": null,
+        "purchase_order_id": null,
+        "memo": "My bill memo",
+        "created_at": "2026-11-10T08:46:31+00:00",
+        "bill_owner": {
+          "id": "b6b46725-b181-454a-8094-f0e3e2f33e02",
+          "first_name": "David",
+          "last_name": "Wallace"
+        },
+        "deep_link_url": null,
+        "archived_at": null,
+        "vendor_contact_id": "3c8d11b3-57fc-4eb5-b528-3cfa6197ee8b",
+        "sync_status": "NOT_SYNCED",
+        "vendor_memo": null,
+        "invoice_urls": [
+          "https://demo-shared.ramp.com/invoices/save-time-inc/2026_11_10_33313e58-1b3e-4def-bf2f-cb448308ae07.pdf",
+          "https://demo-shared.ramp.com/bill_pay_raw_email_invoice/business_eba88a9c-8587-4136-a023-64c4e309ca52/20261110_01a1c4a3-53a3-73fe-b42b-8c091f356d96.txt"
+        ],
+        "line_items": [
+          {
+            "accounting_field_selections": [],
+            "posting_gl_account": null,
+            "amount": {
+              "amount": 54937,
+              "currency_code": "USD",
+              "minor_unit_conversion_rate": 100
+            },
+            "item_receipt_line_item_ids": [],
+            "memo": "My line item memo",
+            "purchase_order_line_item_id": null,
+            "id": "01a1c4a3-44ae-7f1c-a69e-c8d25dc2177e"
+          }
+        ],
+        "attachments": [
+          {
+            "id": "6c07b311-9a67-4390-bf01-cd7b9fcb8f26",
+            "attachment_type": "INVOICE",
+            "url": "https://demo-shared.ramp.com/invoices/save-time-inc/2026_11_10_33313e58-1b3e-4def-bf2f-cb448308ae07.pdf"
+          },
+          {
+            "id": "aafcea6a-d877-414f-b0f4-76dfac7c5160",
+            "attachment_type": "EMAIL",
+            "url": "https://demo-shared.ramp.com/bill_pay_raw_email_invoice/business_eba88a9c-8587-4136-a023-64c4e309ca52/20261110_01a1c4a3-53a3-73fe-b42b-8c091f356d96.txt"
+          }
+        ],
+        "issued_at": "2026-11-10T00:00:00+00:00",
+        "id": "1d0d5c73-3180-4a08-9597-daa869831523",
+        "posting_date": "2026-11-10T00:00:00+00:00",
+        "draft_bill_id": null,
+        "fx_conversion_rate": "1.0",
+        "status_summary": "PAYMENT_COMPLETED",
+        "accounting_field_selections": [],
+        "due_at": "2026-12-10T00:00:00+00:00",
+        "amount": {
+          "amount": 54937,
+          "currency_code": "USD",
+          "minor_unit_conversion_rate": 100
+        },
+        "paid_at": "2026-11-10T08:46:49+00:00",
+        "status": "PAID",
+        "vendor": {
+          "name": "Figma",
+          "type": "BUSINESS",
+          "id": "7d071e2a-dd17-4f85-b5d1-8fc4c275dd48"
+        },
+        "inventory_line_items": [],
+        "applied_vendor_credits": [],
+        "remote_id": null
+      },
+      {
+        "approval_status": "APPROVED",
+        "invoice_number": "DD-PAID",
+        "entity_id": "403eb1d0-9789-4fb1-92eb-07d770e0d069",
+        "enable_accounting_sync": true,
+        "accounting_date": "2026-11-03T00:00:00+00:00",
+        "payment": {
+          "amount": {
+            "amount": 48000,
+            "currency_code": "USD",
+            "minor_unit_conversion_rate": 100
+          },
+          "customer_friendly_payment_id": null,
+          "payment_date": "2026-11-10T00:00:00+00:00",
+          "details": {
+            "approval_status": null,
+            "source_bank_account_id": "b160690a-9151-4577-b6dc-9945a7f060bc",
+            "vendor_account_id": null,
+            "is_same_day": false,
+            "schema_type": "VendorPaymentDetailsSchema"
+          },
+          "id": "1e55974b-4d6e-4607-8465-0c7e2ec42b25",
+          "trace_id": null,
+          "payment_method": "DIRECT_DEBIT",
+          "effective_date": null
+        },
+        "is_payment_sync_ready": true,
+        "purchase_order_ids": [],
+        "item_receipt_ids": [],
+        "draft_bill_created_at": null,
+        "purchase_order_id": null,
+        "memo": "Slack Enterprise Grid monthly subscription",
+        "created_at": "2026-11-10T08:45:24+00:00",
+        "bill_owner": {
+          "id": "8d99a2a2-1ab4-4d56-9de6-feeb850086c3",
+          "first_name": "Angela",
+          "last_name": "Martin"
+        },
+        "deep_link_url": null,
+        "archived_at": null,
+        "vendor_contact_id": "9ad6c459-ad6e-452a-89d7-085e18875c14",
+        "sync_status": "NOT_SYNCED",
+        "vendor_memo": null,
+        "invoice_urls": [
+          "https://demo-shared.ramp.com/invoices/save-time-inc/2026_11_10_a7b8a0db-006a-4fbf-a71f-0c978825f8f1.pdf",
+          "https://demo-shared.ramp.com/bill_pay_raw_email_invoice/business_eba88a9c-8587-4136-a023-64c4e309ca52/20261110_01a1c4a2-354c-79b9-9b4f-615546992fa3.txt"
+        ],
+        "line_items": [
+          {
+            "accounting_field_selections": [],
+            "posting_gl_account": null,
+            "amount": {
+              "amount": 48000,
+              "currency_code": "USD",
+              "minor_unit_conversion_rate": 100
+            },
+            "item_receipt_line_item_ids": [],
+            "memo": "Slack Enterprise Grid monthly subscription",
+            "purchase_order_line_item_id": null,
+            "id": "01a1c4a2-2d71-77a2-9ccb-2ae51d20863e"
+          }
+        ],
+        "attachments": [
+          {
+            "id": "c0a27e13-7ab8-4790-b579-80f09df5fa58",
+            "attachment_type": "INVOICE",
+            "url": "https://demo-shared.ramp.com/invoices/save-time-inc/2026_11_10_a7b8a0db-006a-4fbf-a71f-0c978825f8f1.pdf"
+          },
+          {
+            "id": "538a5075-4577-44b9-b2cf-5b03c18cd565",
+            "attachment_type": "EMAIL",
+            "url": "https://demo-shared.ramp.com/bill_pay_raw_email_invoice/business_eba88a9c-8587-4136-a023-64c4e309ca52/20261110_01a1c4a2-354c-79b9-9b4f-615546992fa3.txt"
+          }
+        ],
+        "issued_at": "2026-11-03T00:00:00+00:00",
+        "id": "ee5e9439-671c-53a7-b2b8-fe77bb8b077f",
+        "posting_date": null,
+        "draft_bill_id": null,
+        "fx_conversion_rate": "1.0",
+        "status_summary": "PAYMENT_COMPLETED",
+        "accounting_field_selections": [],
+        "due_at": "2026-11-11T00:00:00+00:00",
+        "amount": {
+          "amount": 48000,
+          "currency_code": "USD",
+          "minor_unit_conversion_rate": 100
+        },
+        "paid_at": "2026-11-09T08:45:36+00:00",
+        "status": "PAID",
+        "vendor": {
+          "name": "Slack",
+          "type": "BUSINESS",
+          "id": "a157cac6-d4eb-450c-96a8-832a10cdaa69"
+        },
+        "inventory_line_items": [],
+        "applied_vendor_credits": [],
+        "remote_id": null
+      },
+      {
+        "approval_status": "APPROVED",
+        "invoice_number": "DD-MANUAL-1",
+        "entity_id": "403eb1d0-9789-4fb1-92eb-07d770e0d069",
+        "enable_accounting_sync": true,
+        "accounting_date": "2026-11-03T00:00:00+00:00",
+        "payment": {
+          "amount": {
+            "amount": 125000,
+            "currency_code": "USD",
+            "minor_unit_conversion_rate": 100
+          },
+          "customer_friendly_payment_id": null,
+          "payment_date": "2026-11-10T00:00:00+00:00",
+          "details": {
+            "approval_status": null,
+            "source_bank_account_id": "b160690a-9151-4577-b6dc-9945a7f060bc",
+            "vendor_account_id": null,
+            "is_same_day": false,
+            "schema_type": "VendorPaymentDetailsSchema"
+          },
+          "id": "0ffc986d-e24f-46a9-9efe-5e6f92cb6e41",
+          "trace_id": null,
+          "payment_method": "DIRECT_DEBIT",
+          "effective_date": null
+        },
+        "is_payment_sync_ready": false,
+        "purchase_order_ids": [],
+        "item_receipt_ids": [],
+        "draft_bill_created_at": null,
+        "purchase_order_id": null,
+        "memo": "Salesforce monthly subscription",
+        "created_at": "2026-11-10T08:45:24+00:00",
+        "bill_owner": {
+          "id": "8d99a2a2-1ab4-4d56-9de6-feeb850086c3",
+          "first_name": "Angela",
+          "last_name": "Martin"
+        },
+        "deep_link_url": null,
+        "archived_at": null,
+        "vendor_contact_id": "f2f6d204-1ffa-4dea-877d-f641a6e16cb3",
+        "sync_status": "NOT_SYNCED",
+        "vendor_memo": null,
+        "invoice_urls": [
+          "https://demo-shared.ramp.com/invoices/save-time-inc/2026_11_10_aecda932-778d-4860-80af-a04fb7d17584.pdf",
+          "https://demo-shared.ramp.com/bill_pay_raw_email_invoice/business_eba88a9c-8587-4136-a023-64c4e309ca52/20261110_01a1c4a2-3e4d-7706-a1cc-8f9f5bace9ee.txt"
+        ],
+        "line_items": [
+          {
+            "accounting_field_selections": [],
+            "posting_gl_account": null,
+            "amount": {
+              "amount": 125000,
+              "currency_code": "USD",
+              "minor_unit_conversion_rate": 100
+            },
+            "item_receipt_line_item_ids": [],
+            "memo": "Salesforce monthly subscription",
+            "purchase_order_line_item_id": null,
+            "id": "01a1c4a2-36de-7aff-bbfa-56d207f7692f"
+          }
+        ],
+        "attachments": [
+          {
+            "id": "44beb8d2-d74c-48e8-beef-a088b153685c",
+            "attachment_type": "INVOICE",
+            "url": "https://demo-shared.ramp.com/invoices/save-time-inc/2026_11_10_aecda932-778d-4860-80af-a04fb7d17584.pdf"
+          },
+          {
+            "id": "e0b19224-2136-407c-a44f-898be676db4b",
+            "attachment_type": "EMAIL",
+            "url": "https://demo-shared.ramp.com/bill_pay_raw_email_invoice/business_eba88a9c-8587-4136-a023-64c4e309ca52/20261110_01a1c4a2-3e4d-7706-a1cc-8f9f5bace9ee.txt"
+          }
+        ],
+        "issued_at": "2026-11-03T00:00:00+00:00",
+        "id": "9ed8408e-e491-55d1-ad1d-997a642935e2",
+        "posting_date": null,
+        "draft_bill_id": null,
+        "fx_conversion_rate": "1.0",
+        "status_summary": "WAITING_FOR_TRANSFER_MATCH",
+        "accounting_field_selections": [],
+        "due_at": "2026-11-11T00:00:00+00:00",
+        "amount": {
+          "amount": 125000,
+          "currency_code": "USD",
+          "minor_unit_conversion_rate": 100
+        },
+        "paid_at": null,
+        "status": "OPEN",
+        "vendor": {
+          "name": "Salesforce",
+          "type": "BUSINESS",
+          "id": "5197097b-c942-4381-8525-2f801634c6c6"
+        },
+        "inventory_line_items": [],
+        "applied_vendor_credits": [],
+        "remote_id": null
+      },
+      {
+        "approval_status": "APPROVED",
+        "invoice_number": "DD-MANUAL-GROUP-1",
+        "entity_id": "403eb1d0-9789-4fb1-92eb-07d770e0d069",
+        "enable_accounting_sync": true,
+        "accounting_date": "2026-11-03T00:00:00+00:00",
+        "payment": {
+          "amount": {
+            "amount": 65000,
+            "currency_code": "USD",
+            "minor_unit_conversion_rate": 100
+          },
+          "customer_friendly_payment_id": null,
+          "payment_date": "2026-11-10T00:00:00+00:00",
+          "details": {
+            "approval_status": null,
+            "source_bank_account_id": "b160690a-9151-4577-b6dc-9945a7f060bc",
+            "vendor_account_id": null,
+            "is_same_day": false,
+            "schema_type": "VendorPaymentDetailsSchema"
+          },
+          "id": "7cb3b355-edab-4cc9-b694-359ac29ba95e",
+          "trace_id": null,
+          "payment_method": "DIRECT_DEBIT",
+          "effective_date": null
+        },
+        "is_payment_sync_ready": false,
+        "purchase_order_ids": [],
+        "item_receipt_ids": [],
+        "draft_bill_created_at": null,
+        "purchase_order_id": null,
+        "memo": "AWS compute usage",
+        "created_at": "2026-11-10T08:45:24+00:00",
+        "bill_owner": {
+          "id": "8d99a2a2-1ab4-4d56-9de6-feeb850086c3",
+          "first_name": "Angela",
+          "last_name": "Martin"
+        },
+        "deep_link_url": null,
+        "archived_at": null,
+        "vendor_contact_id": "425d3e33-8f51-47a9-8099-1edaa39298dd",
+        "sync_status": "NOT_SYNCED",
+        "vendor_memo": null,
+        "invoice_urls": [
+          "https://demo-shared.ramp.com/invoices/save-time-inc/2026_11_10_dc7f9cbf-63e5-4339-b9cd-5163a2fc8ca7.pdf",
+          "https://demo-shared.ramp.com/bill_pay_raw_email_invoice/business_eba88a9c-8587-4136-a023-64c4e309ca52/20261110_01a1c4a2-46ae-7456-8834-442cff4e79ff.txt"
+        ],
+        "line_items": [
+          {
+            "accounting_field_selections": [],
+            "posting_gl_account": null,
+            "amount": {
+              "amount": 65000,
+              "currency_code": "USD",
+              "minor_unit_conversion_rate": 100
+            },
+            "item_receipt_line_item_ids": [],
+            "memo": "AWS compute usage",
+            "purchase_order_line_item_id": null,
+            "id": "01a1c4a2-3fd3-7f95-b437-9f381f893677"
+          }
+        ],
+        "attachments": [
+          {
+            "id": "100be56a-96bd-4dd3-ae95-328b5f7e9c74",
+            "attachment_type": "INVOICE",
+            "url": "https://demo-shared.ramp.com/invoices/save-time-inc/2026_11_10_dc7f9cbf-63e5-4339-b9cd-5163a2fc8ca7.pdf"
+          },
+          {
+            "id": "8dffe334-6216-4e4f-abbf-e6630bfe688e",
+            "attachment_type": "EMAIL",
+            "url": "https://demo-shared.ramp.com/bill_pay_raw_email_invoice/business_eba88a9c-8587-4136-a023-64c4e309ca52/20261110_01a1c4a2-46ae-7456-8834-442cff4e79ff.txt"
+          }
+        ],
+        "issued_at": "2026-11-03T00:00:00+00:00",
+        "id": "db92a635-ee80-5819-a9ff-28a75e48284f",
+        "posting_date": null,
+        "draft_bill_id": null,
+        "fx_conversion_rate": "1.0",
+        "status_summary": "WAITING_FOR_TRANSFER_MATCH",
+        "accounting_field_selections": [],
+        "due_at": "2026-11-11T00:00:00+00:00",
+        "amount": {
+          "amount": 65000,
+          "currency_code": "USD",
+          "minor_unit_conversion_rate": 100
+        },
+        "paid_at": null,
+        "status": "OPEN",
+        "vendor": {
+          "name": "Amazon Web Services",
+          "type": "BUSINESS",
+          "id": "d000cccd-d74e-4781-a806-adc560bc7e8d"
+        },
+        "inventory_line_items": [],
+        "applied_vendor_credits": [],
+        "remote_id": null
+      },
+      {
+        "approval_status": "APPROVED",
+        "invoice_number": "DD-MANUAL-GROUP-2",
+        "entity_id": "403eb1d0-9789-4fb1-92eb-07d770e0d069",
+        "enable_accounting_sync": true,
+        "accounting_date": "2026-11-03T00:00:00+00:00",
+        "payment": {
+          "amount": {
+            "amount": 35000,
+            "currency_code": "USD",
+            "minor_unit_conversion_rate": 100
+          },
+          "customer_friendly_payment_id": null,
+          "payment_date": "2026-11-10T00:00:00+00:00",
+          "details": {
+            "approval_status": null,
+            "source_bank_account_id": "b160690a-9151-4577-b6dc-9945a7f060bc",
+            "vendor_account_id": null,
+            "is_same_day": false,
+            "schema_type": "VendorPaymentDetailsSchema"
+          },
+          "id": "b909be06-6d5f-4314-9d70-42011fd4e4a8",
+          "trace_id": null,
+          "payment_method": "DIRECT_DEBIT",
+          "effective_date": null
+        },
+        "is_payment_sync_ready": false,
+        "purchase_order_ids": [],
+        "item_receipt_ids": [],
+        "draft_bill_created_at": null,
+        "purchase_order_id": null,
+        "memo": "AWS storage usage",
+        "created_at": "2026-11-10T08:45:24+00:00",
+        "bill_owner": {
+          "id": "8d99a2a2-1ab4-4d56-9de6-feeb850086c3",
+          "first_name": "Angela",
+          "last_name": "Martin"
+        },
+        "deep_link_url": null,
+        "archived_at": null,
+        "vendor_contact_id": "425d3e33-8f51-47a9-8099-1edaa39298dd",
+        "sync_status": "NOT_SYNCED",
+        "vendor_memo": null,
+        "invoice_urls": [
+          "https://demo-shared.ramp.com/invoices/save-time-inc/2026_11_10_2beab7ef-609f-4393-8953-7d2b9ae8e7e9.pdf",
+          "https://demo-shared.ramp.com/bill_pay_raw_email_invoice/business_eba88a9c-8587-4136-a023-64c4e309ca52/20261110_01a1c4a2-4f4d-760a-a357-92b06698510e.txt"
+        ],
+        "line_items": [
+          {
+            "accounting_field_selections": [],
+            "posting_gl_account": null,
+            "amount": {
+              "amount": 35000,
+              "currency_code": "USD",
+              "minor_unit_conversion_rate": 100
+            },
+            "item_receipt_line_item_ids": [],
+            "memo": "AWS storage usage",
+            "purchase_order_line_item_id": null,
+            "id": "01a1c4a2-4871-72f4-a3b3-a52944d4f689"
+          }
+        ],
+        "attachments": [
+          {
+            "id": "71ba7fe8-6e84-42aa-9c6f-67e0dd6dc7df",
+            "attachment_type": "INVOICE",
+            "url": "https://demo-shared.ramp.com/invoices/save-time-inc/2026_11_10_2beab7ef-609f-4393-8953-7d2b9ae8e7e9.pdf"
+          },
+          {
+            "id": "46bf9722-3789-4cba-806e-c8b08cc97099",
+            "attachment_type": "EMAIL",
+            "url": "https://demo-shared.ramp.com/bill_pay_raw_email_invoice/business_eba88a9c-8587-4136-a023-64c4e309ca52/20261110_01a1c4a2-4f4d-760a-a357-92b06698510e.txt"
+          }
+        ],
+        "issued_at": "2026-11-03T00:00:00+00:00",
+        "id": "14e64b28-93ce-51e7-8022-3b63ea5ec7a4",
+        "posting_date": null,
+        "draft_bill_id": null,
+        "fx_conversion_rate": "1.0",
+        "status_summary": "WAITING_FOR_TRANSFER_MATCH",
+        "accounting_field_selections": [],
+        "due_at": "2026-11-11T00:00:00+00:00",
+        "amount": {
+          "amount": 35000,
+          "currency_code": "USD",
+          "minor_unit_conversion_rate": 100
+        },
+        "paid_at": null,
+        "status": "OPEN",
+        "vendor": {
+          "name": "Amazon Web Services",
+          "type": "BUSINESS",
+          "id": "d000cccd-d74e-4781-a806-adc560bc7e8d"
+        },
+        "inventory_line_items": [],
+        "applied_vendor_credits": [],
+        "remote_id": null
+      }
+    ],
+    "page": {
+      "next": "https://demo-api.ramp.com/developer/v1/bills"
+    }
+  },
+  "receipts": {
+    "data": [
+      {
+        "receipt_url": "https://demo-shared.ramp.com/.DEMO_RECEIPTS/aria_1.png",
+        "user_id": "f18b696f-f9e8-4c28-b29c-caf3029f3cca",
+        "id": "0e9902fb-9e57-4ddb-9e01-2a0668a10886",
+        "created_at": "2026-11-10T08:41:31+00:00",
+        "transaction_id": "9be11988-8cb9-4291-86cc-619985909346"
+      },
+      {
+        "receipt_url": "https://demo-shared.ramp.com/.DEMO_RECEIPTS/hilton_1.pdf",
+        "user_id": "de3f71ca-10d8-4540-96ac-32a3df9277cc",
+        "id": "f977c5ed-4da6-41e9-83e5-f85354a0dd90",
+        "created_at": "2026-11-10T08:41:31+00:00",
+        "transaction_id": "2bf26a88-298b-4532-a2c7-7c6415b2729e"
+      },
+      {
+        "receipt_url": "https://demo-shared.ramp.com/.DEMO_RECEIPTS/asana_1.pdf",
+        "user_id": "b6b46725-b181-454a-8094-f0e3e2f33e02",
+        "id": "637b3a60-70a7-49db-8f5f-fc9d336b75b0",
+        "created_at": "2026-11-10T08:41:06+00:00",
+        "transaction_id": "cb626c29-fbbc-4463-8b79-832f3a4fc8fd"
+      },
+      {
+        "receipt_url": "https://demo-shared.ramp.com/.DEMO_RECEIPTS/slack_1.pdf",
+        "user_id": "b6b46725-b181-454a-8094-f0e3e2f33e02",
+        "id": "86f68542-e0a8-4da0-86c0-ee4c8ffe84ab",
+        "created_at": "2026-11-10T08:41:06+00:00",
+        "transaction_id": "abbd2061-5924-439b-9375-36dce9783209"
+      },
+      {
+        "receipt_url": "https://demo-shared.ramp.com/.DEMO_RECEIPTS/delta_1.pdf",
+        "user_id": "53b740e2-3cd7-4d42-8be2-ebd922789cfa",
+        "id": "6586a5c5-4668-42a9-8f74-8776da3ab5ca",
+        "created_at": "2026-11-10T08:40:41+00:00",
+        "transaction_id": "81b9cc9b-098d-4a3c-a978-6eaeced93f7b"
+      }
+    ],
+    "page": {
+      "next": "https://demo-api.ramp.com/developer/v1/receipts"
+    }
+  },
+  "receipts_for_transactions": [
+    {
+      "id": "5afddcd1-98c3-494f-88af-d08a9df37048",
+      "transaction_id": "2b7a80d1-475d-4dbb-90dc-88f8d9a982ef",
+      "created_at": "2026-11-10T08:37:40+00:00",
+      "receipt_url": "https://demo-shared.ramp.com/.DEMO_RECEIPTS/navan_1.pdf",
+      "user_id": "b6b46725-b181-454a-8094-f0e3e2f33e02"
+    },
+    {
+      "transaction_id": "8973bd63-fff3-4725-93bd-73f0603cabe9",
+      "user_id": "2c974fbf-a48e-43f1-8beb-d6a398e3a6a5",
+      "id": "871d3267-f2b8-44cf-b85b-b49ce7babaee",
+      "receipt_url": "https://demo-shared.ramp.com/approval_intelligence_demo/lapecorabianca3.jpeg",
+      "created_at": "2026-11-10T08:38:36+00:00"
+    },
+    {
+      "transaction_id": "17c03a6f-3a03-49d3-9543-bf5420be0214",
+      "user_id": "8d99a2a2-1ab4-4d56-9de6-feeb850086c3",
+      "id": "866a554a-e11d-4f4e-b63b-8bbbc7fc1a2c",
+      "receipt_url": "https://demo-shared.ramp.com/approval_intelligence_demo/juicepress.pdf",
+      "created_at": "2026-11-10T08:38:36+00:00"
+    },
+    {
+      "transaction_id": "f79d63b0-e9ac-49cb-8853-ade89e003fe0",
+      "user_id": "2c974fbf-a48e-43f1-8beb-d6a398e3a6a5",
+      "receipt_url": "https://demo-shared.ramp.com/approval_intelligence_demo/sea_approve.jpeg",
+      "id": "500ffab7-e55c-4d36-9832-03afbbae1e94",
+      "created_at": "2026-11-10T08:38:36+00:00"
+    },
+    {
+      "transaction_id": "aa835a3a-0963-468c-a50d-fe747a7a090c",
+      "user_id": "783bc20c-08ca-4769-a2f3-6454fd17ee77",
+      "id": "5cde3526-b2d0-401e-b3d6-8735eaa3698c",
+      "receipt_url": "https://demo-shared.ramp.com/approval_intelligence_demo/nonono.pdf",
+      "created_at": "2026-11-10T08:38:36+00:00"
+    }
+  ],
+  "users": {
+    "data": [
+      {
+        "scheduled_deactivation_date": null,
+        "entity_id": "403eb1d0-9789-4fb1-92eb-07d770e0d069",
+        "scheduled_invitation_date": null,
+        "id": "6198c881-0a59-486f-8a4c-0e2777f200a7",
+        "business_id": "eba88a9c-8587-4136-a023-64c4e309ca52",
+        "first_name": "Marouane",
+        "manager_id": "ffbbb6ed-2746-450d-9be1-3ea555eb92ef",
+        "status": "USER_ACTIVE",
+        "location_id": "33f23666-df76-4199-b6d5-de9a550aed09",
+        "last_name": "Fawzi",
+        "employee_id": null,
+        "phone": "+15005550006",
+        "is_manager": false,
+        "email": "noriaki+guest_0@example.com",
+        "department_id": "cd84a44b-a36e-46eb-aac4-7b1149bfaa22",
+        "custom_fields": [],
+        "role": "GUEST_USER"
+      },
+      {
+        "scheduled_deactivation_date": null,
+        "entity_id": "403eb1d0-9789-4fb1-92eb-07d770e0d069",
+        "scheduled_invitation_date": null,
+        "id": "3676c41f-496c-4736-83fa-ec00661ad834",
+        "business_id": "eba88a9c-8587-4136-a023-64c4e309ca52",
+        "first_name": "Sawyer",
+        "manager_id": "ffbbb6ed-2746-450d-9be1-3ea555eb92ef",
+        "status": "USER_DRAFT",
+        "location_id": "f94369e0-3c7c-45c7-b2f2-ea71cdd67e67",
+        "last_name": "Maloney",
+        "employee_id": null,
+        "phone": "+15005550006",
+        "is_manager": false,
+        "email": "noriaki+cardholder_29@example.com",
+        "department_id": "f7407cf4-b007-4482-8b67-521e20ef21f2",
+        "custom_fields": [],
+        "role": "BUSINESS_USER"
+      },
+      {
+        "scheduled_deactivation_date": null,
+        "entity_id": "403eb1d0-9789-4fb1-92eb-07d770e0d069",
+        "scheduled_invitation_date": null,
+        "id": "c89da8f2-d291-4def-a7b8-d24dd300eb3a",
+        "business_id": "eba88a9c-8587-4136-a023-64c4e309ca52",
+        "first_name": "David",
+        "manager_id": "ca1cec98-7198-461e-abbe-3d45a150ed0f",
+        "status": "USER_DRAFT",
+        "location_id": "f94369e0-3c7c-45c7-b2f2-ea71cdd67e67",
+        "last_name": "Jiang",
+        "employee_id": null,
+        "phone": "+15005550006",
+        "is_manager": false,
+        "email": "noriaki+cardholder_28@example.com",
+        "department_id": "c1c47a4f-ab74-4f16-a574-7963e0d46a1a",
+        "custom_fields": [],
+        "role": "BUSINESS_USER"
+      },
+      {
+        "scheduled_deactivation_date": null,
+        "entity_id": "403eb1d0-9789-4fb1-92eb-07d770e0d069",
+        "scheduled_invitation_date": null,
+        "id": "8a392daa-72ea-4913-8873-aa5934e82fff",
+        "business_id": "eba88a9c-8587-4136-a023-64c4e309ca52",
+        "first_name": "Pam",
+        "manager_id": "37a73512-771d-4807-abe7-c46ff0e72452",
+        "status": "USER_ACTIVE",
+        "location_id": "f94369e0-3c7c-45c7-b2f2-ea71cdd67e67",
+        "last_name": "Beesly",
+        "employee_id": null,
+        "phone": "+15005550006",
+        "is_manager": false,
+        "email": "noriaki+cardholder_27@example.com",
+        "department_id": "a025952c-bb92-420a-872a-04aa8a02b7e4",
+        "custom_fields": [],
+        "role": "BUSINESS_USER"
+      },
+      {
+        "scheduled_deactivation_date": null,
+        "entity_id": "403eb1d0-9789-4fb1-92eb-07d770e0d069",
+        "scheduled_invitation_date": null,
+        "id": "c11a6010-35ac-454f-8ba7-0fe33569560c",
+        "business_id": "eba88a9c-8587-4136-a023-64c4e309ca52",
+        "first_name": "Holly",
+        "manager_id": "2f48cda5-4485-4e03-ab12-c549c37f11d3",
+        "status": "USER_ACTIVE",
+        "location_id": "f94369e0-3c7c-45c7-b2f2-ea71cdd67e67",
+        "last_name": "Flax",
+        "employee_id": null,
+        "phone": "+15005550006",
+        "is_manager": false,
+        "email": "noriaki+cardholder_26@example.com",
+        "department_id": "e6ae4fe6-d351-42bb-8d6a-d494fba1d0e9",
+        "custom_fields": [],
+        "role": "BUSINESS_USER"
+      }
+    ],
+    "page": {
+      "next": "https://demo-api.ramp.com/developer/v1/users"
+    }
+  },
+  "users_suspended": {
+    "page": {
+      "next": null
+    },
+    "data": []
+  },
+  "departments": {
+    "data": [
+      {
+        "id": "cd84a44b-a36e-46eb-aac4-7b1149bfaa22",
+        "name": "Support"
+      },
+      {
+        "id": "7d68f386-3afb-41bf-b440-2705c6abce8c",
+        "name": "Sales"
+      },
+      {
+        "id": "50ef2d3f-9380-411b-b42b-c0713433bdf1",
+        "name": "Product"
+      },
+      {
+        "id": "2e0f11a9-6933-4033-83e2-be47f5417bbf",
+        "name": "Operations"
+      },
+      {
+        "id": "a025952c-bb92-420a-872a-04aa8a02b7e4",
+        "name": "Marketing"
+      }
+    ],
+    "page": {
+      "next": "https://demo-api.ramp.com/developer/v1/departments"
+    }
+  },
+  "approvals_transactions": {
+    "page": {
+      "next": null
+    },
+    "data": [
+      {
+        "status": "PENDING",
+        "entity_id": "aa835a3a-0963-468c-a50d-fe747a7a090c",
+        "entity_type": "transaction",
+        "approval_history": [],
+        "next_approvers": [
+          {
+            "user_email": "noriaki@example.com",
+            "user_id": "b6b46725-b181-454a-8094-f0e3e2f33e02"
+          }
+        ]
+      },
+      {
+        "status": "PENDING",
+        "entity_id": "17c03a6f-3a03-49d3-9543-bf5420be0214",
+        "entity_type": "transaction",
+        "approval_history": [],
+        "next_approvers": [
+          {
+            "user_email": "noriaki@example.com",
+            "user_id": "b6b46725-b181-454a-8094-f0e3e2f33e02"
+          }
+        ]
+      },
+      {
+        "status": "PENDING",
+        "entity_id": "f79d63b0-e9ac-49cb-8853-ade89e003fe0",
+        "entity_type": "transaction",
+        "approval_history": [],
+        "next_approvers": [
+          {
+            "user_email": "noriaki@example.com",
+            "user_id": "b6b46725-b181-454a-8094-f0e3e2f33e02"
+          }
+        ]
+      },
+      {
+        "status": "PENDING",
+        "entity_id": "8973bd63-fff3-4725-93bd-73f0603cabe9",
+        "entity_type": "transaction",
+        "approval_history": [],
+        "next_approvers": [
+          {
+            "user_email": "noriaki@example.com",
+            "user_id": "b6b46725-b181-454a-8094-f0e3e2f33e02"
+          }
+        ]
+      }
+    ]
+  },
+  "approvals_bills": {
+    "data": [
+      {
+        "status": "APPROVED",
+        "entity_id": "ee5e9439-671c-53a7-b2b8-fe77bb8b077f",
+        "entity_type": "bill",
+        "approval_history": [
+          {
+            "action_at": "2026-11-10T08:45:24.625386+00:00",
+            "user_email": "noriaki@example.com",
+            "step_status": "Admin approved",
+            "user_id": "b6b46725-b181-454a-8094-f0e3e2f33e02"
+          }
+        ],
+        "next_approvers": []
+      },
+      {
+        "status": "APPROVED",
+        "entity_id": "9ed8408e-e491-55d1-ad1d-997a642935e2",
+        "entity_type": "bill",
+        "approval_history": [
+          {
+            "action_at": "2026-11-10T08:45:24.625386+00:00",
+            "user_email": "noriaki@example.com",
+            "step_status": "Admin approved",
+            "user_id": "b6b46725-b181-454a-8094-f0e3e2f33e02"
+          }
+        ],
+        "next_approvers": []
+      },
+      {
+        "status": "APPROVED",
+        "entity_id": "db92a635-ee80-5819-a9ff-28a75e48284f",
+        "entity_type": "bill",
+        "approval_history": [
+          {
+            "action_at": "2026-11-10T08:45:24.625386+00:00",
+            "user_email": "noriaki@example.com",
+            "step_status": "Admin approved",
+            "user_id": "b6b46725-b181-454a-8094-f0e3e2f33e02"
+          }
+        ],
+        "next_approvers": []
+      },
+      {
+        "status": "APPROVED",
+        "entity_id": "14e64b28-93ce-51e7-8022-3b63ea5ec7a4",
+        "entity_type": "bill",
+        "approval_history": [
+          {
+            "action_at": "2026-11-10T08:45:24.625386+00:00",
+            "user_email": "noriaki@example.com",
+            "step_status": "Admin approved",
+            "user_id": "b6b46725-b181-454a-8094-f0e3e2f33e02"
+          }
+        ],
+        "next_approvers": []
+      },
+      {
+        "status": "APPROVED",
+        "entity_id": "1d0d5c73-3180-4a08-9597-daa869831523",
+        "entity_type": "bill",
+        "approval_history": [
+          {
+            "action_at": "2026-11-10T08:46:40.233068+00:00",
+            "user_email": "noriaki+admin_0@example.com",
+            "step_status": "Approved",
+            "user_id": "783bc20c-08ca-4769-a2f3-6454fd17ee77"
+          }
+        ],
+        "next_approvers": []
+      }
+    ],
+    "page": {
+      "next": null
+    }
+  },
+  "receipt_single": {
+    "id": "89a22d6c-a4d1-41ce-bec3-7ba52d6f05fc",
+    "user_id": "f18b696f-f9e8-4c28-b29c-caf3029f3cca",
+    "created_at": "2026-11-10T08:37:37+00:00",
+    "transaction_id": "eadd4d4f-c719-4603-829a-322b5230337a",
+    "receipt_url": "https://demo-shared.ramp.com/.DEMO_RECEIPTS/jamba_1.pdf"
+  },
+  "receipt_transaction": {
+    "entity_amount": {
+      "value": 1178,
+      "currency": "USD"
+    },
+    "all_requirements_met_and_approved": false,
+    "entity_id": "403eb1d0-9789-4fb1-92eb-07d770e0d069",
+    "receipts": [
+      "89a22d6c-a4d1-41ce-bec3-7ba52d6f05fc"
+    ],
+    "card_present": false,
+    "accounting_date": "2026-08-25T08:37:37+00:00",
+    "merchant_amount": {
+      "value": 1178,
+      "currency": "USD"
+    },
+    "state": "CLEARED",
+    "user_transaction_time": "2026-08-24T08:37:37+00:00",
+    "fund_id": "a063b040-6494-47a2-9d9f-4e4481dff548",
+    "merchant_name": "Jamba",
+    "network_merchant_id": "399654773665413",
+    "card_holder": {
+      "employee_id": null,
+      "location_name": "New York City",
+      "location_id": "f94369e0-3c7c-45c7-b2f2-ea71cdd67e67",
+      "department_name": "Sales",
+      "first_name": "Sanil",
+      "user_id": "f18b696f-f9e8-4c28-b29c-caf3029f3cca",
+      "department_id": "7d68f386-3afb-41bf-b440-2705c6abce8c",
+      "last_name": "Sawlani"
+    },
+    "merchant_category_code_description": null,
+    "memo": "Meal for Intuit Connect event",
+    "disputes": [],
+    "merchant_category_code": null,
+    "merchant_location": {
+      "country": "US",
+      "postal_code": "96570",
+      "state": "OR",
+      "city": "New Michael"
+    },
+    "synced_at": null,
+    "merchant_descriptor": "Jamba",
+    "currency_code": "USD",
+    "original_transaction_id": null,
+    "updated_at": "2026-11-10T08:37:37+00:00",
+    "card_id": "e26ca0ab-f0e7-47e8-93b7-b22aee97c208",
+    "sk_category_id": 19,
+    "trip_id": null,
+    "sync_status": "NOT_SYNC_READY",
+    "line_items": [],
+    "sk_category_name": "Restaurants",
+    "id": "eadd4d4f-c719-4603-829a-322b5230337a",
+    "minor_unit_conversion_rate": 100,
+    "policy_violations": [],
+    "original_transaction_amount": {
+      "amount": 1178,
+      "currency_code": "USD",
+      "minor_unit_conversion_rate": 100
+    },
+    "receipt_affidavit": null,
+    "spend_program_id": "119b330c-9850-4f42-ac78-ee8f3740f342",
+    "statement_id": "a041e596-1ffa-41f1-9253-13f1ba9e8386",
+    "posting_gl_account": null,
+    "accounting_field_selections": [],
+    "amount": 11.78,
+    "settlement_date": "2026-08-25T08:37:37+00:00",
+    "limit_id": "a063b040-6494-47a2-9d9f-4e4481dff548",
+    "accounting_categories": [],
+    "merchant_id": "241fdb3d-3aed-4e0b-a322-ada0fa1e160d",
+    "trip_name": null
+  }
+}
