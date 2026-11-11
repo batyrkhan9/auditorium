@@ -1,8 +1,9 @@
 """Read a receipt or invoice well enough to tell whether it belongs to a transaction.
 
 Plain code, like service_period.py: it finds the line that names the vendor, the
-line that shows the amount, and the document's own stated total. A model-based
-reader can replace these functions later behind the same return types.
+line that shows the amount, and the document's own stated total. Where these
+cannot tie a receipt to its charge, the receipt check tries the name the books
+use, and then the model reader (reader.py) if one is in use.
 """
 
 from __future__ import annotations
