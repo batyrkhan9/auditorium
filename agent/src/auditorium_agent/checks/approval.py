@@ -203,6 +203,16 @@ def check_approval(txn: SpendTransaction, books: Books, run_id: str) -> CheckRes
     policy = books.policy
     what = "bill" if txn.kind is TransactionKind.VENDOR_BILL else "card charge"
     amount = record_evidence("transaction", txn, "amount_cents", "The amount.")
+    if txn.amount_cents < 0:
+        # Money coming back. Approval rules govern spending.
+        return result(
+            CheckStatus.NOT_APPLICABLE,
+            f"This is a refund of {_money(txn.amount_cents)}, not a purchase, so no approval "
+            "rule applies.",
+            "Approval rules set who must agree before the company spends. A negative amount "
+            "is money returned to the company.",
+            [amount],
+        )
     rules = list(enumerate(policy.approval_rules))
     applicable = [
         (index, rule)
