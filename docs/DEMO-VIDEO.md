@@ -17,7 +17,9 @@ and the answers to expected questions are in [DEMO.md](DEMO.md).
 
 ## Before recording
 
-Run everything first, so nothing on camera waits on a command:
+Run everything first, so nothing on camera waits on a command. The agent will not
+write into a folder that already holds a run: to redo a run, delete its folder
+first (`rm -rf runs/video`).
 
 ```bash
 uv run --env-file .env python -m auditorium_agent preflight data/company --live --claude --out runs/video
@@ -52,9 +54,18 @@ separately and cut it together.
 
 ### 2. Pre-flight: 0:20 to 0:45 (Batyrkhan)
 
-**On screen:** the terminal with the finished pre-flight run, scrolled to
-`800 results … (run folder valid)`. Then the screen's results page, filtered to
-`fail`.
+**On screen:** the screen at http://127.0.0.1:8000/, no terminal.
+
+- 0:20 to 0:28: the top of the page, "800 Results" and "of 800 check results
+  across 200 transactions".
+- 0:28 to 0:35: the per-check rows below it (receipt, approval, ledger_match,
+  period).
+- 0:35 to 0:40: the "Models: claude-opus-5-5" line.
+- 0:40 to 0:45: click "fail 37" and scroll until Ridgeline Strategy Group is in
+  view, which leads into scene 3.
+
+Do not stop on "Follow-up drafts 0": pre-flight never drafts; scene 6 shows the
+drafts.
 
 > "Pre-flight goes through every card charge and vendor bill, 200 transactions
 > here, and runs four checks on each. Is there a receipt? Was it approved by the
@@ -92,8 +103,9 @@ then show the new event on the Log page.
 
 ### 5. Live sources: 1:40 to 1:55 (Noriaki)
 
-**On screen:** the Ramp sandbox Bills list with Copperline's vendors. Then
-`runs/video/run.json` showing `ramp: live` and `qbo: live`.
+**On screen:** the Ramp sandbox Bills list with Copperline's vendors. Then the
+screen's "Sources: live or local" section, showing ramp and qbo as **Live** and
+bank and company as **Local**. Do not dwell on the long Ramp detail text.
 
 > "Bills come live from a Ramp sandbox, and the ledger from QuickBooks. Ramp's
 > API can't create card transactions, so those come from our test company, and
