@@ -180,3 +180,23 @@ def find_accruals(
         if key and any(key in vendor_key(text) for text in texts if text):
             found.append(entry)
     return found
+
+
+def accrued_amount_field(entry: LedgerEntry, amount_cents: int) -> str | None:
+    """Where in a journal entry this amount is booked: a field path, or None if nowhere.
+
+    The entry's total is not enough. A year-end journal entry can accrue several
+    vendors at once, so the amount for one bill sits on one debit line, and a total
+    read from a live system can be missing or zero while the lines are right.
+    """
+    wanted = abs(amount_cents)
+    for index, line in enumerate(entry.lines):
+        if line.side == "debit" and line.amount_cents == wanted:
+            return f"lines.{index}.amount_cents"
+    return "total_cents" if abs(entry.total_cents) == wanted else None
+
+
+def accrual_size(entry: LedgerEntry) -> int:
+    """The amount a journal entry books: its total, or its debit lines when the total is absent."""
+    debits = sum(line.amount_cents for line in entry.lines if line.side == "debit")
+    return abs(entry.total_cents) or debits
