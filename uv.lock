@@ -105,6 +105,7 @@ version = "0.0.0"
 source = { editable = "agent" }
 dependencies = [
     { name = "anthropic" },
+    { name = "auditorium-connectors" },
     { name = "auditorium-contracts" },
 ]
 
@@ -116,6 +117,7 @@ examples = [
 [package.metadata]
 requires-dist = [
     { name = "anthropic", specifier = ">=2.7.0" },
+    { name = "auditorium-connectors", editable = "connectors" },
     { name = "auditorium-contracts", editable = "contracts" },
 ]
 

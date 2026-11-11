@@ -8,28 +8,25 @@ supply.
 
 from __future__ import annotations
 
-from datetime import UTC, date, datetime
+from datetime import date
 from pathlib import Path
 
 from auditorium_contracts import (
-    CONTRACT_VERSION,
     DRAFTS,
-    LOG,
     PACKETS,
     RESULTS,
     RUN_MANIFEST,
     CheckName,
     CheckResult,
+    DatasetManifest,
     DocumentEvidence,
     DocumentType,
     EvidencePacket,
     FollowUpDraft,
     IssueCode,
     LogAction,
-    LogWriter,
     PacketItem,
     RecordEvidence,
-    RunManifest,
     SampleRequest,
     Sources,
     SpendTransaction,
@@ -42,10 +39,11 @@ from auditorium_contracts import (
 from .books import Books
 from .drafts import drafts_for
 from .matching import vendor_key
-from .preflight import CHECKS, _git_commit, _verified
+from .preflight import CHECKS, _verified
 from .reader import Reader
 from .receipt_reader import amounts_on, lines_of
 from .resolve import resolve
+from .runs import open_run, run_manifest
 
 # What a failed check means is missing from the packet, in an auditor's words.
 _MISSING = {
@@ -105,17 +103,22 @@ def run_sample(
     fiscal_year_end: date,
     run_id: str | None = None,
     dataset_id: str | None = None,
+    dataset_path: Path | str | None = None,
+    dataset_manifest: DatasetManifest | None = None,
     reader: Reader | None = None,
 ) -> tuple[list[EvidencePacket], list[FollowUpDraft]]:
     out_dir = Path(out_dir)
-    if out_dir.exists() and any(out_dir.iterdir()):
-        raise FileExistsError(f"{out_dir} is not empty. Each run gets its own folder.")
-    started = datetime.now(UTC)
-    run_id = run_id or f"run_{started:%Y%m%d_%H%M%S}"
-
-    log = LogWriter(out_dir / LOG, run_id)
-    log.append("system", LogAction.RUN_STARTED, detail={"mode": "sample", "sample_id": request.id})
-    books = Books.open(sources, log, fiscal_year_start, fiscal_year_end, reader)
+    log, books, started, run_id = open_run(
+        sources,
+        out_dir,
+        detail={"mode": "sample", "sample_id": request.id},
+        fiscal_year_start=fiscal_year_start,
+        fiscal_year_end=fiscal_year_end,
+        run_id=run_id,
+        dataset_id=dataset_id,
+        reader=reader,
+        dataset_manifest=dataset_manifest,
+    )
 
     results: dict[str, CheckResult] = {}
     drafts: dict[str, FollowUpDraft] = {}
@@ -201,19 +204,15 @@ def run_sample(
     )
     write_json(
         out_dir / RUN_MANIFEST,
-        RunManifest(
+        run_manifest(
+            sources,
+            books,
             run_id=run_id,
             mode="sample",
-            started_at=started,
-            finished_at=datetime.now(UTC),
-            period_start=fiscal_year_start,
-            period_end=fiscal_year_end,
+            started=started,
             dataset_id=dataset_id,
+            dataset_path=dataset_path,
             sample_id=request.id,
-            sources=sources.describe(),
-            models=sorted(books.models_used),
-            git_commit=_git_commit(),
-            contract_version=CONTRACT_VERSION,
         ),
     )
     return packets, list(drafts.values())

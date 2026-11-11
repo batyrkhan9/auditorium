@@ -3,7 +3,8 @@
 python -m auditorium_agent preflight DATASET_DIR [--out RUN_DIR]
 python -m auditorium_agent sample DATASET_DIR --request SAMPLE.json [--out RUN_DIR]
 
-Add --claude to let Claude read the documents plain code cannot settle. It needs
+Add --live to read Ramp and QuickBooks through the connectors where credentials are
+set; the dataset folder then supplies whatever is not live. Add --claude to let Claude read the documents plain code cannot settle. It needs
 credentials in the environment: uv run --env-file .env python -m auditorium_agent ...
 """
 
@@ -34,6 +35,11 @@ def main() -> int:
             "--claude", action="store_true", help="ask Claude where plain code cannot settle it"
         )
         command.add_argument(
+            "--live",
+            action="store_true",
+            help="read Ramp and QuickBooks live where credentials are set, the dataset otherwise",
+        )
+        command.add_argument(
             "--max-claude-calls",
             type=int,
             default=DEFAULT_MAX_CALLS,
@@ -47,8 +53,15 @@ def main() -> int:
         print("Run with: uv run --env-file .env python -m auditorium_agent ...", file=sys.stderr)
         return 2
 
-    sources = LocalSources(args.dataset)
-    manifest = sources.dataset.manifest
+    manifest = LocalSources(args.dataset).dataset.manifest
+    if args.live:
+        from auditorium_connectors import connect_sources
+
+        sources = connect_sources(args.dataset)
+    else:
+        sources = LocalSources(args.dataset)
+    for use in sources.describe():
+        print(f"source {use.system.value}: {use.mode} ({use.detail})")
     run_id = f"run_{datetime.now(UTC):%Y%m%d_%H%M%S}"
     out = Path(args.out) if args.out else Path("runs") / run_id
     common = dict(
@@ -56,6 +69,8 @@ def main() -> int:
         fiscal_year_end=manifest.fiscal_year_end,
         run_id=run_id,
         dataset_id=manifest.dataset_id,
+        dataset_path=args.dataset,
+        dataset_manifest=manifest,
         reader=reader,
     )
     vendors = {txn.id: txn.vendor_name for txn in sources.transactions()}
