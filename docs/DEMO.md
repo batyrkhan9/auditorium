@@ -87,13 +87,17 @@ throws the answer away if the line is not on the page.
 Say this plainly; it is in the README too.
 
 - **QuickBooks:** a real sandbox, loaded with this dataset's ledger, read back
-  live. Add `--live` with credentials set.
+  live.
 - **Ramp:** a real Ramp sandbox, read through the Developer API. The dataset's
-  68 paid bills are loaded there and read back live. The 2 unpaid bills and the
-  130 card transactions come from the dataset, because Ramp's API cannot create
-  card transactions. Every run records which records came from where. (Noriaki
-  to confirm this paragraph and the MCP path; the README status table is the
-  source.)
+  68 paid bills are loaded there and read back live; their requester, approvals
+  and paid date come from the dataset through a stamp on each bill, because Ramp
+  cannot hold them. The 2 unpaid bills and the 130 card transactions come from
+  the dataset, because Ramp's API cannot create card transactions. Every run
+  records which records came from where. Ramp's MCP server also works; it is
+  used only when the Developer API credentials are not set.
+- **To run it live,** with credentials in `.env`:
+  `uv run --env-file .env python -m auditorium_agent preflight data/company --live --out runs/demo-live`.
+  It gives the same results as the run on the dataset folder.
 - **Without credentials,** as in the commands above, everything reads from the
   dataset folder, and `run.json` says `local` for each system.
 
@@ -117,10 +121,11 @@ the same single miss, no false alarms, 17 left for a person.
 
 **How to say it honestly.**
 
-- These numbers are from a local scoring run on 2026-11-11 and are **not yet the
-  published scorecard**. The files in `evals/scorecards/` are for an older agent
-  (35 caught, 6 false alarms, 48 left for a person). Replace this section when
-  the new scorecard is committed.
+- These are the committed scorecards for `main` at 727a793:
+  `evals/scorecards/run_20261111_035553.json` (with the reader) and
+  `run_20261111_035545.json` (without). A third, `run_20261111_035441.json`, is
+  the run without the reader with Ramp and QuickBooks live; it scores the same
+  as the run on the dataset folder.
 - The agent was built without seeing the answers, but it was improved several
   times using the totals from this same dataset. Say so if asked how the score
   was reached. There is no second, untouched dataset.
@@ -142,7 +147,7 @@ to come up:
 | What about false alarms? | Unclear cases are `needs_review`, not `fail`: tips, prepayments, work across the year end. | the receipt, period and refunds decisions in `agent/decisions/` |
 | Could a model answer change the result between runs? | Only the few results it is asked about, and its quotes are verified each time. The cap is 50 requests a run. | Claude reader decision |
 | What does "verified" mean on the screen? | It always says against what: the snapshot or the live sources. | `docs/CONTRACT.md`, "Verifying a run later" |
-| Why are the card transactions not live from Ramp? | Ramp's API can create bills but not card transactions, so only the bills could be loaded. Each run says which records came from where. | README status table |
+| Why are the card transactions not live from Ramp? | Ramp's API can create bills but not card transactions, so only the bills could be loaded. On those bills the requester, approvals and paid date come from the dataset, because Ramp cannot hold them. Each run says which records came from where. | README status table |
 
 ## If something goes wrong on the day
 
