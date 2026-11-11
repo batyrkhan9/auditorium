@@ -151,6 +151,7 @@ same words. Documents need a text layer.
 - The scored dataset's ledger entries carry their lines with `account_type`
   set, using QuickBooks' AccountType names. A bill or an expense has exactly
   one balancing line equal to `total_cents`. An expense has `payment_type`.
+  A journal entry's `total_cents` is the sum of its debit lines.
   The connectors' loader needs all three.
 - A run's data is synthetic if any of its sources says so (`SourceUse.synthetic`).
   `RunManifest.synthetic_data` reads that; nobody sets it by hand.

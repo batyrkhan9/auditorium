@@ -213,6 +213,7 @@
       "$ref": "#/$defs/SourceRef"
     },
     "total_cents": {
+      "description": "For a journal entry, the sum of its debit lines. QuickBooks sends TotalAmt 0 on journal entries, so a source never takes the header for it.",
       "title": "Total Cents",
       "type": "integer"
     },
