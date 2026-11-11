@@ -1,113 +1,391 @@
 {% extends "base.html" %}
-{% from "_macros.html" import status as pill, decision %}
+{% from "_macros.html" import status as pill, decision, glyph, icon %}
 {% block title %}Results · {{ manifest.run_id }}{% endblock %}
+{% block styles %}
+/* ---- overview ----------------------------------------------------------- */
+.overview { display: grid; grid-template-columns: minmax(0, 3.2fr) minmax(0, 5fr) minmax(0, 3.8fr); gap: 14px; align-items: stretch; }
+.hero { padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; }
+.hero .big { font-size: 46px; line-height: 1; font-weight: 600; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.hero .split { display: flex; gap: 8px; flex-wrap: wrap; }
+.hero .split a { text-decoration: none; color: var(--ink); display: inline-flex; gap: 6px; align-items: center; margin-right: 10px; }
+.hero .of { color: var(--muted); font-size: 12.5px; }
+.hero .cta { margin-top: auto; display: inline-flex; gap: 6px; align-items: center; font-weight: 500; text-decoration: none; }
+.hero .cta:hover { text-decoration: underline; }
+.hero.clean .big { color: var(--pass); }
+.dist { padding: 14px 18px; }
+.legend { display: flex; gap: 6px 16px; flex-wrap: wrap; margin-bottom: 12px; }
+.legend a { display: inline-flex; gap: 6px; align-items: center; color: var(--ink-2); text-decoration: none; font-size: 12.5px; }
+.legend a:hover .n { text-decoration: underline; }
+.legend .sw { width: 10px; height: 10px; border-radius: 2px; }
+.legend .n { font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+.sw.pass, .seg-pass { background: var(--pass-line); }
+.sw.fail, .seg-fail { background: var(--fail-solid); }
+.sw.needs_review, .seg-needs_review { background: repeating-linear-gradient(-45deg, var(--review) 0 3px, var(--review-line) 3px 6px); }
+.sw.not_applicable, .seg-not_applicable { background: var(--na-line); }
+.checkbars { display: grid; grid-template-columns: max-content minmax(0, 1fr) max-content; gap: 9px 12px; align-items: center; }
+.checkbars .name { font-size: 12.5px; color: var(--ink-2); text-decoration: none; font-family: var(--mono); }
+.checkbars .name:hover { color: var(--accent); }
+.stack { display: flex; height: 14px; border-radius: 3px; overflow: hidden; background: var(--sunken); gap: 1px; }
+.stack a { display: block; min-width: 3px; transition: filter .12s; }
+.stack a:hover { filter: brightness(1.12) saturate(1.2); }
+.checkbars .tally { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.checkbars .tally b { color: var(--fail); font-weight: 600; }
+.checkbars .tally i { color: var(--review); font-style: normal; font-weight: 600; }
+.review { display: flex; flex-direction: column; }
+.review .block { padding: 12px 16px; border-bottom: 1px solid var(--line); }
+.meter { height: 6px; background: var(--sunken); border-radius: 3px; overflow: hidden; margin-top: 6px; }
+.meter span { display: block; height: 100%; background: var(--accent); }
+.meter.ok span { background: var(--pass); }
+.meter.bad span { background: var(--fail-solid); }
+.statline { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; font-size: 12.5px; }
+.statline b { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+#run-signoff { padding: 12px 16px 14px; }
+#run-signoff h2 { margin: 0 0 8px; font-size: 13.5px; display: flex; gap: 8px; align-items: center; }
+#run-signoff p { margin: 6px 0; font-size: 12.5px; }
+#run-signoff details summary { cursor: pointer; font-weight: 500; font-size: 13px; color: var(--accent); margin: 6px 0; }
+#run-signoff form { margin-top: 8px; }
+
+/* ---- transactions table ------------------------------------------------- */
+.txcard { margin-top: 18px; }
+.toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 12px 16px; border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 3; background: var(--surface); border-radius: var(--radius) var(--radius) 0 0; }
+.toolbar h2 { margin: 0 8px 0 0; font-size: 14px; }
+.searchbox { position: relative; flex: 1 1 240px; max-width: 360px; }
+.searchbox .ico { position: absolute; left: 10px; top: 9px; color: var(--muted); }
+.searchbox input { width: 100%; padding-left: 32px; padding-right: 30px; }
+.searchbox kbd { position: absolute; right: 8px; top: 8px; font: 11px/16px var(--mono); color: var(--muted); border: 1px solid var(--line-2); border-radius: 4px; padding: 0 5px; }
+.toolbar select { min-width: 0; }
+.toolbar .shown { margin-left: auto; font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+.toolbar .shown b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.seg span.s-attn { font-weight: 600; }
+.tablewrap { overflow: visible; }
+table.tx th { position: sticky; top: 59px; z-index: 2; white-space: nowrap; }
+table.tx td { vertical-align: middle; padding-top: 9px; padding-bottom: 9px; }
+table.tx tr[data-tx] { transition: background .1s; }
+table.tx tr[data-tx]:hover { background: var(--raised); }
+table.tx tr.w-fail td:first-child { box-shadow: inset 3px 0 0 var(--fail-solid); }
+table.tx tr.w-needs_review td:first-child { box-shadow: inset 3px 0 0 var(--review); }
+.vendor { font-weight: 500; color: var(--ink); text-decoration: none; }
+.vendor:hover { text-decoration: underline; }
+.txsub { display: flex; gap: 8px; align-items: baseline; font-size: 12px; color: var(--muted); margin-top: 1px; white-space: nowrap; }
+.txsub code { font-size: 11px; color: var(--faint); overflow: hidden; text-overflow: ellipsis; max-width: 200px; display: inline-block; vertical-align: bottom; }
+td.amt { font-size: 13.5px; font-weight: 500; }
+th.c, td.c { text-align: center; padding-left: 4px; padding-right: 4px; width: 62px; }
+a.cell { position: relative; display: inline-grid; place-items: center; width: 30px; height: 26px; border-radius: 6px; text-decoration: none; transition: transform .08s, opacity .12s; }
+a.cell:hover { transform: scale(1.1); }
+a.cell.s-pass { color: var(--pass); }
+a.cell.s-fail { background: var(--fail-solid); color: var(--fail-on); box-shadow: 0 1px 0 rgba(0,0,0,.08); }
+a.cell.s-needs_review { background: var(--review-bg); color: var(--review); box-shadow: inset 0 0 0 1.5px var(--review-line); outline: 1px dashed var(--review); outline-offset: -4px; }
+a.cell.s-not_applicable { color: var(--faint); }
+a.cell.dim { opacity: .18; }
+a.cell.so::after { content: ""; position: absolute; right: -2px; bottom: -2px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px var(--surface); }
+a.cell.so-changed::after { background: var(--fail-solid); }
+a.cell.so-unpinned::after { background: var(--faint); }
+a.cell.drifted { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--fail-solid); }
+.finding { max-width: 520px; }
+.finding a { color: var(--ink); text-decoration: none; }
+.finding a:hover { text-decoration: underline; }
+.finding .chips { display: inline-flex; gap: 4px; flex-wrap: wrap; margin-right: 6px; vertical-align: 1px; }
+.finding .line { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.finding .line[hidden] { display: none; }
+.finding .clean { color: var(--muted); font-size: 12.5px; }
+.finding .more { font-size: 12px; color: var(--muted); white-space: nowrap; }
+td.evc { white-space: nowrap; }
+td.signed { white-space: nowrap; font-size: 12.5px; }
+td.signed .zero { color: var(--faint); }
+tr.empty td { text-align: center; padding: 40px 16px; color: var(--muted); }
+tr.empty strong { display: block; color: var(--ink); font-size: 14px; margin-bottom: 4px; }
+.key { display: flex; gap: 6px 18px; flex-wrap: wrap; padding: 10px 16px; border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); background: var(--raised); border-radius: 0 0 var(--radius) var(--radius); }
+.key span { display: inline-flex; align-items: center; gap: 6px; }
+.key a.cell { width: 22px; height: 20px; pointer-events: none; }
+.key .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+.key .dot.changed { background: var(--fail-solid); }
+
+@media (max-width: 1180px) {
+  .overview { grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); }
+  .review { grid-column: 1 / -1; }
+}
+@media (max-width: 1000px) {
+  .tablewrap { overflow-x: auto; }
+  table.tx { min-width: 940px; }
+  table.tx th { position: static; }
+  .toolbar { position: static; }
+}
+@media (max-width: 720px) {
+  .overview { grid-template-columns: 1fr; }
+  .searchbox { max-width: none; flex-basis: 100%; }
+  .toolbar .shown { margin-left: 0; }
+}
+{% endblock %}
 {% block content %}
-<div class="cards">
-  <div class="card"><div class="n">{{ run.results | length }}</div><div class="l">results</div></div>
-  {% for s in statuses %}
-  <a class="card" href="/?status={{ s }}" style="text-decoration:none;color:inherit"><div class="n">{{ counts.get(s, 0) }}</div><div class="l">{{ pill(s) }}</div></a>
-  {% endfor %}
-  <div class="card"><div class="n">{{ signed }} / {{ run.results | length }}</div><div class="l">signed off</div></div>
-</div>
+{% set total = run.results | length %}
+{% set attn = counts.get("fail", 0) + counts.get("needs_review", 0) %}
+<section class="overview" aria-label="Overview">
+  <div class="card hero{{ ' clean' if not attn }}">
+    <span class="eyebrow">Needs attention</span>
+    <div class="big" data-attention="{{ attn }}">{{ attn }}</div>
+    <div class="split">
+      <a href="/?status=fail" data-set>{{ pill("fail") }} <b class="num">{{ counts.get("fail", 0) }}</b></a>
+      <a href="/?status=needs_review" data-set>{{ pill("needs_review") }} <b class="num">{{ counts.get("needs_review", 0) }}</b></a>
+    </div>
+    <div class="of">of {{ total }} check results across {{ rows | length }} transactions</div>
+    {% if attn %}<a class="cta" href="/?status=attention" data-set>Show only these {{ icon("right", 14) }}</a>{% endif %}
+  </div>
 
-<table aria-label="Counts by check and status" style="width:auto">
-  <thead><tr><th>Check</th>{% for s in statuses %}<th class="num">{{ s | replace("_", " ") }}</th>{% endfor %}</tr></thead>
-  <tbody>
-  {% for name, row in matrix.items() %}
-  <tr><td><a href="/?check={{ name }}">{{ name }}</a></td>{% for s in statuses %}<td class="num">{{ row.get(s, 0) or "" }}</td>{% endfor %}</tr>
-  {% endfor %}
-  </tbody>
-</table>
+  <div class="card dist">
+    <div class="legend" aria-label="Results by status">
+      {% for s in statuses %}
+      <a href="/?status={{ s }}" data-set data-status-total="{{ s }}"><span class="sw {{ s }}"></span>{{ s | replace("_", " ") }} <span class="n">{{ counts.get(s, 0) }}</span></a>
+      {% endfor %}
+    </div>
+    <div class="checkbars" aria-label="Counts by check and status">
+      {% for name, row in matrix.items() %}
+      {% set n = row.values() | sum %}
+      <a class="name" href="/?check={{ name }}" data-set>{{ name }}</a>
+      <div class="stack" role="img" aria-label="{{ name }}: {% for s in statuses %}{{ row.get(s, 0) }} {{ s | replace('_', ' ') }}{{ ', ' if not loop.last }}{% endfor %}">
+        {% for s in ["fail", "needs_review", "pass", "not_applicable"] %}{% if row.get(s, 0) %}<a class="seg-{{ s }}" href="/?check={{ name }}&status={{ s }}" data-set style="flex: {{ row.get(s, 0) }} 1 0" title="{{ name }} · {{ s | replace('_', ' ') }}: {{ row.get(s, 0) }} of {{ n }}"></a>{% endif %}{% endfor %}
+      </div>
+      <span class="tally">{% if row.get("fail") %}<b>{{ row.get("fail") }} fail</b>{% endif %}{% if row.get("fail") and row.get("needs_review") %} · {% endif %}{% if row.get("needs_review") %}<i>{{ row.get("needs_review") }} review</i>{% endif %}{% if not row.get("fail") and not row.get("needs_review") %}{{ row.get("pass", 0) }} pass{% endif %}</span>
+      {% endfor %}
+    </div>
+  </div>
 
-{% if run.scorecard %}
-<h2>Scorecard</h2>
-<p class="small muted">Written by the eval at {{ run.scorecard.scored_at }}. Evidence that did not verify: <strong>{{ run.scorecard.evidence_unverified }}</strong> of {{ run.scorecard.evidence_total }}.</p>
-{% endif %}
+  <div class="card review">
+    <div class="block">
+      <div class="statline"><span class="muted">Results signed off</span><b>{{ signed }} / {{ total }}</b></div>
+      <div class="meter"><span style="width: {{ (100 * signed / total) | round(1) if total else 0 }}%"></span></div>
+    </div>
+    <div class="block">
+      {% if basis.index is not none %}
+      {% set ok = evidence_counts.get("verified", 0) %}
+      <div class="statline"><span class="muted">Evidence items verified against the {{ basis.kind }}</span><b>{{ ok }} / {{ evidence_total }}</b></div>
+      <div class="meter {{ 'bad' if evidence_failed else 'ok' }}"><span style="width: {{ (100 * ok / evidence_total) | round(1) if evidence_total else 0 }}%"></span></div>
+      {% else %}
+      <div class="statline"><span class="muted">Evidence items</span><b>{{ evidence_total }}</b></div>
+      <p class="small muted" style="margin:6px 0 0">{{ "Unchecked: live run." if basis.kind == "live" else "Not checked against any source." }}</p>
+      {% endif %}
+      {% if run.scorecard %}<p class="small muted" style="margin:8px 0 0">Scorecard written by the eval at {{ run.scorecard.scored_at }}. Evidence that did not verify: <strong>{{ run.scorecard.evidence_unverified }}</strong> of {{ run.scorecard.evidence_total }}.</p>{% endif %}
+    </div>
+    <section id="run-signoff" aria-label="Sign-off on the whole run">
+      <h2>{{ icon("pen", 14) }} Sign-off on the whole run</h2>
+      {% if run_signoff %}
+      {% set e = run_signoff.event %}
+      <p data-run-signoff="{{ 'problem' if run_signoff.problems else 'ok' }}">Latest: {{ decision(e.detail.get("decision")) }} by <strong>{{ e.actor_id }}</strong> at <a href="/log#seq-{{ e.seq }}">log line {{ e.seq }}</a>, {{ e.ts.strftime("%Y-%m-%d %H:%M UTC") }}{% if e.detail.get("comment") %}: {{ e.detail.get("comment") }}{% endif %}.</p>
+      {% if run_signoff.problems %}
+      <div class="banner bad" role="alert"><strong>This run sign-off no longer covers the run.</strong>
+        <ul>{% for p in run_signoff.problems %}<li>{{ p }}</li>{% endfor %}</ul>
+      </div>
+      {% else %}
+      <p class="v verified">{{ glyph("pass") }}It pins <code>results.jsonl</code> and <code>run.json</code>, and both are unchanged since.</p>
+      {% endif %}
+      {% else %}
+      <p class="muted">Nobody has signed off on the run yet.</p>
+      {% endif %}
+      {% if error %}<div class="banner bad" role="alert" data-signoff-error>{{ error }}</div>{% endif %}
+      {% if log_damage %}
+      <p class="v failed" data-run-signoff-form="damaged">Run sign-off is disabled because the step log is damaged.</p>
+      {% elif chain %}
+      <p class="v failed" data-run-signoff-form="broken">Run sign-off is disabled because the step log's chain is broken.</p>
+      {% elif in_progress or not finished_logged %}
+      <p class="v unchecked" data-run-signoff-form="in-progress">Run in progress. The run can be signed off once it has finished and its log holds <code>run_finished</code>.</p>
+      {% else %}
+      <details{% if error %} open{% endif %}>
+        <summary>{{ "Sign off again" if run_signoff else "Sign off the run" }}</summary>
+        <form method="post" action="/signoff-run" class="signform" data-run-signoff-form="open">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <input type="hidden" name="results_sha256" value="{{ file_hashes.results_sha256 }}">
+          <input type="hidden" name="run_sha256" value="{{ file_hashes.run_sha256 }}">
+          <div class="row2">
+            <label>Your name <input name="reviewer" required autocomplete="name"></label>
+            <label>Decision
+              <select name="decision" required>
+                <option value="accepted">Accepted</option>
+                <option value="disputed">Disputed</option>
+              </select>
+            </label>
+          </div>
+          <label>Note <input name="note" placeholder="Optional"></label>
+          <div><button type="submit">Sign off the run</button></div>
+        </form>
+        <p class="small muted">Pins <code>results.jsonl</code> and <code>run.json</code> as this page showed them. If either changes before you submit, the sign-off is refused; if either changes afterwards, the screen says so.</p>
+      </details>
+      {% endif %}
+    </section>
+  </div>
+</section>
 
-<h2>Results</h2>
-<form class="filters" method="get" action="/">
-  <label>Status
-    <select name="status" onchange="this.form.submit()">
-      <option value="">All</option>
-      {% for s in statuses %}<option value="{{ s }}" {{ "selected" if s == status }}>{{ s | replace("_", " ") }}</option>{% endfor %}
-    </select>
-  </label>
-  <label>Check
-    <select name="check" onchange="this.form.submit()">
-      <option value="">All</option>
+<section class="card txcard" id="transactions" aria-label="Transactions">
+  <form class="toolbar" id="filters" method="get" action="/" role="search">
+    <h2>Transactions</h2>
+    <div class="searchbox">
+      {{ icon("search", 14) }}
+      <label class="sr" for="q">Search</label>
+      <input id="q" name="q" type="search" value="{{ query }}" placeholder="Vendor, amount, id, issue…" autocomplete="off">
+      <kbd aria-hidden="true">/</kbd>
+    </div>
+    <div class="seg" role="radiogroup" aria-label="Status">
+      {% for value, label in [("", "All"), ("attention", "Needs attention"), ("fail", "Fail"), ("needs_review", "Needs review"), ("pass", "Pass"), ("not_applicable", "N/A")] %}
+      <label><input type="radio" name="status" value="{{ value }}"{{ " checked" if value == status }}><span{% if value == "attention" %} class="s-attn"{% endif %}>{{ label }}</span></label>
+      {% endfor %}
+    </div>
+    <label class="sr" for="check">Check</label>
+    <select id="check" name="check" aria-label="Check">
+      <option value="">Any check</option>
       {% for c in checks %}<option value="{{ c }}" {{ "selected" if c == check }}>{{ c }}</option>{% endfor %}
     </select>
-  </label>
-  <noscript><button type="submit">Filter</button></noscript>
-  {% if status or check %}<a href="/" class="small">Clear filters</a>{% endif %}
-  <span class="small muted">{{ rows | length }} shown</span>
-</form>
-
-<table>
-  <thead><tr><th>Transaction</th><th>Check</th><th>Status</th><th>Issue</th><th>Summary</th><th>Evidence</th><th>Sign-off</th></tr></thead>
-  <tbody>
-  {% for r in rows %}
-  {% set t = transactions.get(r.transaction_id) %}
-  {% set vs = verifications[r.id] %}
-  {% set nfail = vs | selectattr("state", "equalto", "failed") | list | length %}
-  {% set nok = vs | selectattr("state", "equalto", "verified") | list | length %}
-  <tr class="{{ 'group' if loop.index0 and rows[loop.index0 - 1].transaction_id != r.transaction_id }}" data-result="{{ r.id }}"{% if r.id in drift %} data-drift="{{ drift[r.id] }}"{% endif %}>
-    <td>{% if t %}<strong>{{ t.vendor_name }}</strong> <span class="num">{{ t.amount_cents | money }}</span><br><span class="small muted">{{ t.kind.value | replace("_", " ") }} · {{ t.transaction_date }}</span><br>{% endif %}<code class="small">{{ r.transaction_id }}</code></td>
-    <td>{{ r.check.value }}</td>
-    <td>{{ pill(r.status.value) }}{% if r.id in drift %}<br><span class="drift small">log says {{ drift[r.id] | replace("_", " ") }}</span>{% endif %}</td>
-    <td>{% for code in r.issue_codes %}<code>{{ code.value }}</code><br>{% endfor %}</td>
-    <td><a href="/result?id={{ r.id | q }}">{{ r.summary }}</a></td>
-    <td class="small">
-      {% if nfail %}<span class="v failed">{{ nfail }} not verified against {{ basis.kind }}</span>
-      {% elif nok == vs | length %}<span class="v verified">{{ nok }} verified against {{ basis.kind }}</span>
-      {% elif live %}<span class="v live_unchecked">{{ vs | length }} unchecked (live run)</span>
-      {% else %}<span class="v unchecked">{{ vs | length }} not checked</span>{% endif %}
-    </td>
-    {% set st = signoff_state.get(r.id) %}
-    <td class="small"{% if st %} data-signoff-state="{{ st.state }}"{% endif %}>{% if st %}{{ decision(st.event.detail.get("decision")) }}<br>{{ st.event.actor_id }}{% if st.state == "changed" %}<br><span class="drift">changed since</span>{% elif st.state == "unpinned" %}<br><span class="muted">not pinned</span>{% endif %}{% else %}<span class="muted">none</span>{% endif %}</td>
-  </tr>
-  {% else %}
-  <tr><td colspan="7" class="muted">No results match.</td></tr>
-  {% endfor %}
-  </tbody>
-</table>
-
-<h2 id="run-signoff">Sign-off on the whole run</h2>
-{% if run_signoff %}
-{% set e = run_signoff.event %}
-<p data-run-signoff="{{ 'problem' if run_signoff.problems else 'ok' }}">Latest: {{ decision(e.detail.get("decision")) }} by {{ e.actor_id }} at <a href="/log#seq-{{ e.seq }}">log line {{ e.seq }}</a>, {{ e.ts.strftime("%Y-%m-%d %H:%M UTC") }}{% if e.detail.get("comment") %}: {{ e.detail.get("comment") }}{% endif %}.</p>
-{% if run_signoff.problems %}
-<div class="banner bad" role="alert"><strong>This run sign-off no longer covers the run.</strong>
-  <ul style="margin:4px 0 0">{% for p in run_signoff.problems %}<li>{{ p }}</li>{% endfor %}</ul>
-</div>
-{% else %}
-<p class="small v verified">It pins <code>results.jsonl</code> and <code>run.json</code>, and both are unchanged since.</p>
-{% endif %}
-{% else %}
-<p class="muted">Nobody has signed off on the run yet.</p>
-{% endif %}
-{% if error %}<div class="banner bad" role="alert" data-signoff-error>{{ error }}</div>{% endif %}
-{% if log_damage %}
-<p class="v failed" data-run-signoff-form="damaged">Run sign-off is disabled because the step log is damaged.</p>
-{% elif chain %}
-<p class="v failed" data-run-signoff-form="broken">Run sign-off is disabled because the step log's chain is broken.</p>
-{% elif in_progress or not finished_logged %}
-<p class="v unchecked" data-run-signoff-form="in-progress">Run in progress. The run can be signed off once it has finished and its log holds <code>run_finished</code>.</p>
-{% else %}
-<form method="post" action="/signoff-run" class="filters" data-run-signoff-form="open">
-  <input type="hidden" name="csrf" value="{{ csrf }}">
-  <input type="hidden" name="results_sha256" value="{{ file_hashes.results_sha256 }}">
-  <input type="hidden" name="run_sha256" value="{{ file_hashes.run_sha256 }}">
-  <label>Your name <input name="reviewer" required autocomplete="name"></label>
-  <label>Decision
-    <select name="decision" required>
-      <option value="accepted">Accepted</option>
-      <option value="disputed">Disputed</option>
+    <label class="sr" for="sort">Sort</label>
+    <select id="sort" name="sort" aria-label="Sort">
+      {% for key, label in sorts.items() %}<option value="{{ key }}" {{ "selected" if key == sort }}>{{ label }}</option>{% endfor %}
     </select>
-  </label>
-  <label style="flex:1;min-width:240px">Note <input name="note" placeholder="Optional"></label>
-  <button type="submit">Sign off the run</button>
-</form>
-<p class="small muted">Pins <code>results.jsonl</code> and <code>run.json</code> as this page showed them. If either changes before you submit, the sign-off is refused; if either changes afterwards, the screen says so.</p>
-{% endif %}
+    <noscript><button type="submit">Apply</button></noscript>
+    <span class="shown" aria-live="polite"><b id="shown">{{ shown | length }}</b> of {{ rows | length }} transactions</span>
+  </form>
+  <div class="tablewrap">
+  <table class="tx">
+    <thead><tr>
+      <th>Transaction</th><th class="num">Amount</th>
+      {% for c in checks %}<th class="c" title="{{ c }}">{{ {"receipt": "Receipt", "approval": "Approval", "ledger_match": "Ledger", "period": "Period"}.get(c, c) }}</th>{% endfor %}
+      <th>Finding</th><th>Evidence</th><th>Signed</th>
+    </tr></thead>
+    <tbody id="tx-body">
+    {% for row in rows %}
+    {% set t = row.transaction %}
+    {% set exceptions = row.exceptions %}
+    <tr {{ "hidden " if row.transaction_id not in shown }}data-tx="{{ row.transaction_id }}" class="w-{{ row.worst }}" data-rank="{{ severity[row.worst] }}" data-amount="{{ t.amount_cents if t else 0 }}" data-date="{{ t.transaction_date if t else '' }}" data-vendor="{{ (t.vendor_name if t else '~') | lower }}" data-order="{{ row.order }}" data-search="{{ row.search }}">
+      <td>
+        <a class="vendor" href="/result?id={{ row.lead.id | q }}">{{ t.vendor_name if t else row.transaction_id }}</a>
+        <div class="txsub">{% if t %}<span>{{ t.kind.value | replace("_", " ") }} · {{ t.transaction_date }}</span>{% endif %}<code title="{{ row.transaction_id }}">{{ row.transaction_id }}</code></div>
+      </td>
+      <td class="num amt">{{ t.amount_cents | money if t else "" }}</td>
+      {% for c in checks %}
+      {% set r = row.results.get(c) %}
+      <td class="c">{% if r %}{% set st = signoff_state.get(r.id) %}<a class="cell s-{{ r.status.value }}{{ ' dim' if filtering and not matches(r) }}{{ ' so so-' ~ st.state if st }}{{ ' drifted' if r.id in drift }}" data-result="{{ r.id }}"{% if r.id in drift %} data-drift="{{ drift[r.id] }}"{% endif %} data-check="{{ c }}" data-status="{{ r.status.value }}"{% if st %} data-signoff-state="{{ st.state }}"{% endif %} href="/result?id={{ r.id | q }}" title="{{ c }}: {{ r.status.value | replace('_', ' ') }}{% if st %} · signed off ({{ st.event.detail.get('decision') }}{{ ', changed since' if st.state == 'changed' }}){% endif %}{% if r.id in drift %} · log says {{ drift[r.id] | replace('_', ' ') }}{% endif %}">{{ glyph(r.status.value, 13) }}<span class="sr">{{ c }}: {{ r.status.value | replace("_", " ") }}</span></a>{% else %}<span class="muted" aria-label="no result">·</span>{% endif %}</td>
+      {% endfor %}
+      <td class="finding">
+        {% if exceptions %}
+        {% set ns = namespace(pick=exceptions[0]) %}
+        {% if filtering %}{% for x in exceptions | reverse %}{% if matches(x) %}{% set ns.pick = x %}{% endif %}{% endfor %}{% endif %}
+        {% for x in exceptions %}
+        <div class="line" data-check="{{ x.check.value }}" data-status="{{ x.status.value }}"{% if x.id != ns.pick.id %} hidden{% endif %}>{% if x.issue_codes %}<span class="chips">{% for code in x.issue_codes %}<span class="chip {{ 'fail' if x.status.value == 'fail' }}">{{ code.value }}</span>{% endfor %}</span>{% endif %}<a href="/result?id={{ x.id | q }}" title="{{ x.check.value }}: {{ x.summary }}">{{ x.summary }}</a></div>
+        {% endfor %}
+        {% if exceptions | length > 1 %}<span class="more">+{{ exceptions | length - 1 }} more {{ "exception" if exceptions | length == 2 else "exceptions" }}</span>{% endif %}
+        {% else %}
+        {% set npass = row.results.values() | selectattr("status.value", "equalto", "pass") | list | length %}
+        <span class="clean">{{ npass }} pass{% if row.results | length > npass %}, {{ row.results | length - npass }} not applicable{% endif %}</span>
+        {% endif %}
+      </td>
+      <td class="evc small">
+        {% if row.evidence_failed %}<span class="v failed">{{ glyph("fail") }}{{ row.evidence_failed }} not verified against {{ basis.kind }}</span>
+        {% elif row.evidence_verified == row.evidence_total and row.evidence_total %}<span class="v verified" title="{{ row.evidence_verified }} verified against {{ basis.kind }}">{{ glyph("pass") }}{{ row.evidence_verified }}<span class="sr"> verified against {{ basis.kind }}</span></span>
+        {% elif live %}<span class="v live_unchecked">{{ row.evidence_total }} unchecked (live run)</span>
+        {% else %}<span class="v unchecked">{{ row.evidence_total }} not checked</span>{% endif %}
+      </td>
+      <td class="signed">{% if row.signed %}{{ row.signed }} / {{ row.results | length }}{% else %}<span class="zero">0 / {{ row.results | length }}</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+    <tr class="empty" id="tx-empty"{% if shown %} hidden{% endif %}><td colspan="{{ 5 + checks | length }}"><strong>No transactions match.</strong>Try another status or check, or <a href="/">clear the filters</a>.</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="key" aria-label="Key">
+    <span><a class="cell s-fail">{{ glyph("fail", 11) }}</a>fail</span>
+    <span><a class="cell s-needs_review">{{ glyph("needs_review", 11) }}</a>needs review</span>
+    <span><a class="cell s-pass">{{ glyph("pass", 11) }}</a>pass</span>
+    <span><a class="cell s-not_applicable">{{ glyph("not_applicable", 11) }}</a>not applicable</span>
+    <span><i class="dot"></i>signed off</span>
+    <span><i class="dot changed"></i>changed since sign-off</span>
+    <span>Click a cell for the result and its evidence. Press <kbd>/</kbd> to search.</span>
+  </div>
+</section>
+{% endblock %}
+{% block scripts %}
+<script>
+(() => {
+  const form = document.getElementById("filters");
+  const body = document.getElementById("tx-body");
+  if (!form || !body) return;
+  const rows = Array.from(body.querySelectorAll("tr[data-tx]"));
+  const empty = document.getElementById("tx-empty");
+  const shown = document.getElementById("shown");
+  const num = (row, key) => Number(row.dataset[key]) || 0;
+  const order = (a, b) => num(a, "order") - num(b, "order");
+  const sorts = {
+    attention: (a, b) => num(a, "rank") - num(b, "rank") || num(b, "amount") - num(a, "amount") || order(a, b),
+    amount: (a, b) => num(b, "amount") - num(a, "amount") || order(a, b),
+    date: (a, b) => b.dataset.date.localeCompare(a.dataset.date) || order(a, b),
+    vendor: (a, b) => a.dataset.vendor.localeCompare(b.dataset.vendor) || order(a, b),
+    order,
+  };
+  const read = () => {
+    const f = new FormData(form);
+    return {
+      q: String(f.get("q") || "").trim(),
+      status: String(f.get("status") || ""),
+      check: String(f.get("check") || ""),
+      sort: String(f.get("sort") || "attention"),
+    };
+  };
+  const cellMatches = (cell, s) => {
+    if (s.check && cell.dataset.check !== s.check) return false;
+    if (s.status === "attention") return cell.dataset.status === "fail" || cell.dataset.status === "needs_review";
+    return !s.status || cell.dataset.status === s.status;
+  };
+  const apply = () => {
+    const s = read();
+    const q = s.q.toLowerCase();
+    const filtering = Boolean(s.status || s.check);
+    let count = 0;
+    const fragment = document.createDocumentFragment();
+    for (const row of rows.slice().sort(sorts[s.sort] || sorts.attention)) {
+      let any = false;
+      for (const cell of row.querySelectorAll("a.cell")) {
+        const hit = cellMatches(cell, s);
+        any = any || hit;
+        cell.classList.toggle("dim", filtering && !hit);
+      }
+      // The finding shown is the first exception the filter asks for, else the worst one.
+      const lines = Array.from(row.querySelectorAll(".finding .line"));
+      const pick = (filtering && lines.find((line) => cellMatches(line, s))) || lines[0];
+      for (const line of lines) line.hidden = line !== pick;
+      const visible = any && (!q || row.dataset.search.includes(q));
+      row.hidden = !visible;
+      if (visible) count++;
+      fragment.appendChild(row);
+    }
+    body.insertBefore(fragment, empty);
+    empty.hidden = count > 0;
+    shown.textContent = count;
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(s)) {
+      if (value && !(key === "sort" && value === "attention")) params.set(key, value);
+    }
+    const query = params.toString();
+    history.replaceState(null, "", query ? "?" + query : location.pathname);
+  };
+  let timer;
+  form.addEventListener("input", (event) => {
+    clearTimeout(timer);
+    timer = setTimeout(apply, event.target.name === "q" ? 90 : 0);
+  });
+  form.addEventListener("submit", (event) => { event.preventDefault(); apply(); });
+  // Overview links filter in place instead of reloading 800 results.
+  for (const link of document.querySelectorAll("a[data-set]")) {
+    link.addEventListener("click", (event) => {
+      if (event.metaKey || event.ctrlKey || event.shiftKey) return;
+      event.preventDefault();
+      const params = new URL(link.href).searchParams;
+      const status = params.get("status") || "";
+      for (const radio of form.elements.status) radio.checked = radio.value === status;
+      form.elements.check.value = params.get("check") || "";
+      form.elements.q.value = "";
+      apply();
+      document.getElementById("transactions").scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+  document.addEventListener("keydown", (event) => {
+    const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName);
+    if (event.key === "/" && !typing) { event.preventDefault(); form.elements.q.focus(); }
+    if (event.key === "Escape" && document.activeElement === form.elements.q) { form.elements.q.value = ""; apply(); }
+  });
+})();
+</script>
 {% endblock %}

@@ -1,6 +1,7 @@
 import json
 import re
 from pathlib import Path
+from urllib.parse import quote, unquote
 
 import auditorium_contracts as c
 import pytest
@@ -106,21 +107,68 @@ def test_results_page_shows_counts_and_labels(client):
     assert 'data-synthetic="ramp qbo bank company"' in page.text
     assert page.text.count("data-synthetic-source") == 4
     assert PREFLIGHT_RUN_ID in page.text
+    # One row per transaction, one cell per check: 5 transactions, 20 results.
+    assert visible_rows(page.text) == 5
     assert page.text.count("data-result=") == 20
     assert "Northwind Advisory LLC" in page.text and "$12,000.00" in page.text
     assert 'data-evidence="snapshot"' in page.text
     assert "verified against snapshot" in page.text
     assert "not verified" not in page.text.lower()
-    assert re.findall(
-        r'data-result="([^"]+)"[^>]*>(?:(?!</tr>).)*data-signoff-state="(\w+)"', page.text, re.S
-    ) == [(SIGNED, "pinned")]
+    assert re.findall(r'data-result="([^"]+)"[^>]*data-signoff-state="(\w+)"', page.text) == [
+        (SIGNED, "pinned")
+    ]
+
+
+def visible_rows(page: str) -> int:
+    """Rows the filter keeps. Every row is rendered; the others carry `hidden` first."""
+    return page.count("<tr data-tx=")
+
+
+def lit_cells(page: str) -> list[str]:
+    """Result cells in visible rows that the filter does not dim."""
+    rows = re.findall(r"<tr data-tx=.*?</tr>", page, re.S)
+    return [
+        cell
+        for row in rows
+        for cell in re.findall(
+            r'<a class="cell s-\w+(?: so[ \w-]*)?(?: drifted)?" data-result="([^"]+)"', row
+        )
+    ]
 
 
 def test_filters(client):
-    page = client.get("/", params={"status": "fail"})
-    assert page.text.count("data-result=") == 3
-    page = client.get("/", params={"status": "fail", "check": "period"})
-    assert re.findall(r'data-result="([^"]+)"', page.text) == [PITCH]
+    page = client.get("/", params={"status": "fail"}).text
+    assert visible_rows(page) == 3
+    assert page.count("data-result=") == 20  # hidden rows stay, for filtering in place
+    assert len(lit_cells(page)) == 3
+    page = client.get("/", params={"status": "fail", "check": "period"}).text
+    assert lit_cells(page) == [PITCH]
+    page = client.get("/", params={"status": "attention"}).text
+    assert visible_rows(page) == len(
+        {
+            r.split("#")[0]
+            for r in re.findall(
+                r'data-result="([^"]+)" [^>]*data-status="(?:fail|needs_review)"', page
+            )
+        }
+    )
+    assert visible_rows(client.get("/", params={"q": "northwind"}).text) == 1
+    empty = client.get("/", params={"q": "no such vendor"}).text
+    assert visible_rows(empty) == 0 and 'id="tx-empty">' in empty
+
+
+def test_rows_sort_with_exceptions_first(client):
+    page = client.get("/").text
+    worst = re.findall(r'<tr data-tx="[^"]+" class="w-(\w+)"', page)
+    order = {"fail": 0, "needs_review": 1, "pass": 2, "not_applicable": 3}
+    assert worst == sorted(worst, key=order.get) and worst[0] == "fail"
+    by_amount = client.get("/", params={"sort": "amount"}).text
+    amounts = [
+        int(a) for a in re.findall(r'<tr data-tx="[^"]+" [^>]*data-amount="(\d+)"', by_amount)
+    ]
+    assert amounts == sorted(amounts, reverse=True)
+    # An unknown filter value is ignored rather than hiding everything.
+    assert visible_rows(client.get("/", params={"status": "bogus", "check": "x"}).text) == 5
 
 
 def test_pitch_example_is_verified_against_the_snapshot(client):
@@ -624,6 +672,34 @@ def test_document_view_and_file_come_from_the_snapshot(client, demo):
 
 def test_unknown_result_is_404(client):
     assert client.get("/result", params={"id": "nope"}).status_code == 404
+
+
+def test_result_page_steps_through_exceptions_and_lists_sibling_checks(client):
+    listing = client.get("/").text
+    # Rows come exceptions first; within a row, cells are in check order.
+    cells = re.findall(r'data-result="([^"]+)"[^>]*data-status="(\w+)"', listing)
+    queue = [rid for rid, status in cells if status in ("fail", "needs_review")]
+    assert PITCH in queue
+    first = client.get("/result", params={"id": queue[0]}).text
+    assert f"Exception 1 of {len(queue)}" in first and 'rel="prev"' not in first
+    page = client.get("/result", params={"id": PITCH}).text
+    position = queue.index(PITCH)
+    assert f"Exception {position + 1} of {len(queue)}" in page
+    if position + 1 < len(queue):
+        assert f'href="/result?id={quote(queue[position + 1], safe="")}" rel="next"' in page
+    # The checks on the same transaction, this one marked as the current page.
+    siblings = re.findall(r'<a href="/result\?id=([^"]+)"( aria-current="page")?>', page)
+    assert len(siblings) == 4
+    assert [unquote(s) for s, current in siblings if current] == [PITCH]
+    # A clean result is not in the queue; it offers the first exception instead.
+    clean = next(rid for rid, status in cells if status == "pass")
+    assert "First exception" in client.get("/result", params={"id": clean}).text
+
+
+def test_pages_are_gzipped_for_large_runs(client):
+    response = client.get("/", headers={"Accept-Encoding": "gzip"})
+    assert response.headers.get("content-encoding") == "gzip"
+    assert response.headers["x-frame-options"] == "DENY"
 
 
 # -- the scored dataset on main ------------------------------------------------

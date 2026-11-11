@@ -29,6 +29,7 @@ from jinja2 import Environment, PackageLoader, select_autoescape
 from starlette.applications import Starlette
 from starlette.datastructures import MutableHeaders
 from starlette.middleware import Middleware
+from starlette.middleware.gzip import GZipMiddleware
 from starlette.requests import Request
 from starlette.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 from starlette.routing import Route
@@ -74,6 +75,117 @@ class SignoffState:
 class RunSignoff:
     event: c.LogEvent
     problems: list[str] = field(default_factory=list)
+
+
+ATTENTION = "attention"  # a status filter: fail or needs_review
+# Lower sorts first. Fail and needs_review are the work; a clean row sorts last.
+SEVERITY = {"fail": 0, "needs_review": 1, "pass": 2, "not_applicable": 3}
+SORTS = {
+    "attention": "Needs attention first",
+    "amount": "Amount, largest first",
+    "date": "Date, newest first",
+    "vendor": "Vendor, A to Z",
+    "order": "Order in the run",
+}
+
+
+@dataclass
+class TxRow:
+    """One transaction on the results page: its four checks side by side.
+
+    Built only from the run's results and, when the basis has them, the source
+    transaction records. Nothing here is inferred: a missing record shows its id only.
+    """
+
+    transaction_id: str
+    order: int
+    transaction: c.SpendTransaction | None
+    results: dict[str, c.CheckResult]  # check name -> result
+    worst: str  # the most severe status among the checks
+    lead: c.CheckResult  # the most severe result; the vendor links to it
+    exceptions: list[c.CheckResult] = field(default_factory=list)  # fail, then needs_review
+    evidence_total: int = 0
+    evidence_verified: int = 0
+    evidence_failed: int = 0
+    signed: int = 0
+    search: str = ""
+
+    def matches(self, status: str, check: str) -> bool:
+        return any(_result_matches(r, status, check) for r in self.results.values())
+
+
+def _result_matches(result: c.CheckResult, status: str, check: str) -> bool:
+    if check and result.check.value != check:
+        return False
+    if status == ATTENTION:
+        return result.status.value in ("fail", "needs_review")
+    return not status or result.status.value == status
+
+
+def _transaction_rows(ctx: dict) -> list[TxRow]:
+    grouped: dict[str, dict[str, c.CheckResult]] = {}
+    for result in ctx["run"].results:
+        grouped.setdefault(result.transaction_id, {})[result.check.value] = result
+    rows = []
+    for order, (tx_id, by_check) in enumerate(grouped.items()):
+        ordered = sorted(
+            by_check.values(), key=lambda r: (SEVERITY[r.status.value], CHECKS.index(r.check.value))
+        )
+        lead = ordered[0]
+        states = [v.state for r in by_check.values() for v in ctx["verifications"][r.id]]
+        tx = ctx["transactions"].get(tx_id)
+        words = [
+            tx_id,
+            *(f"{r.summary} {' '.join(i.value for i in r.issue_codes)}" for r in by_check.values()),
+        ]
+        if tx is not None:
+            words += [
+                tx.vendor_name,
+                _money(tx.amount_cents),
+                str(tx.amount_cents / 100),
+                str(tx.transaction_date),
+                tx.invoice_number or "",
+                tx.kind.value,
+            ]
+        rows.append(
+            TxRow(
+                transaction_id=tx_id,
+                order=order,
+                transaction=tx,
+                results=by_check,
+                worst=lead.status.value,
+                lead=lead,
+                exceptions=[r for r in ordered if r.status.value in ("fail", "needs_review")],
+                evidence_total=len(states),
+                evidence_verified=states.count("verified"),
+                evidence_failed=states.count("failed"),
+                signed=sum(r.id in ctx["signoff_state"] for r in by_check.values()),
+                search=" ".join(words).lower(),
+            )
+        )
+    return rows
+
+
+def _sorted(rows: list[TxRow], sort: str) -> list[TxRow]:
+    def amount(row: TxRow) -> int:
+        return row.transaction.amount_cents if row.transaction else 0
+
+    if sort == "amount":
+        return sorted(rows, key=lambda r: (-amount(r), r.order))
+    if sort == "date":
+        return sorted(
+            rows,
+            key=lambda r: r.transaction.transaction_date.isoformat() if r.transaction else "",
+            reverse=True,
+        )
+    if sort == "vendor":
+        return sorted(
+            rows,
+            key=lambda r: ((r.transaction.vendor_name.lower() if r.transaction else "~"), r.order),
+        )
+    if sort == "order":
+        return sorted(rows, key=lambda r: r.order)
+    return sorted(rows, key=lambda r: (SEVERITY[r.worst], -amount(r), r.order))
 
 
 def is_demo(manifest: c.RunManifest) -> bool:
@@ -515,25 +627,47 @@ class Viewer:
         ctx = self.context()
         status = request.query_params.get("status") or ""
         check = request.query_params.get("check") or ""
-        rows = [
-            r
-            for r in ctx["run"].results
-            if (not status or r.status.value == status) and (not check or r.check.value == check)
-        ]
-        counts = Counter(r.status.value for r in ctx["run"].results)
+        query = (request.query_params.get("q") or "").strip()
+        sort = request.query_params.get("sort") or "attention"
+        if status not in STATUSES and status != ATTENTION:
+            status = ""
+        if check not in CHECKS:
+            check = ""
+        if sort not in SORTS:
+            sort = "attention"
+        # Every row is rendered; the ones the filter leaves out are hidden, so the page
+        # can refilter in place without asking the server again.
+        all_rows = _sorted(_transaction_rows(ctx), sort)
+        shown = {
+            row.transaction_id
+            for row in all_rows
+            if row.matches(status, check) and (not query or query.lower() in row.search)
+        }
+        results = ctx["run"].results
+        counts = Counter(r.status.value for r in results)
         matrix = {
-            name: Counter(r.status.value for r in ctx["run"].results if r.check.value == name)
+            name: Counter(r.status.value for r in results if r.check.value == name)
             for name in CHECKS
         }
+        evidence = Counter(v.state for vs in ctx["verifications"].values() for v in vs)
         return self.render(
             "results.html",
             page="results",
-            rows=rows,
+            rows=all_rows,
+            shown=shown,
+            filtering=bool(status or check),
+            matches=lambda result: _result_matches(result, status, check),
+            severity=SEVERITY,
             counts=counts,
             matrix=matrix,
+            evidence_counts=evidence,
+            evidence_total=sum(evidence.values()),
             signed=len(ctx["signoff_state"]),
             status=status,
             check=check,
+            query=query,
+            sort=sort,
+            sorts=SORTS,
             checks=CHECKS,
             statuses=STATUSES,
             error=request.query_params.get("error"),
@@ -552,10 +686,32 @@ class Viewer:
             if result.id in e.subject_ids or result.transaction_id in e.subject_ids
         ]
         drafts = [d for d in ctx["run"].drafts if result.id in d.result_ids]
+        siblings = sorted(
+            (r for r in ctx["run"].results if r.transaction_id == result.transaction_id),
+            key=lambda r: CHECKS.index(r.check.value),
+        )
+        # Step through the exceptions (fail, needs_review) in the order of the results page.
+        queue = [
+            r.id
+            for row in _sorted(_transaction_rows(ctx), "attention")
+            for r in sorted(row.results.values(), key=lambda r: CHECKS.index(r.check.value))
+            if r.status.value in ("fail", "needs_review")
+        ]
+        position = queue.index(result.id) if result.id in queue else None
+        if position is None:
+            prev_id, next_id = None, (queue[0] if queue else None)
+        else:
+            prev_id = queue[position - 1] if position > 0 else None
+            next_id = queue[position + 1] if position + 1 < len(queue) else None
         return self.render(
             "result.html",
             page="results",
             result=result,
+            siblings=siblings,
+            queue_size=len(queue),
+            queue_position=position,
+            prev_id=prev_id,
+            next_id=next_id,
             # Taken now, from the result this page shows: the sign-off pins exactly this.
             shown_hash=c.result_hash(result),
             evidence=list(zip(result.evidence, ctx["verifications"][result.id], strict=True)),
@@ -594,6 +750,7 @@ class Viewer:
         return self.render(
             "log.html",
             page="log",
+            actions=Counter(e.action.value for e in ctx["run"].log),
             validation=validation,
             validated_against=validated_against,
             **ctx,
@@ -760,7 +917,7 @@ class Viewer:
 
     def app(self) -> Starlette:
         return Starlette(
-            middleware=[Middleware(SecurityHeaders)],
+            middleware=[Middleware(SecurityHeaders), Middleware(GZipMiddleware, minimum_size=2048)],
             routes=[
                 Route("/", self.results),
                 Route("/result", self.result),
