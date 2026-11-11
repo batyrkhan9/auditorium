@@ -51,6 +51,13 @@ wheels = [
 name = "auditorium"
 version = "0.0.0"
 source = { virtual = "." }
+dependencies = [
+    { name = "auditorium-agent" },
+    { name = "auditorium-connectors" },
+    { name = "auditorium-contracts" },
+    { name = "auditorium-evals" },
+    { name = "auditorium-ui" },
+]
 
 [package.dev-dependencies]
 dev = [
@@ -59,6 +66,13 @@ dev = [
 ]
 
 [package.metadata]
+requires-dist = [
+    { name = "auditorium-agent", editable = "agent" },
+    { name = "auditorium-connectors", editable = "connectors" },
+    { name = "auditorium-contracts", editable = "contracts" },
+    { name = "auditorium-evals", editable = "evals" },
+    { name = "auditorium-ui", editable = "ui" },
+]
 
 [package.metadata.requires-dev]
 dev = [
