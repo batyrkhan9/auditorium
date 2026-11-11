@@ -60,6 +60,9 @@ missing.
 
 ## Tools
 
+This is the list from our pitch. Where the build uses something else, the README
+says what and why, under "What we pitched and what we built".
+
 - Claude Sonnet 5.5 and Opus 5.5 through the Claude Agent SDK
 - Ramp's MCP server (the public demo server for the build)
 - A QuickBooks Online sandbox through Intuit's MCP server
