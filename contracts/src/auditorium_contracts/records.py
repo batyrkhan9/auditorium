@@ -206,7 +206,10 @@ class LedgerEntry(Record):
         description="How an expense was paid, in QuickBooks' own words: 'Cash', 'Check' or "
         "'CreditCard'. QuickBooks requires it on every expense, so the dataset sets it.",
     )
-    total_cents: int
+    total_cents: int = Field(
+        description="For a journal entry, the sum of its debit lines. QuickBooks sends "
+        "TotalAmt 0 on journal entries, so a source never takes the header for it."
+    )
     lines: list[LedgerLine] = Field(default_factory=list)
     raw: dict[str, Any] | None = None
 
