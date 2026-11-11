@@ -1,0 +1,60 @@
+{
+  "id": "sample-2026-03-followups",
+  "auditor": "Whitlock & Draper LLP",
+  "received_on": "2026-03-02",
+  "items": [
+    {
+      "line": 1,
+      "description": "Card expense, Software & Subscriptions",
+      "transaction_date": "2025-02-01",
+      "vendor_name": "Signalhop",
+      "amount_cents": 31250
+    },
+    {
+      "line": 2,
+      "description": "Card expense, Software & Subscriptions",
+      "transaction_date": "2025-04-03",
+      "vendor_name": "Mapleleaf CI",
+      "amount_cents": 36721
+    },
+    {
+      "line": 3,
+      "description": "Vendor bill, Payroll Service Fees",
+      "transaction_date": "2025-05-15",
+      "vendor_name": "Peoplewell HR",
+      "amount_cents": 87000,
+      "reference": "PW-70713"
+    },
+    {
+      "line": 4,
+      "description": "Vendor bill, Cloud Hosting",
+      "transaction_date": "2025-06-03",
+      "vendor_name": "Stratus Peak Cloud, Inc.",
+      "amount_cents": 1130704,
+      "reference": "SPC-26437"
+    },
+    {
+      "line": 5,
+      "description": "Vendor bill, Legal & Professional Fees",
+      "transaction_date": "2025-10-07",
+      "vendor_name": "Northstar Benchmarking LLC",
+      "amount_cents": 540000,
+      "reference": "NB-26081"
+    },
+    {
+      "line": 6,
+      "description": "Card expense, Software & Subscriptions",
+      "transaction_date": "2025-11-01",
+      "vendor_name": "Kanbanly",
+      "amount_cents": 9600
+    },
+    {
+      "line": 7,
+      "description": "Vendor bill, Advertising & Marketing",
+      "transaction_date": "2025-11-18",
+      "vendor_name": "Wren & Tolliver Design",
+      "amount_cents": 285000,
+      "reference": "WT81192"
+    }
+  ]
+}
