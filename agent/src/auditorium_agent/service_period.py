@@ -1,9 +1,10 @@
 """Find when the work was done, from the words on an invoice.
 
-This is the plain-code version: it looks for a labelled line and reads the dates
-on it. It is deliberately strict. When it finds nothing it says so, and the
-period check falls back to `needs_review` rather than guessing. A model-based
-reader replaces `find_service_period` later, behind the same return type.
+Plain code: it looks for a labelled line and reads the dates on it, following
+the range onto the next line when a PDF has wrapped it. It is deliberately
+strict. When it finds nothing it says so. The period check then asks the model
+reader (reader.py) if one is in use, and otherwise leaves the result as
+`needs_review` rather than guessing.
 """
 
 from __future__ import annotations

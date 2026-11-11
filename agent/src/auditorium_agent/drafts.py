@@ -1,8 +1,9 @@
 """Draft the messages that ask coworkers for what is missing. Drafts only: nothing is sent.
 
 A draft is written only for something a coworker can actually supply: a
-receipt, the right invoice, or proof of an approval. Plain templates for now;
-a model can tune the wording later without changing what is asked.
+receipt, the right invoice, or proof of an approval. The wording is a plain
+template on purpose: what is asked, of whom and through which channel is policy,
+and should not vary from run to run.
 """
 
 from __future__ import annotations
