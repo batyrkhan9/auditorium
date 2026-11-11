@@ -69,7 +69,7 @@ Show the summary, then the invoice evidence: the PDF with
 "Service period: December 1 - December 19, 2025" highlighted.
 
 > **Batyrkhan:** "This is the example from our pitch. A twelve-thousand-dollar
-> consulting bill. The invoice says the work was done in December. The books
+> consulting bill. The invoice says the work was done in December (click open the "Original file"). The books
 > record it in January, and nobody accrued it in December. So it's in the wrong
 > year, and the agent flags it, with the invoice line quoted."
 
