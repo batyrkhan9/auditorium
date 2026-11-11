@@ -24,6 +24,22 @@ Honest and current. Update it as things land.
 | Eval | Harness on main; it scores a run against the sealed answer key and writes aggregate scorecards to `evals/scorecards/`. Latest scorecards are for main at 727a793, without and with the Claude reader, and with Ramp and QuickBooks live; see [docs/DEMO.md](docs/DEMO.md). Sample-request mode is not scored yet. |
 | Screen | Done for run folders: results, evidence with what it was verified against, step log, pinned reviewer sign-off. Two real agent runs on the dataset are in `agent/runs/` and load in it. |
 
+## What we pitched and what we built
+
+Where the build differs from the pitch, this is the difference and why.
+
+| We said | We built | Why |
+|---|---|---|
+| Claude Sonnet 5.5 and Opus 5.5 through the Claude Agent SDK | The four checks are plain code. Claude Opus 5.5 is called through the Claude API only for results code cannot settle: 11 requests on the dataset. Sonnet 5.5 can be selected. | Comparing fields is exact, free and repeatable. Each model question is one request with one structured answer, so there is no loop for an agent to run. [Decision](agent/decisions/2026-11-09-claude-reads-only-what-code-cannot-settle.md) |
+| Ramp's public demo MCP server | A Ramp sandbox read through the Developer API. An MCP path and an offline stand-in server also work. Bills are live; card transactions come from the dataset. | Ramp's API can create bills but not card transactions. See the status table and `connectors/decisions/`. |
+| A QuickBooks sandbox through Intuit's MCP server | A QuickBooks sandbox, live, through Intuit's REST API. | The MCP server wraps the same API and would add Node and a subprocess. [Decision](connectors/decisions/2026-11-09-quickbooks-access.md) |
+| PDF reading for the PBC list, bank statements and invoices | Invoices, receipts and bank statements are read as PDFs. There is no PBC list file: the auditor's selection arrives as a structured request. | The dataset models the sample request, which is what the agent acts on. |
+| A dataset matched to the Ramp demo transactions | Our own made-up company, Copperline, Inc., loaded into both sandboxes. | We could not build on demo data we do not control, and planted mistakes need a known clean baseline. |
+| A test set based on AU-C 500, run in Braintrust | A scoring harness whose metrics follow AU-C 500. Braintrust logging is built in and optional; the committed scorecards were scored locally. | [Decision](evals/decisions/2026-11-10-metrics-follow-au-c-500.md) |
+| Slack and email drafts | Drafts written into the run folder, with a channel and a recipient. Nothing is sent and there is no Slack or email connection. | Follow-ups are a person's to send. |
+| A log of every step with reviewer sign-off | A hash-chained log. Sign-off happens in the screen and is pinned to what the reviewer was shown. | |
+| The pitch example is flagged | It is: Ridgeline Strategy Group LLC, $12,000, work done in December, recorded in January, no accrual. | |
+
 ## Run it
 
 No credentials needed. Everything reads the made-up company in `data/company`.
