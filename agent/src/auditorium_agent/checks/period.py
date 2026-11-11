@@ -26,7 +26,8 @@ from auditorium_contracts import (
 )
 
 from ..books import Books
-from ..matching import VENDOR_UNCLEAR, find_accruals
+from ..evidence import record_evidence
+from ..matching import VENDOR_UNCLEAR, accrual_size, accrued_amount_field, find_accruals
 from ..service_period import find_service_period
 
 
@@ -189,17 +190,22 @@ def check_period(txn: SpendTransaction, books: Books, run_id: str) -> CheckResul
         [accrual.id for accrual in accruals],
     )
     evidence.append(search)
-    exact = [accrual for accrual in accruals if accrual.total_cents == txn.amount_cents]
+    exact = [
+        (accrual, field)
+        for accrual in accruals
+        if (field := accrued_amount_field(accrual, txn.amount_cents))
+    ]
     if exact:
+        accrual, field = exact[0]
         evidence.append(
-            RecordEvidence(
-                record_type="ledger_entry",
-                record_id=exact[0].id,
-                field="total_cents",
-                value=str(exact[0].total_cents),
-                note=f"Accrual dated {exact[0].txn_date} for the same amount.",
+            record_evidence(
+                "ledger_entry",
+                accrual,
+                field,
+                f"Accrual dated {accrual.txn_date} for the same amount.",
             )
         )
+        exact = [accrual]
         return result(
             CheckStatus.PASS,
             f"Work done in {_month(end)} was billed in {_month(recorded)}, and an accrual on "
@@ -215,7 +221,7 @@ def check_period(txn: SpendTransaction, books: Books, run_id: str) -> CheckResul
             f"Work done in {_month(end)} is recorded in {_month(recorded)}. An accrual for this "
             "vendor exists but for a different amount.",
             f"The bill is {_money(txn.amount_cents)}. The accrual found is "
-            f"{_money(accruals[0].total_cents)}. A person should confirm it covers this bill.",
+            f"{_money(accrual_size(accruals[0]))}. A person should confirm it covers this bill.",
             evidence,
             **periods,
         )
