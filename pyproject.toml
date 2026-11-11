@@ -3,7 +3,16 @@ name = "auditorium"
 version = "0.0.0"
 description = "An AI agent that gets a company's spending ready for its audit"
 requires-python = ">=3.12"
-dependencies = []
+# Depend on every workspace member so a plain `uv run` keeps all of them
+# installed. With no dependencies here, `uv run` synced the root alone and
+# removed the members' packages (jinja2 for the screen, for example).
+dependencies = [
+    "auditorium-contracts",
+    "auditorium-agent",
+    "auditorium-connectors",
+    "auditorium-evals",
+    "auditorium-ui",
+]
 
 [dependency-groups]
 dev = ["pytest>=8", "ruff>=0.6"]
@@ -14,6 +23,13 @@ package = false
 # One workspace, one lockfile, one environment. Each area owns its own
 # pyproject.toml and adds its own dependencies there. sealed/ is encrypted in
 # the build clone, so its projects stand alone and are not members.
+[tool.uv.sources]
+auditorium-contracts = { workspace = true }
+auditorium-agent = { workspace = true }
+auditorium-connectors = { workspace = true }
+auditorium-evals = { workspace = true }
+auditorium-ui = { workspace = true }
+
 [tool.uv.workspace]
 members = ["contracts", "agent", "connectors", "evals", "ui"]
 
