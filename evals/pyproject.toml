@@ -3,7 +3,12 @@ name = "auditorium-evals"
 version = "0.0.0"
 description = "Scores a run against the sealed answer key."
 requires-python = ">=3.12"
-dependencies = ["auditorium-contracts", "auditorium-agent", "auditorium-connectors"]
+dependencies = [
+    "auditorium-contracts",
+    "auditorium-agent",
+    "auditorium-connectors",
+    "braintrust>=0.49.3",
+]
 
 [tool.uv.sources]
 auditorium-contracts = { workspace = true }
