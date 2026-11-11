@@ -75,6 +75,26 @@ class _ServicePeriodAnswer(BaseModel):
     )
 
 
+SAME_BUSINESS_QUESTION = """\
+A company's card statement shows a charge from: {statement}
+
+Its accounting system records a purchase of the same amount, within three days, under the \
+vendor name: {books}
+
+Card statements shorten or code a merchant's name. "SQ *" marks a payment taken through \
+Square, "PAYPAL *" one taken through PayPal, "TST*" one through Toast, and a trailing word or \
+number is often a branch or a reference.
+
+Are these two names the same business? Say yes only if the statement's name can reasonably be \
+a shortened or coded form of the vendor name. The amount and the date already match, so they \
+are not a reason to say yes. If the names are unrelated, say no."""
+
+
+class _SameBusinessAnswer(BaseModel):
+    same_business: bool
+    reason: str = Field(description="One sentence on why the names are or are not one business.")
+
+
 class _MerchantAnswer(BaseModel):
     same_business: bool
     page: int = Field(description="The 1-based page that names the business.")
@@ -93,6 +113,10 @@ class Reader(Protocol):
 
     def merchant(self, vendor_name: str, pages: tuple[str, ...]) -> Line | None:
         """The line of the receipt naming the business, if it is the merchant on the statement."""
+        ...
+
+    def same_business(self, statement_name: str, books_name: str) -> bool:
+        """Whether a card statement's name and the books' vendor name are one business."""
         ...
 
 
@@ -132,10 +156,12 @@ class ClaudeReader:
             return "could not reach the Claude API"
         return None
 
-    def _ask(self, question: str, pages: tuple[str, ...], answer_type: type[BaseModel]):
+    def _ask(self, question: str, pages: tuple[str, ...] | None, answer_type: type[BaseModel]):
         document = "\n".join(
-            f'<page number="{number}">\n{text}\n</page>' for number, text in enumerate(pages, 1)
+            f'<page number="{number}">\n{text}\n</page>'
+            for number, text in enumerate(pages or (), 1)
         )
+        content = f"<document>\n{document}\n</document>\n\n{question}" if pages else question
         fallback = (
             {"betas": [_FALLBACK_BETA], "fallbacks": "default"}
             if self.model in _SERVER_FALLBACK
@@ -153,12 +179,7 @@ class ClaudeReader:
                 # Reading one short document is not hard; low effort keeps it quick and cheap.
                 output_config={"effort": "low"},
                 system=SYSTEM,
-                messages=[
-                    {
-                        "role": "user",
-                        "content": f"<document>\n{document}\n</document>\n\n{question}",
-                    }
-                ],
+                messages=[{"role": "user", "content": content}],
                 output_format=answer_type,
                 **fallback,
             )
@@ -207,3 +228,8 @@ class ClaudeReader:
         if answer is None or not answer.same_business:
             return None
         return Line(page=answer.page, text=answer.quote.strip())
+
+    def same_business(self, statement_name: str, books_name: str) -> bool:
+        question = SAME_BUSINESS_QUESTION.format(statement=statement_name, books=books_name)
+        answer = self._ask(question, None, _SameBusinessAnswer)
+        return bool(answer and answer.same_business)

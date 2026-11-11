@@ -50,7 +50,11 @@ def test_sample_results(tmp_path):
         "b_1006": ("fail", ["ledger_match_amount"]),
         "b_1007": ("fail", ["ledger_match_duplicate"]),
         "c_2002": ("fail", ["ledger_match_missing"]),
+        # The books say "Amazon", the statement "AMZN Mktp US", and there is no receipt.
+        "c_2009": ("needs_review", ["ledger_match_vendor"]),
     }
+    # The books say "Harbor Cafe", the statement "TST* HARBOR CAFE": its receipt settles it.
+    assert found["c_2008"] == ("pass", [])
     assert len(found) == len(sources.transactions())
 
 

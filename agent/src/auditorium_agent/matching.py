@@ -24,6 +24,10 @@ VENDOR_AND_AMOUNT = "vendor_and_amount"  # same vendor, same amount
 AMOUNT_DIFFERS = "amount_differs"  # same vendor, same invoice number or close date, other amount
 VENDOR_DIFFERS = "vendor_differs"  # same invoice number and amount, other vendor
 VENDOR_UNCLEAR = "vendor_unclear"  # same amount within days, other vendor: only a candidate
+# An unclear vendor, settled afterwards (see Books): the attached receipt names the business
+# the books use, or the model reader judged the two names to be one business.
+VENDOR_BY_DOCUMENT = "vendor_by_document"
+VENDOR_BY_MODEL = "vendor_by_model"
 NONE = "none"
 
 AMOUNT_DIFFERS_WITHIN_DAYS = 10
@@ -35,6 +39,8 @@ class Match:
     entry: LedgerEntry | None
     how: str
     duplicates: tuple[LedgerEntry, ...] = ()
+    support: tuple = ()  # evidence that settled an unclear vendor
+    read_by: str | None = None  # the model that judged the names, if one did
 
 
 def vendor_key(name: str | None) -> str:
