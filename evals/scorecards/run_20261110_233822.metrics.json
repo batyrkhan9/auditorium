@@ -1,0 +1,177 @@
+{
+  "all_checks": {
+    "counts": {
+      "fn": 1,
+      "fp": 6,
+      "missing": 0,
+      "review_on_clean": 44,
+      "review_on_fail": 4,
+      "tn": 710,
+      "tp": 35,
+      "unsupported": 0
+    },
+    "evidence_by_kind": {
+      "document_external": 334,
+      "record": 2714,
+      "search": 35
+    },
+    "false_alarm_rate_on_clean": 0.0079,
+    "issue_code_agreement_on_tp": 1.0,
+    "key_clean": 760,
+    "key_fail": 40,
+    "needs_review_rate": 0.06,
+    "needs_review_rate_on_clean": 0.0579,
+    "precision_on_fail": 0.8537,
+    "recall_counting_review": 0.975,
+    "recall_on_fail": 0.875,
+    "results_missing": 0,
+    "status_agreement": 0.9062,
+    "units": 800
+  },
+  "braintrust": "not used",
+  "dataset_id": "copperline-fy2025-v1",
+  "evidence_total": 3083,
+  "evidence_unverified": 0,
+  "per_check": {
+    "approval": {
+      "counts": {
+        "fn": 0,
+        "fp": 1,
+        "missing": 0,
+        "review_on_clean": 0,
+        "review_on_fail": 0,
+        "tn": 187,
+        "tp": 12,
+        "unsupported": 0
+      },
+      "evidence_by_kind": {
+        "record": 1181
+      },
+      "false_alarm_rate_on_clean": 0.0053,
+      "issue_code_agreement_on_tp": 1.0,
+      "key_clean": 188,
+      "key_fail": 12,
+      "needs_review_rate": 0.0,
+      "needs_review_rate_on_clean": 0.0,
+      "precision_on_fail": 0.9231,
+      "recall_counting_review": 1.0,
+      "recall_on_fail": 1.0,
+      "results_missing": 0,
+      "status_agreement": 0.995,
+      "units": 200
+    },
+    "ledger_match": {
+      "counts": {
+        "fn": 0,
+        "fp": 0,
+        "missing": 0,
+        "review_on_clean": 20,
+        "review_on_fail": 0,
+        "tn": 170,
+        "tp": 10,
+        "unsupported": 0
+      },
+      "evidence_by_kind": {
+        "record": 860,
+        "search": 6
+      },
+      "false_alarm_rate_on_clean": 0.0,
+      "issue_code_agreement_on_tp": 1.0,
+      "key_clean": 190,
+      "key_fail": 10,
+      "needs_review_rate": 0.1,
+      "needs_review_rate_on_clean": 0.1053,
+      "precision_on_fail": 1.0,
+      "recall_counting_review": 1.0,
+      "recall_on_fail": 1.0,
+      "results_missing": 0,
+      "status_agreement": 0.9,
+      "units": 200
+    },
+    "period": {
+      "counts": {
+        "fn": 1,
+        "fp": 0,
+        "missing": 0,
+        "review_on_clean": 8,
+        "review_on_fail": 3,
+        "tn": 184,
+        "tp": 4,
+        "unsupported": 0
+      },
+      "evidence_by_kind": {
+        "document_external": 18,
+        "record": 334,
+        "search": 29
+      },
+      "false_alarm_rate_on_clean": 0.0,
+      "issue_code_agreement_on_tp": 1.0,
+      "key_clean": 192,
+      "key_fail": 8,
+      "needs_review_rate": 0.055,
+      "needs_review_rate_on_clean": 0.0417,
+      "precision_on_fail": 1.0,
+      "recall_counting_review": 0.875,
+      "recall_on_fail": 0.5,
+      "results_missing": 0,
+      "status_agreement": 0.84,
+      "units": 200
+    },
+    "receipt": {
+      "counts": {
+        "fn": 0,
+        "fp": 5,
+        "missing": 0,
+        "review_on_clean": 16,
+        "review_on_fail": 1,
+        "tn": 169,
+        "tp": 9,
+        "unsupported": 0
+      },
+      "evidence_by_kind": {
+        "document_external": 316,
+        "record": 339
+      },
+      "false_alarm_rate_on_clean": 0.0263,
+      "issue_code_agreement_on_tp": 1.0,
+      "key_clean": 190,
+      "key_fail": 10,
+      "needs_review_rate": 0.085,
+      "needs_review_rate_on_clean": 0.0842,
+      "precision_on_fail": 0.6429,
+      "recall_counting_review": 1.0,
+      "recall_on_fail": 0.9,
+      "results_missing": 0,
+      "status_agreement": 0.89,
+      "units": 200
+    }
+  },
+  "results_in_run": 800,
+  "results_not_in_key": 0,
+  "results_with_unverified_evidence": 0,
+  "run_id": "run_20261110_233822",
+  "sources": [
+    {
+      "mode": "local",
+      "synthetic": true,
+      "system": "ramp"
+    },
+    {
+      "mode": "local",
+      "synthetic": true,
+      "system": "bank"
+    },
+    {
+      "mode": "local",
+      "synthetic": true,
+      "system": "company"
+    },
+    {
+      "mode": "live",
+      "synthetic": true,
+      "system": "qbo"
+    }
+  ],
+  "validate_run_problems": 1,
+  "verified_against": "snapshot"
+}

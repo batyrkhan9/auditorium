@@ -1,0 +1,212 @@
+{% extends "base.html" %}
+{% from "_macros.html" import status as pill, decision, evidence_item, draft_card, glyph, icon, evidence_styles %}
+{% block title %}{{ result.id }} · {{ manifest.run_id }}{% endblock %}
+{% block styles %}
+{{ evidence_styles() }}
+.pager { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.pager .steps { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; color: var(--muted); }
+.pager .steps a, .pager .steps span.off { display: inline-flex; align-items: center; gap: 4px; padding: 5px 10px; border: 1px solid var(--line-2); border-radius: 6px; background: var(--surface); color: var(--ink); text-decoration: none; font-weight: 500; }
+.pager .steps span.off { color: var(--faint); border-color: var(--line); }
+.pager .steps a:hover { border-color: var(--ink); }
+.pager .pos { padding: 0 8px; font-variant-numeric: tabular-nums; }
+kbd { font: 11px/16px var(--mono); color: var(--muted); border: 1px solid var(--line-2); border-radius: 4px; padding: 0 4px; }
+.headline { display: grid; gap: 10px; padding: 18px 20px; }
+.headline .top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.headline h1 { margin: 0; font-size: 22px; font-weight: 600; font-family: var(--mono); letter-spacing: -.02em; }
+.headline .summary { font-size: 17px; font-weight: 500; line-height: 1.45; margin: 0; max-width: 72ch; }
+.headline .rationale { margin: 0; color: var(--ink-2); max-width: 80ch; }
+.headline.s-fail { border-top: 3px solid var(--fail-solid); }
+.headline.s-needs_review { border-top: 3px dashed var(--review); }
+.headline.s-pass { border-top: 3px solid var(--pass); }
+.headline.s-not_applicable { border-top: 3px solid var(--na-line); }
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 18px; margin-top: 18px; align-items: start; }
+.aside { display: grid; gap: 14px; position: sticky; top: 14px; }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1px; background: var(--line); border-top: 1px solid var(--line); }
+.facts > div { background: var(--surface); padding: 10px 16px; min-width: 0; }
+.facts .k { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; font-weight: 600; }
+.facts .val { margin-top: 2px; overflow-wrap: anywhere; }
+.facts .val.big { font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.periods { display: flex; align-items: stretch; gap: 0; padding: 14px 16px; border-top: 1px solid var(--line); flex-wrap: wrap; }
+.periods .p { flex: 1 1 140px; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 8px 12px; }
+.periods .p .k { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; font-weight: 600; }
+.periods .p .val { font-family: var(--mono); font-size: 18px; font-weight: 500; }
+.periods .vs { align-self: center; padding: 0 12px; color: var(--muted); font-size: 12px; }
+.periods.differ .p.rec { border-color: var(--fail-line); background: var(--fail-bg); }
+.siblings a { display: grid; grid-template-columns: max-content 1fr; gap: 2px 10px; padding: 9px 16px; border-bottom: 1px solid var(--line); color: var(--ink); text-decoration: none; align-items: center; }
+.siblings a:last-child { border-bottom: 0; border-radius: 0 0 var(--radius) var(--radius); }
+.siblings a:hover { background: var(--raised); }
+.siblings a[aria-current] { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
+.siblings .nm { font-family: var(--mono); font-size: 12.5px; }
+.siblings .sm { grid-column: 1 / -1; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.signoff .card-pad > p:first-child { margin-top: 0; }
+.signoff table td, .signoff table th { padding: 6px 10px; font-size: 12.5px; }
+.signoff .hist { border-top: 1px solid var(--line); }
+.signoff form { margin-top: 10px; }
+.steps-table td { font-size: 12.5px; }
+.steps-table td.mono { max-width: 560px; overflow-wrap: anywhere; }
+@media (max-width: 1000px) {
+  .layout { grid-template-columns: 1fr; }
+  .aside { position: static; }
+}
+{% endblock %}
+{% block content %}
+{% set t = transactions.get(result.transaction_id) %}
+<div class="pager">
+  <a class="back" href="/">{{ icon("left", 14) }} All results</a>
+  {% if queue_size %}
+  <div class="steps" aria-label="Exceptions">
+    {% if prev_id %}<a href="/result?id={{ prev_id | q }}" rel="prev" data-key="k">{{ icon("left", 14) }} Previous</a>{% else %}<span class="off">{{ icon("left", 14) }} Previous</span>{% endif %}
+    <span class="pos">{% if queue_position is not none %}Exception {{ queue_position + 1 }} of {{ queue_size }}{% else %}{{ queue_size }} exceptions in this run{% endif %}</span>
+    {% if next_id %}<a href="/result?id={{ next_id | q }}" rel="next" data-key="j">{{ "Next" if queue_position is not none else "First exception" }} {{ icon("right", 14) }}</a>{% else %}<span class="off">Next {{ icon("right", 14) }}</span>{% endif %}
+    <span class="pos"><kbd>k</kbd> <kbd>j</kbd></span>
+  </div>
+  {% endif %}
+</div>
+
+{% if result.id in drift %}
+<div class="banner bad" role="alert" data-drift="{{ drift[result.id] }}"><strong>Changed after it was logged.</strong> This result's status is <strong>{{ result.status.value | replace("_", " ") }}</strong>, but its <code>check_recorded</code> event in the step log says <strong>{{ drift[result.id] | replace("_", " ") }}</strong>.</div>
+{% endif %}
+
+<section class="card headline s-{{ result.status.value }}" aria-label="Result">
+  <div class="top">
+    <h1>{{ result.check.value }}</h1>
+    {{ pill(result.status.value, "lg") }}
+    {% for code in result.issue_codes %}<span class="chip {{ 'fail' if result.status.value == 'fail' }}">{{ code.value }}</span>{% endfor %}
+  </div>
+  <p class="summary">{{ result.summary }}</p>
+  <p class="rationale">{{ result.rationale }}</p>
+</section>
+
+<div class="layout">
+  <div class="primary">
+    <section class="card" aria-label="Transaction">
+      <header><h2>Transaction</h2><code class="small muted">{{ result.transaction_id }}</code></header>
+      {% if t %}
+      <div class="facts">
+        <div><div class="k">Vendor</div><div class="val">{{ t.vendor_name }}</div></div>
+        <div><div class="k">Amount</div><div class="val big">{{ t.amount_cents | money }}</div></div>
+        <div><div class="k">Kind</div><div class="val">{{ t.kind.value | replace("_", " ") }}</div></div>
+        <div><div class="k">Dated</div><div class="val">{{ t.transaction_date }}</div></div>
+        {% if t.invoice_number %}<div><div class="k">Invoice</div><div class="val">{{ t.invoice_number }}</div></div>{% endif %}
+      </div>
+      {% else %}
+      <p class="card-pad small muted" style="margin:0">The transaction record is not shown: there is no checked source to read it from.</p>
+      {% endif %}
+      {% if result.recorded_period or result.expected_period %}
+      <div class="periods{{ ' differ' if result.recorded_period and result.expected_period and result.recorded_period != result.expected_period }}">
+        <div class="p rec"><div class="k">Recorded period</div><div class="val">{{ result.recorded_period or "not stated" }}</div></div>
+        <div class="vs">{{ "differs from" if result.recorded_period and result.expected_period and result.recorded_period != result.expected_period else "and" }}</div>
+        <div class="p"><div class="k">Expected period</div><div class="val">{{ result.expected_period or "not stated" }}</div></div>
+      </div>
+      {% endif %}
+    </section>
+
+    <h2>Evidence <span class="muted">({{ evidence | length }})</span></h2>
+    {% if not evidence %}
+    <div class="banner bad" role="alert" data-no-evidence><strong>No evidence.</strong> This result carries no evidence, so nothing backs its status. A check with no evidence is not a result.</div>
+    {% endif %}
+    {% for e, v in evidence %}{{ evidence_item(e, v, doc_sources) }}{% endfor %}
+
+    {% if drafts %}
+    <h2>Follow-up drafts</h2>
+    {% for d in drafts %}{{ draft_card(d) }}{% endfor %}
+    {% endif %}
+
+    <h2>Steps for this result</h2>
+    {% if steps %}
+    <div class="card" style="overflow-x:auto">
+    <table class="steps-table">
+      <thead><tr><th class="num">#</th><th>When</th><th>Actor</th><th>Action</th><th>Detail</th></tr></thead>
+      <tbody>
+      {% for e in steps %}
+      <tr><td class="num"><a href="/log#seq-{{ e.seq }}">{{ e.seq }}</a></td><td class="small">{{ e.ts.strftime("%H:%M:%S") }}</td><td>{{ e.actor }}{% if e.actor_id %} <span class="muted small">{{ e.actor_id }}</span>{% endif %}</td><td><code>{{ e.action.value }}</code></td><td class="mono small">{{ e.detail | tojson_compact if e.detail }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}
+    <p class="muted">No log steps mention this result or its transaction.</p>
+    {% endif %}
+  </div>
+
+  <aside class="aside">
+    <section class="card siblings" aria-label="Checks on this transaction">
+      <header><h3>Checks on this transaction</h3></header>
+      {% for s in siblings %}
+      <a href="/result?id={{ s.id | q }}"{% if s.id == result.id %} aria-current="page"{% endif %}>
+        <span class="nm">{{ s.check.value }}</span><span style="justify-self:end">{{ pill(s.status.value) }}</span>
+        <span class="sm">{{ s.summary }}</span>
+      </a>
+      {% endfor %}
+    </section>
+
+    <section class="card signoff" id="signoff" aria-label="Reviewer sign-off">
+      <header><h3>{{ icon("pen", 14) }} Reviewer sign-off</h3></header>
+      <div class="card-pad">
+      {% set so = signoffs.get(result.id, []) %}
+      {% set st = signoff_state.get(result.id) %}
+      {% if so %}
+      {% if st.state == "pinned" %}
+      <p class="v verified" style="white-space:normal" data-signoff-state="pinned">{{ glyph("pass") }}The latest sign-off still matches this result: it pins the result's hash as the reviewer saw it.</p>
+      {% elif st.state == "changed" %}
+      <div class="banner bad" role="alert" data-signoff-state="changed"><strong>Changed after it was signed off.</strong> This result is not what the reviewer signed at log line {{ st.event.seq }}. That sign-off no longer covers it; sign off again once it has been reviewed.</div>
+      {% else %}
+      <p class="v unchecked" style="white-space:normal" data-signoff-state="unpinned">The latest sign-off does not record which version of the result was signed (made before contract 0.2), so whether the result changed since cannot be told.</p>
+      {% endif %}
+      {% else %}
+      <p class="muted">Nobody has signed off on this result yet.</p>
+      {% endif %}
+      {% if error %}<div class="banner bad" role="alert" data-signoff-error>{{ error }}</div>{% endif %}
+      {% if log_damage %}
+      <p class="v failed" style="white-space:normal" data-signoff="damaged">Sign-off is disabled because the step log is damaged.</p>
+      {% elif chain %}
+      <p class="v failed" style="white-space:normal">Sign-off is disabled because the step log's chain is broken.</p>
+      {% elif in_progress %}
+      <p class="v unchecked" style="white-space:normal" data-signoff="in-progress">Run in progress. Sign-off is disabled until the run has finished, so a sign-off cannot interleave with the agent's own log writes.</p>
+      {% else %}
+      {% if result.id in drift %}
+      <p class="drift" data-signoff-drift>Before signing: this result was changed after it was logged (the log says {{ drift[result.id] | replace("_", " ") }}, the result says {{ result.status.value | replace("_", " ") }}).</p>
+      {% endif %}
+      <form method="post" action="/signoff" class="signform">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <input type="hidden" name="result_id" value="{{ result.id }}">
+        <input type="hidden" name="result_sha256" value="{{ shown_hash }}">
+        <label>Your name <input name="reviewer" required autocomplete="name"></label>
+        <div class="seg" role="radiogroup" aria-label="Decision" style="display:flex">
+          <label style="flex:1"><input type="radio" name="decision" value="accepted" checked><span style="width:100%;text-align:center">Accept</span></label>
+          <label style="flex:1"><input type="radio" name="decision" value="disputed"><span style="width:100%;text-align:center">Dispute</span></label>
+        </div>
+        <label>Note <input name="note" placeholder="Optional"></label>
+        <div><button type="submit">Sign off</button></div>
+      </form>
+      <p class="small muted" style="margin-bottom:0">Recorded as a <code>signoff</code> event at the end of the hash-chained step log, pinned to this version of the result (<code class="hash">{{ shown_hash[:12] }}</code>). If the result changes before you submit, the sign-off is refused. It cannot be edited later.</p>
+      {% endif %}
+      </div>
+      {% if so %}
+      <div class="hist" style="overflow-x:auto">
+      <table>
+        <thead><tr><th class="num">#</th><th>Reviewer</th><th>Decision</th><th>Signed</th></tr></thead>
+        <tbody>
+        {% for e in so %}
+        <tr><td class="num"><a href="/log#seq-{{ e.seq }}" title="{{ e.ts.strftime('%Y-%m-%d %H:%M:%S UTC') }}">{{ e.seq }}</a></td><td>{{ e.actor_id }}<div class="small muted">{{ e.ts.strftime("%Y-%m-%d %H:%M UTC") }}</div>{% if e.detail.get("comment") %}<div class="small">{{ e.detail.get("comment") }}</div>{% endif %}</td><td>{{ decision(e.detail.get("decision")) }}</td><td class="mono small hash">{{ (e.detail.get("result_sha256") or "not pinned")[:12] }}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% if so | length > 1 %}<p class="small muted" style="padding:0 16px">Only the latest sign-off counts.</p>{% endif %}
+      </div>
+      {% endif %}
+    </section>
+  </aside>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+document.addEventListener("keydown", (event) => {
+  if (event.metaKey || event.ctrlKey || event.altKey) return;
+  if (/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) return;
+  if (event.key !== "j" && event.key !== "k") return;
+  const link = document.querySelector(event.key === "j" ? 'a[data-key="j"]' : 'a[data-key="k"]');
+  if (link) location.href = link.href;
+});
+</script>
+{% endblock %}

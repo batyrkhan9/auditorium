@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% from "_macros.html" import decision, icon %}
+{% block title %}Step log · {{ manifest.run_id }}{% endblock %}
+{% block styles %}
+.checks { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+.checks .banner { margin: 0; }
+.p-muted { margin: 0; padding: 10px 14px; border: 1px dashed var(--line-2); border-radius: var(--radius); font-size: 13.5px; }
+.logbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 12px 16px; border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 3; background: var(--surface); border-radius: var(--radius) var(--radius) 0 0; }
+.logbar h2 { margin: 0 8px 0 0; font-size: 14px; }
+.logbar input { flex: 1 1 220px; max-width: 340px; }
+.logbar .shown { margin-left: auto; font-size: 12.5px; color: var(--muted); }
+.logbar .shown b { color: var(--ink); }
+table.log th { position: sticky; top: 59px; z-index: 2; }
+table.log td { font-size: 12.5px; }
+table.log td.detail { font-family: var(--mono); font-size: 11.5px; color: var(--ink-2); max-width: 520px; overflow-wrap: anywhere; }
+table.log tr:target { background: var(--accent-soft); }
+table.log tr.a-signoff td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+.act { font-family: var(--mono); font-size: 11.5px; padding: 1px 6px; border-radius: 4px; background: var(--sunken); border: 1px solid var(--line); color: var(--ink-2); white-space: nowrap; }
+.act.signoff { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+.act.run_started, .act.run_finished { background: var(--ink); color: var(--surface); border-color: transparent; }
+.chainlink { font-family: var(--mono); font-size: 11px; color: var(--faint); white-space: nowrap; }
+.chainlink b { color: var(--ink-2); font-weight: 500; }
+.subj { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 300px; }
+@media (max-width: 900px) {
+  .checks { grid-template-columns: 1fr; }
+  .logwrap { overflow-x: auto; }
+  table.log { min-width: 900px; }
+  table.log th, .logbar { position: static; }
+}
+{% endblock %}
+{% block content %}
+<div class="checks">
+{% if chain %}
+<div class="banner bad" role="alert" data-chain="broken"><strong>Chain broken.</strong> A line was edited, removed or added out of order.
+  <ul>{% for p in chain %}<li>{{ p }}</li>{% endfor %}</ul>
+</div>
+{% elif log_damage %}
+<div class="banner bad" role="alert" data-chain="damaged"><strong>Damaged.</strong> The {{ run.log | length }} events before the damage follow each other; the rest cannot be read. {{ log_damage | join(" ") }}</div>
+{% else %}
+<div class="banner ok" data-chain="intact"><strong>Chain intact.</strong> All {{ run.log | length }} events follow each other: each stores the hash of the one before it, checked with <code>verify_log</code>.</div>
+{% endif %}
+{% if validation is none %}
+<p class="p-muted muted" data-validation="skipped">{% if log_partial or log_damage %}<code>validate_run</code> was not run: it needs a complete log.{% else %}<code>validate_run</code> was not run: there is no usable snapshot and no matching local dataset to check against.{% endif %}</p>
+{% elif validation %}
+<div class="banner bad" role="alert" data-validation="{{ validation | length }}"><strong><code>validate_run</code> against the {{ validated_against }} found {{ validation | length }} problem(s).</strong>
+  <ul>{% for p in validation %}<li>{{ p }}</li>{% endfor %}</ul>
+</div>
+{% else %}
+<div class="banner ok" data-validation="0"><strong>Whole-run check passed.</strong> <code>validate_run</code> against the {{ validated_against }} found no problems: log chain, {% if validated_against == "snapshot" %}snapshot fingerprints, {% endif %}evidence, links and sign-offs.</div>
+{% endif %}
+</div>
+
+<section class="card">
+  <form class="logbar" id="logfilter" role="search" onsubmit="return false">
+    <h2>Step log</h2>
+    <label class="sr" for="lq">Search the log</label>
+    <input id="lq" type="search" placeholder="Search subjects, actors, details…" autocomplete="off">
+    <label class="sr" for="la">Action</label>
+    <select id="la" aria-label="Action">
+      <option value="">Every action</option>
+      {% for name, n in actions | dictsort %}<option value="{{ name }}">{{ name }} ({{ n }})</option>{% endfor %}
+    </select>
+    <span class="shown"><b id="lshown">{{ run.log | length }}</b> of {{ run.log | length }} events</span>
+  </form>
+  <div class="logwrap">
+  <table class="log">
+    <thead><tr><th class="num">#</th><th>When (UTC)</th><th>Actor</th><th>Action</th><th>Subjects</th><th>Detail</th><th>Hash chain</th></tr></thead>
+    <tbody id="log-body">
+    {% for e in run.log %}
+    <tr id="seq-{{ e.seq }}" class="a-{{ e.action.value }}" data-action="{{ e.action.value }}">
+      <td class="num">{{ e.seq }}</td>
+      <td class="small" style="white-space:nowrap">{{ e.ts.strftime("%Y-%m-%d %H:%M:%S") }}</td>
+      <td>{{ e.actor }}{% if e.actor_id %}<br><span class="muted small">{{ e.actor_id }}</span>{% endif %}</td>
+      <td><span class="act {{ e.action.value }}">{{ e.action.value }}</span>{% if e.action.value == "signoff" %}<br>{{ decision(e.detail.get("decision")) }}{% if e.detail.get("scope") == "run" %} <span class="small muted">whole run</span>{% endif %}{% endif %}</td>
+      <td class="small">{% for s in e.subject_ids %}<span class="subj" title="{{ s }}">{% if "#" in s %}<a href="/result?id={{ s | q }}"><code>{{ s }}</code></a>{% else %}<code>{{ s }}</code>{% endif %}</span>{% endfor %}</td>
+      <td class="detail">{{ e.detail | tojson_compact if e.detail }}</td>
+      <td class="chainlink" title="prev {{ e.prev_hash }}&#10;this {{ e.hash }}">{{ (e.prev_hash or "")[:6] }} → <b class="hash">{{ e.hash[:12] }}</b></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endblock %}
+{% block scripts %}
+<script>
+(() => {
+  const q = document.getElementById("lq"), action = document.getElementById("la");
+  const rows = Array.from(document.querySelectorAll("#log-body tr"));
+  const shown = document.getElementById("lshown");
+  const text = rows.map((row) => row.textContent.toLowerCase());
+  let timer;
+  const apply = () => {
+    const needle = q.value.trim().toLowerCase(), wanted = action.value;
+    let count = 0;
+    rows.forEach((row, i) => {
+      const visible = (!wanted || row.dataset.action === wanted) && (!needle || text[i].includes(needle));
+      row.hidden = !visible;
+      if (visible) count++;
+    });
+    shown.textContent = count;
+  };
+  q.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(apply, 120); });
+  action.addEventListener("change", apply);
+})();
+</script>
+{% endblock %}

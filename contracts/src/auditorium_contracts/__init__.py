@@ -8,14 +8,37 @@ from .dataset import (
     Dataset,
     LocalSources,
     Sources,
+    fingerprint_sources,
     load_dataset,
+    log_source_fingerprints,
     read_jsonl,
     sha256_file,
+    snapshot_sources,
     validate_dataset,
     write_json,
     write_jsonl,
 )
-from .log import GENESIS, LogAction, LogEvent, LogWriter, event_hash, read_log, verify_log
+from .layout import (
+    DRAFTS,
+    LOG,
+    PACKETS,
+    RESULTS,
+    RUN_MANIFEST,
+    SCORECARD,
+    SOURCES_SNAPSHOT,
+)
+from .log import (
+    GENESIS,
+    LogAction,
+    LogDamaged,
+    LogEvent,
+    LogWriter,
+    event_hash,
+    read_log,
+    repair_log,
+    result_hash,
+    verify_log,
+)
 from .records import (
     AccountingPeriod,
     Approval,
@@ -34,6 +57,7 @@ from .records import (
     SpendPolicy,
     SpendTransaction,
     TransactionKind,
+    default_origin,
     period_of,
 )
 from .results import (
@@ -56,21 +80,16 @@ from .results import (
     result_id,
 )
 from .run import (
-    DRAFTS,
-    LOG,
-    PACKETS,
-    RESULTS,
-    RUN_MANIFEST,
-    SCORECARD,
     Run,
     SourceIndex,
     load_run,
     validate_run,
+    verified_against,
     verify_evidence,
 )
 from .text import normalize, page_texts, quote_on_page
 
-CONTRACT_VERSION = "0.1.0"
+CONTRACT_VERSION = "0.2.0"
 
 __all__ = [
     "CONTRACT_VERSION",
@@ -81,6 +100,7 @@ __all__ = [
     "RESULTS",
     "RUN_MANIFEST",
     "SCORECARD",
+    "SOURCES_SNAPSHOT",
     "AccountingPeriod",
     "Approval",
     "ApprovalRule",
@@ -103,6 +123,7 @@ __all__ = [
     "LedgerLine",
     "LocalSources",
     "LogAction",
+    "LogDamaged",
     "LogEvent",
     "LogWriter",
     "PacketItem",
@@ -122,19 +143,26 @@ __all__ = [
     "SpendPolicy",
     "SpendTransaction",
     "TransactionKind",
+    "default_origin",
     "event_hash",
+    "fingerprint_sources",
     "load_dataset",
     "load_run",
+    "log_source_fingerprints",
     "normalize",
     "page_texts",
     "period_of",
     "quote_on_page",
     "read_jsonl",
     "read_log",
+    "repair_log",
+    "result_hash",
     "result_id",
     "sha256_file",
+    "snapshot_sources",
     "validate_dataset",
     "validate_run",
+    "verified_against",
     "verify_evidence",
     "verify_log",
     "write_json",

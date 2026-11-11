@@ -76,7 +76,7 @@
       "type": "string"
     },
     "origin": {
-      "description": "External: produced outside the company (vendor, bank, auditor). AU-C 500 treats external evidence as more reliable.",
+      "description": "External: produced outside the company (vendor, bank, auditor). AU-C 500 treats external evidence as more reliable. Use default_origin() when the source does not say.",
       "enum": [
         "external",
         "internal"
@@ -85,11 +85,12 @@
       "type": "string"
     },
     "path": {
-      "description": "POSIX path to the file, relative to the dataset folder.",
+      "description": "POSIX path to the file. In a dataset folder it is relative to that folder. From a live source it is wherever the connector saved its copy, and Sources.document_file() is the way to reach it.",
       "title": "Path",
       "type": "string"
     },
     "sha256": {
+      "description": "Hash of the file's bytes. For a live source the connector downloads the file and computes it, so the evidence stays tied to the exact file read.",
       "pattern": "^[0-9a-f]{64}$",
       "title": "Sha256",
       "type": "string"

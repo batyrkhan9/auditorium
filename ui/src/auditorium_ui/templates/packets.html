@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% from "_macros.html" import evidence_item, glyph, evidence_styles %}
+{% block title %}Evidence packets · {{ manifest.run_id }}{% endblock %}
+{% block styles %}
+{{ evidence_styles() }}
+.packets { display: grid; gap: 16px; max-width: 1040px; }
+.packet > header { align-items: center; }
+.packet .line-no { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.packet h2 { font-size: 15px !important; }
+.packet .inner { padding: 4px 16px 14px; }
+.packet .match { display: inline-flex; align-items: center; gap: 6px; }
+.packet .missing { margin: 10px 0; }
+.empty-state { padding: 40px 20px; text-align: center; color: var(--muted); border: 1px dashed var(--line-2); border-radius: var(--radius); }
+{% endblock %}
+{% block content %}
+<h2 style="margin-top:4px">Evidence packets</h2>
+<p class="small muted">One packet per line of the auditor's sample, with the evidence lined up and what could not be found.</p>
+<div class="packets">
+{% for packet, items in packets %}
+{% set line = lines.get(packet.sample_line) %}
+<section class="card packet" data-packet="{{ packet.id }}">
+  <header><h2>Sample line {{ packet.sample_line }}{% if line %}: {{ line.description }}{% endif %}</h2>
+    {% if packet.transaction_id %}<span class="v verified match">{{ glyph("pass") }}matched</span>{% else %}<span class="v failed match">{{ glyph("fail") }}not matched</span>{% endif %}</header>
+  <div class="inner">
+  <dl class="kv">
+    {% if line %}<dt>Auditor asked for</dt><dd>{{ line.description }}{% if line.vendor_name %} · {{ line.vendor_name }}{% endif %}{% if line.amount_cents is not none %} · {{ line.amount_cents | money }}{% endif %}{% if line.transaction_date %} · {{ line.transaction_date }}{% endif %}{% if line.reference %} · ref {{ line.reference }}{% endif %}</dd>{% endif %}
+    <dt>Matched transaction</dt><dd>{% if packet.transaction_id %}<code>{{ packet.transaction_id }}</code>{% else %}<span class="muted">none</span>{% endif %}</dd>
+    {% if packet.result_ids %}<dt>Results</dt><dd>{% for r in packet.result_ids %}<a href="/result?id={{ r | q }}"><code>{{ r }}</code></a>{% if not loop.last %}, {% endif %}{% endfor %}</dd>{% endif %}
+    {% if packet.draft_ids %}<dt>Drafts</dt><dd>{% for d in packet.draft_ids %}<a href="/drafts#{{ d }}"><code>{{ d }}</code></a>{% if not loop.last %}, {% endif %}{% endfor %}</dd>{% endif %}
+  </dl>
+  {% if packet.missing %}
+  <div class="banner warn missing"><strong>Missing:</strong>
+    <ul>{% for m in packet.missing %}<li>{{ m }}</li>{% endfor %}</ul>
+  </div>
+  {% endif %}
+  {% for item, v in items %}{{ evidence_item(item.evidence, v, doc_sources, role=item.role) }}{% else %}<p class="muted">No evidence items.</p>{% endfor %}
+  </div>
+</section>
+{% else %}
+<div class="empty-state">This run has no evidence packets. Packets are produced in sample mode.</div>
+{% endfor %}
+</div>
+{% endblock %}

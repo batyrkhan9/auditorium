@@ -1,0 +1,113 @@
+{# Status is told by colour and by shape: a tick, a cross, a question mark, a dash. #}
+{% macro glyph(value, size=12) -%}
+<svg width="{{ size }}" height="{{ size }}" aria-hidden="true"><use href="#g-{{ value if value in ('pass', 'fail', 'needs_review') else 'not_applicable' }}"/></svg>
+{%- endmacro %}
+
+{# Drawn once per page in base.html; glyph() refers to them, which keeps 800 cells light. #}
+{% macro glyph_symbols() -%}
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+<symbol id="g-pass" viewBox="0 0 12 12"><path d="M2.4 6.4l2.3 2.3 4.9-5.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="g-fail" viewBox="0 0 12 12"><path d="M3.2 3.2l5.6 5.6M8.8 3.2l-5.6 5.6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+<symbol id="g-needs_review" viewBox="0 0 12 12"><path d="M4.2 4.3a1.9 1.9 0 1 1 2.7 1.7c-.6.3-.9.7-.9 1.3v.2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="6" cy="9.7" r=".7" fill="currentColor"/></symbol>
+<symbol id="g-not_applicable" viewBox="0 0 12 12"><path d="M3 6h6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+</svg>
+{%- endmacro %}
+
+{% macro icon(name, size=16) -%}
+<svg class="ico" width="{{ size }}" height="{{ size }}" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+{%- if name == "shield" %}<path d="M8 1.8l5 1.9v4c0 3.1-2.1 5.5-5 6.5-2.9-1-5-3.4-5-6.5v-4z"/><path d="M5.8 8l1.6 1.6 3-3.2"/>
+{%- elif name == "dash" %}<circle cx="8" cy="8" r="6.2" stroke-dasharray="2.2 1.8"/><path d="M5.5 8h5"/>
+{%- elif name == "document" %}<path d="M4 1.8h5.2L12.5 5v9.2H4z"/><path d="M9 1.8V5h3.5M6 8h4.5M6 10.5h4.5"/>
+{%- elif name == "record" %}<rect x="2" y="2.5" width="12" height="11" rx="1.5"/><path d="M2 6h12M6 6v7.5"/>
+{%- elif name == "search" %}<circle cx="7" cy="7" r="4.3"/><path d="M10.2 10.2l3.5 3.5"/>
+{%- elif name == "left" %}<path d="M9.8 3.5L5.3 8l4.5 4.5"/>
+{%- elif name == "right" %}<path d="M6.2 3.5L10.7 8l-4.5 4.5"/>
+{%- elif name == "external" %}<path d="M9.5 2.5h4v4M13.5 2.5L8 8M11.5 9.5v4h-9v-9h4"/>
+{%- elif name == "mail" %}<rect x="1.8" y="3.2" width="12.4" height="9.6" rx="1.5"/><path d="M2.2 4l5.8 4.6L13.8 4"/>
+{%- elif name == "pen" %}<path d="M10.5 2.5l3 3-7.8 7.8-3.6.6.6-3.6z"/>
+{%- elif name == "link" %}<path d="M6.8 9.2l2.4-2.4M7.5 4.6l1-1a2.6 2.6 0 0 1 3.7 3.7l-1 1M8.5 11.4l-1 1a2.6 2.6 0 0 1-3.7-3.7l1-1"/>
+{%- endif -%}
+</svg>
+{%- endmacro %}
+
+{% macro status(value, size="") -%}
+<span class="status {{ value }}{{ ' ' ~ size if size }}">{{ glyph(value) }}{{ value | replace("_", " ") }}</span>
+{%- endmacro %}
+
+{% macro decision(value) -%}
+<span class="status {{ 'pass' if value == 'accepted' else 'fail' }}">{{ glyph('pass' if value == 'accepted' else 'fail') }}{{ value }}</span>
+{%- endmacro %}
+
+{% macro verification(v) -%}
+{% if v.state == "verified" %}<span class="v verified" data-basis="{{ v.basis }}" title="verify_evidence found it in the {{ v.basis }}">{{ glyph("pass") }}Verified against {{ v.basis }}</span>
+{% elif v.state == "failed" %}<span class="v failed" data-basis="{{ v.basis }}">{{ glyph("fail") }}Not verified against {{ v.basis }}</span>
+{% elif v.state == "live_unchecked" %}<span class="v live_unchecked">{{ glyph("not_applicable") }}Unchecked: live run</span>
+{% else %}<span class="v unchecked">{{ glyph("not_applicable") }}Not checked</span>{% endif %}
+{%- endmacro %}
+
+{% macro evidence_item(e, v, doc_sources, role=None) -%}
+<article class="evidence {{ v.state }}" data-kind="{{ e.kind }}" data-verification="{{ v.state }}">
+  <div class="ev-head">
+    <span class="ev-kind">{{ icon(e.kind if e.kind != "search" else "search", 14) }}{{ e.kind }}{% if role %}<span class="ev-role">{{ role | replace("_", " ") }}</span>{% endif %}</span>
+    {{ verification(v) }}
+  </div>
+  <div class="ev-body">
+  {% if e.kind == "document" %}
+    <div class="ev-line"><code>{{ e.document_id }}</code><span class="muted">page {{ e.page }}</span>
+      {% if doc_sources %}<span class="ev-links"><a href="/document?id={{ e.document_id | q }}&page={{ e.page }}&quote={{ e.quote | q }}">Open with quote highlighted</a><a href="/document/file?id={{ e.document_id | q }}" target="_blank" rel="noopener">Original file {{ icon("external", 12) }}</a></span>{% endif %}
+    </div>
+    <blockquote>{{ e.quote }}</blockquote>
+  {% elif e.kind == "record" %}
+    <div class="ev-line"><span class="muted">{{ e.record_type | replace("_", " ") }}</span><code>{{ e.record_id }}</code></div>
+    <div class="ev-field"><code class="f">{{ e.field }}</code><span class="eq" aria-hidden="true">=</span><code class="val">{{ e.value }}</code></div>
+  {% else %}
+    <dl class="kv">
+      <dt>System</dt><dd>{{ e.system.value }}</dd>
+      <dt>Query</dt><dd>{{ e.query }}</dd>
+      <dt>Returned</dt><dd>{% if e.result_ids %}{% for i in e.result_ids %}<code>{{ i }}</code>{% if not loop.last %}, {% endif %}{% endfor %}{% else %}<strong>nothing</strong>{% endif %}</dd>
+    </dl>
+    <div class="small muted">The returned ids are checked. That nothing else matched cannot be checked from the result alone; the search itself should be in the step log.</div>
+  {% endif %}
+  {% if e.note %}<div class="ev-note">{{ e.note }}</div>{% endif %}
+  {% if v.reason %}<div class="small {{ 'v failed' if v.state == 'failed' else 'muted' }} ev-reason">{{ v.reason }}</div>{% endif %}
+  </div>
+</article>
+{%- endmacro %}
+
+{% macro draft_card(d) -%}
+<article class="draft" data-draft="{{ d.id }}">
+  <div class="draft-head">{{ icon("mail", 14) }}<span class="badge draft">Draft · not sent</span> <span class="small muted">{{ d.channel }} · <code>{{ d.id }}</code></span></div>
+  <dl class="kv">
+    <dt>To</dt><dd>{{ d.to }}</dd>
+    {% if d.subject %}<dt>Subject</dt><dd><strong>{{ d.subject }}</strong></dd>{% endif %}
+    <dt>Asks for</dt><dd>{{ d.asks_for }}</dd>
+    {% if d.result_ids %}<dt>About</dt><dd>{% for r in d.result_ids %}<a href="/result?id={{ r | q }}"><code>{{ r }}</code></a>{% if not loop.last %}, {% endif %}{% endfor %}</dd>{% endif %}
+  </dl>
+  <div class="body">{{ d.body }}</div>
+  <div class="foot small muted">Auditorium never sends messages. A person copies this and sends it themselves.</div>
+</article>
+{%- endmacro %}
+
+{% macro evidence_styles() -%}
+.evidence { background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--line-2); border-radius: var(--radius); margin: 10px 0; box-shadow: var(--shadow); }
+.evidence.verified { border-left-color: var(--pass); }
+.evidence.failed { border-color: var(--fail-line); border-left-color: var(--fail-solid); background: linear-gradient(var(--fail-bg), var(--fail-bg)) top / 100% 38px no-repeat, var(--surface); }
+.evidence.unchecked { border-left-color: var(--review); border-left-style: dashed; }
+.evidence.live_unchecked { border-left-color: var(--na); border-left-style: dashed; }
+.ev-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 14px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.ev-kind { display: inline-flex; gap: 7px; align-items: center; font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--ink-2); }
+.ev-kind .ico { color: var(--muted); }
+.ev-role { font-weight: 500; letter-spacing: .02em; text-transform: none; color: var(--muted); font-size: 12px; }
+.ev-role::before { content: "·"; margin: 0 6px 0 0; }
+.ev-body { padding: 10px 14px 12px; }
+.ev-line { display: flex; gap: 6px 10px; align-items: baseline; flex-wrap: wrap; }
+.ev-line code { overflow-wrap: anywhere; }
+.ev-links { display: inline-flex; gap: 14px; margin-left: auto; font-size: 12.5px; }
+.ev-links a { display: inline-flex; gap: 4px; align-items: center; }
+.ev-field { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; margin-top: 8px; padding: 8px 10px; background: var(--sunken); border-radius: var(--radius-sm); }
+.ev-field .f { color: var(--muted); }
+.ev-field .eq { color: var(--faint); }
+.ev-field .val { color: var(--ink); font-weight: 500; overflow-wrap: anywhere; }
+.ev-note { margin-top: 8px; font-size: 12.5px; color: var(--ink-2); }
+.ev-reason { margin-top: 6px; white-space: normal; }
+{%- endmacro %}

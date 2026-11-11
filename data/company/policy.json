@@ -1,0 +1,35 @@
+{
+  "id": "spend-policy-2025",
+  "effective_from": "2025-01-01",
+  "receipt_required_from_cents": 5000,
+  "approval_rules": [
+    {
+      "id": "card-manager",
+      "description": "A card charge of $250 or more needs the cardholder's manager.",
+      "kinds": [
+        "card_expense"
+      ],
+      "min_amount_cents": 25000,
+      "approver_role": "manager"
+    },
+    {
+      "id": "bill-manager",
+      "description": "A vendor bill of $1,000 or more needs the requester's manager.",
+      "kinds": [
+        "vendor_bill"
+      ],
+      "min_amount_cents": 100000,
+      "approver_role": "manager"
+    },
+    {
+      "id": "bill-cfo",
+      "description": "A vendor bill of $10,000 or more also needs the CFO, in addition to the manager.",
+      "kinds": [
+        "vendor_bill"
+      ],
+      "min_amount_cents": 1000000,
+      "approver_role": "cfo"
+    }
+  ],
+  "document_id": "company:policy:spend-policy"
+}

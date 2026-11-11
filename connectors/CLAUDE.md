@@ -13,5 +13,41 @@ server), and loading the dataset into QuickBooks.
   `describe()` as `mode: local`. Never pretend a source was live.
 - First task: the researched Ramp demo URL returned 404 on 2026-11-09 (see README).
 
+## Ramp stand-in (no Ramp login yet)
+
+`ramp_standin.py` serves a dataset folder as a local MCP server in Ramp's payload
+shapes. It is not Ramp, and `describe()` reports Ramp as `local` when connected to it.
+See `decisions/2026-11-10-ramp-standin.md`.
+
+```
+uv run python -m auditorium_connectors.ramp_standin <dataset_dir> [--port 8765] [--host 127.0.0.1]
+RAMP_MCP_URL=http://127.0.0.1:8765/mcp RAMP_MCP_TOKEN=anything   # any token is accepted
+```
+
+Ramp documents must be PDFs or images (a bill's raw `EMAIL` attachment may be plain
+text), or the connector refuses them and falls back. A file Ramp lists but its host
+answers 404 for is left off its transaction and named in `describe()`; see
+`decisions/2026-11-10-ramp-files-ramp-cannot-serve.md`.
+
+## Ramp Developer API (unattended, with approvals)
+
+`ramp_api.py` reads Ramp with client credentials. `connect_sources` prefers it when
+`RAMP_CLIENT_ID` and `RAMP_CLIENT_SECRET` are set (`RAMP_API_URL`, default
+`https://demo-api.ramp.com`), then MCP, then local. See
+`decisions/2026-11-10-ramp-developer-api.md`. Live test: `AUDITORIUM_LIVE_RAMP_API=1`.
+
+## Ramp bill loader (sandbox only, dry run by default)
+
+`ramp_loader.py` creates the dataset's bills in the Ramp sandbox, stamped
+`auditorium-ref: <id>` in the memo. `--write` to the sandbox only, as agreed in #18.
+With stamped bills in Ramp, `connect_sources` serves them live (requester, approvals,
+paid date from the dataset via the stamp) and card transactions from the dataset. See
+`decisions/2026-11-10-ramp-bill-loader.md`.
+
+```
+uv run --env-file .env python -m auditorium_connectors.ramp_loader <dataset_dir>   # read-only check
+uv run --env-file .env python -m auditorium_connectors.ramp_loader <dataset_dir> --write
+```
+
 Record decisions in `connectors/decisions/YYYY-MM-DD-short-title.md`: what, what else was
 considered, why, what would change our mind. Root rules: ../CLAUDE.md.

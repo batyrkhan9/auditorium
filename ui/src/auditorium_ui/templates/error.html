@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light dark"><title>Auditorium</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/ibm-plex-sans@5.2.8/latin-400.css" integrity="sha384-KAoV+iN2OQM4nX8cLQwXAmxUpLLXBew80mRTAMwu9s6Qc2HHFDByndI1icVmJ9Mb" crossorigin="anonymous">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/ibm-plex-sans@5.2.8/latin-600.css" integrity="sha384-JyLG9ggsH+KTlK4Vm1MJQ3ImRVsZr00dz86Xq3GWAYPdswFE0QQzcZXLCbmgyRdg" crossorigin="anonymous">
+<style>
+:root { --bg: #f4f5f7; --surface: #fff; --ink: #101317; --muted: #66707d; --line: #e1e4e9; --accent: #2647c9; }
+@media (prefers-color-scheme: dark) { :root { --bg: #0c0e11; --surface: #14171c; --ink: #e7e9ec; --muted: #8e97a3; --line: #242930; --accent: #8ea6ff; } }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+.box { max-width: 620px; margin: 12vh auto 0; padding: 24px 28px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+.eyebrow { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+h1 { font-size: 17px; font-weight: 600; margin: 6px 0 14px; overflow-wrap: anywhere; }
+a { color: var(--accent); }
+@media (max-width: 660px) { .box { margin: 24px 16px; } }
+</style>
+</head>
+<body>
+<div class="box">
+<div class="eyebrow">Auditorium</div>
+<h1>{{ message }}</h1>
+<p><a href="/">Back to the results</a></p>
+</div>
+</body>
+</html>

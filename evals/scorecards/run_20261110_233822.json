@@ -1,0 +1,39 @@
+{
+  "run_id": "run_20261110_233822",
+  "dataset_id": "copperline-fy2025-v1",
+  "answer_key_sha256": "1f8aa024da33eb76cb33d187217b67b36b7ef80c46778a19d2aa7e6c3c73e0c0",
+  "scored_at": "2026-11-10T23:40:16.975248Z",
+  "per_check": {
+    "receipt": {
+      "true_positive": 9,
+      "false_positive": 5,
+      "false_negative": 0,
+      "true_negative": 169,
+      "needs_review": 17
+    },
+    "approval": {
+      "true_positive": 12,
+      "false_positive": 1,
+      "false_negative": 0,
+      "true_negative": 187,
+      "needs_review": 0
+    },
+    "ledger_match": {
+      "true_positive": 10,
+      "false_positive": 0,
+      "false_negative": 0,
+      "true_negative": 170,
+      "needs_review": 20
+    },
+    "period": {
+      "true_positive": 4,
+      "false_positive": 0,
+      "false_negative": 1,
+      "true_negative": 184,
+      "needs_review": 11
+    }
+  },
+  "evidence_total": 3083,
+  "evidence_unverified": 0,
+  "notes": "All 3083 pieces of evidence verified against snapshot. receipt: precision 64.3%, recall 90.0% (100.0% counting needs_review), false alarms 2.6% of clean, needs_review 8.5%, results missing 0. approval: precision 92.3%, recall 100.0% (100.0% counting needs_review), false alarms 0.5% of clean, needs_review 0.0%, results missing 0. ledger_match: precision 100.0%, recall 100.0% (100.0% counting needs_review), false alarms 0.0% of clean, needs_review 10.0%, results missing 0. period: precision 100.0%, recall 50.0% (87.5% counting needs_review), false alarms 0.0% of clean, needs_review 5.5%, results missing 0. needs_review is neither a hit nor a false alarm; see evals/decisions. Sources: live qbo; local bank, company, ramp. At run time, evidence problems against the run's own Sources: 0. validate_run problems at scoring: 1. Braintrust not used (scored locally)."
+}

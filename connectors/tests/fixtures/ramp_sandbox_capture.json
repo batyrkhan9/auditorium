@@ -1,0 +1,1881 @@
+{
+ "_source": "captured from demo-mcp.ramp.com on 2026-11-10 (Ramp's sandbox demo business, read-only tools), lists truncated to 3 items (`_truncated_from` gives the original length). Sanitized: pagination cursors and the agent key id replaced, e-mail addresses moved to example.com, URL query strings cut. Everything else is as Ramp returned it.",
+ "tool_names": [
+  "ramp_accounts",
+  "ramp_activate_card",
+  "ramp_add_user_to_shared_fund",
+  "ramp_answer_policy_question",
+  "ramp_api_key_spend",
+  "ramp_approve_or_reject_bill",
+  "ramp_approve_or_reject_reimbursement",
+  "ramp_approve_or_reject_request",
+  "ramp_approve_or_reject_transaction",
+  "ramp_archive_spend_allocation",
+  "ramp_attach_receipt_to_reimbursement",
+  "ramp_attach_receipt_to_transaction",
+  "ramp_audit_logs_list",
+  "ramp_award_sourcing_event",
+  "ramp_booking_cancellation_details",
+  "ramp_booking_modification_details",
+  "ramp_cancel_reimbursement_payment",
+  "ramp_close_sourcing_event",
+  "ramp_complete_transaction_revision",
+  "ramp_create",
+  "ramp_create_department",
+  "ramp_create_draft_bill",
+  "ramp_create_draft_spend_request_from_sourcing_event",
+  "ramp_create_mileage_reimbursement",
+  "ramp_create_payee",
+  "ramp_create_reimbursement_from_receipt",
+  "ramp_create_rfx",
+  "ramp_create_trip",
+  "ramp_daily_usage",
+  "ramp_delete_comment",
+  "ramp_delete_procurement_draft",
+  "ramp_delete_reimbursement",
+  "ramp_delete_spend_program",
+  "ramp_departments",
+  "ramp_duplicate_reimbursement",
+  "ramp_edit_comment",
+  "ramp_edit_reimbursement",
+  "ramp_edit_transaction",
+  "ramp_edit_user_role_on_shared_fund",
+  "ramp_enable_shared_fund_access",
+  "ramp_estimate_mileage_reimbursement",
+  "ramp_estimate_per_diem_amount",
+  "ramp_explain_spend_not_on_budget",
+  "ramp_find_procurement_deflection_matches",
+  "ramp_get",
+  "ramp_get_agent_card_creds",
+  "ramp_get_agent_card_funds",
+  "ramp_get_ai_token_spend_aggregates",
+  "ramp_get_ai_token_spend_connections",
+  "ramp_get_ai_token_spend_current_spend",
+  "ramp_get_ai_token_spend_filter_options",
+  "ramp_get_application_details",
+  "ramp_get_application_status",
+  "ramp_get_approval_chain_details",
+  "ramp_get_attention_feed",
+  "ramp_get_bill_amount_summary",
+  "ramp_get_bill_comments",
+  "ramp_get_bill_details",
+  "ramp_get_bill_history",
+  "ramp_get_bill_invoices",
+  "ramp_get_bill_metrics",
+  "ramp_get_bill_status",
+  "ramp_get_bills_for_approval",
+  "ramp_get_booking_details",
+  "ramp_get_booking_service_status",
+  "ramp_get_bookings",
+  "ramp_get_business_statement_date",
+  "ramp_get_candidate_trips_for_transaction",
+  "ramp_get_card_statement_balance",
+  "ramp_get_decline_explanation",
+  "ramp_get_delegated_travelers",
+  "ramp_get_draft_bill_details",
+  "ramp_get_employee_submission_policy_requirements",
+  "ramp_get_erp_connection_status",
+  "ramp_get_expense_workflow_context",
+  "ramp_get_flight_booking_locations",
+  "ramp_get_full_transaction_metadata",
+  "ramp_get_funds",
+  "ramp_get_hotel_rates",
+  "ramp_get_latest_sync",
+  "ramp_get_missing_items_by_user",
+  "ramp_get_more_tools",
+  "ramp_get_my_ai_token_spend_aggregates",
+  "ramp_get_office_locations",
+  "ramp_get_org_chart",
+  "ramp_get_outstanding_reimbursements_by_currency",
+  "ramp_get_pending_request_items",
+  "ramp_get_pending_travel_requests",
+  "ramp_get_policy_details",
+  "ramp_get_policy_workflow_body",
+  "ramp_get_purchase_order_details",
+  "ramp_get_receipt_details",
+  "ramp_get_recurring_bill",
+  "ramp_get_reimbursement_receipts",
+  "ramp_get_reimbursements",
+  "ramp_get_reimbursements_for_approval",
+  "ramp_get_remaining_budget_amount",
+  "ramp_get_requests_to_review",
+  "ramp_get_rfx_detail",
+  "ramp_get_rfx_grading_overview",
+  "ramp_get_rfx_response_summary",
+  "ramp_get_rfx_vendor_responses",
+  "ramp_get_simplified_user_detail",
+  "ramp_get_sourcing_event_context",
+  "ramp_get_sync_commit_failure_details",
+  "ramp_get_tracking_categories",
+  "ramp_get_tracking_category_options",
+  "ramp_get_transaction_missing_items",
+  "ramp_get_transaction_suggested_memos",
+  "ramp_get_transactions",
+  "ramp_get_traveler_profile",
+  "ramp_get_unified_request_details",
+  "ramp_get_user_recent_reimbursements",
+  "ramp_get_user_trips",
+  "ramp_get_vendor_agreement",
+  "ramp_get_vendor_banking_details",
+  "ramp_get_vendor_details",
+  "ramp_get_vendor_document_bulk_status",
+  "ramp_hold",
+  "ramp_hold_release",
+  "ramp_invite_vendors_to_rfx",
+  "ramp_issue_from_spend_program",
+  "ramp_issue_one_off_funds",
+  "ramp_limit_increase",
+  "ramp_list_bills",
+  "ramp_list_budgets",
+  "ramp_list_business_entities",
+  "ramp_list_cards",
+  "ramp_list_policies",
+  "ramp_list_sourcing_events",
+  "ramp_list_traveler_loyalty_programs",
+  "ramp_list_unmatched_receipts",
+  "ramp_list_users",
+  "ramp_list_vendor_agreements",
+  "ramp_lock_or_unlock_card",
+  "ramp_lock_or_unlock_spend_allocation",
+  "ramp_lock_or_unlock_spend_allocation_member",
+  "ramp_manage_rfx_collaborators",
+  "ramp_mark_ready_to_sync",
+  "ramp_mark_rfx_graded",
+  "ramp_mark_transaction_missing_receipt",
+  "ramp_merchant_categories",
+  "ramp_merchant_list",
+  "ramp_mpp_creds",
+  "ramp_open_receipt_uploader",
+  "ramp_post_comment",
+  "ramp_procurement_requests_draft",
+  "ramp_procurement_requests_get",
+  "ramp_procurement_spend_intents",
+  "ramp_procurement_submit",
+  "ramp_provide_no_receipt_reason",
+  "ramp_publish_rfx",
+  "ramp_remind_bill_approvers",
+  "ramp_remove_traveler_loyalty_program",
+  "ramp_remove_user_from_shared_fund",
+  "ramp_rename_department",
+  "ramp_reporting_describe_dataset",
+  "ramp_reporting_get_skill",
+  "ramp_reporting_list_datasets",
+  "ramp_reporting_lookup_search_tags",
+  "ramp_reporting_query",
+  "ramp_reporting_search_catalog",
+  "ramp_request_bill_invoice_upload_link",
+  "ramp_request_receipt_upload_link",
+  "ramp_request_transaction_repayment",
+  "ramp_resolve_approval_target",
+  "ramp_resubmit_reimbursement",
+  "ramp_return_rfx_to_draft",
+  "ramp_revoke_rfx_vendor_invitation",
+  "ramp_roles",
+  "ramp_search_bills",
+  "ramp_search_flight_modifications",
+  "ramp_search_flights",
+  "ramp_search_help_center_snippets",
+  "ramp_search_hotel",
+  "ramp_search_merchants",
+  "ramp_search_purchase_orders",
+  "ramp_search_receipts",
+  "ramp_search_reimbursements",
+  "ramp_search_unified_requests",
+  "ramp_search_user",
+  "ramp_search_user_reimbursements",
+  "ramp_search_vendors",
+  "ramp_send_rfx_response_reminder",
+  "ramp_set_decline_buffer",
+  "ramp_set_rfx_cover_sheet",
+  "ramp_set_rfx_pricing_sheet",
+  "ramp_set_rfx_vendor_invitation_contact",
+  "ramp_set_traveler_loyalty_program",
+  "ramp_simulate_policy_workflow_for_expense",
+  "ramp_split",
+  "ramp_statements_list",
+  "ramp_submit_draft_bill",
+  "ramp_submit_flight_booking",
+  "ramp_submit_flight_cancellation",
+  "ramp_submit_flight_modification",
+  "ramp_submit_fund_request",
+  "ramp_submit_hotel_booking",
+  "ramp_submit_hotel_cancellation",
+  "ramp_submit_reimbursement",
+  "ramp_team_spend",
+  "ramp_token_info",
+  "ramp_transfer_spend_allocation_ownership",
+  "ramp_travel_request_action",
+  "ramp_unarchive_spend_allocation",
+  "ramp_unlock_fraud_locked_card",
+  "ramp_update_category_restrictions",
+  "ramp_update_draft_bill",
+  "ramp_update_fund_entity",
+  "ramp_update_merchant_restrictions",
+  "ramp_update_rfx",
+  "ramp_update_spend_allocation_interval",
+  "ramp_update_transaction_amount_limit",
+  "ramp_update_travel_preferences",
+  "ramp_update_traveler_profile",
+  "submit_feedback"
+ ],
+ "tools": [
+  {
+   "name": "ramp_get_transactions",
+   "description": "Search individual card transactions by settlement amount, currency, date, or merchant, with workflow details and reconciliation dates. Returns individual records, not aggregate totals or trends. Declines are excluded by default; state='declined' searches declined attempts but cannot be combined with amount_filter. Original merchant amounts and FX conversion are not supported by amount_filter.",
+   "input_schema": {
+    "properties": {
+     "amount_filter": {
+      "description": "Numeric amount predicate, combined with all other filters using AND. Supply exact_amount or inclusive min_amount/max_amount and an explicit settlement basis. Omit/null for no amount filter. Text search does not filter numeric amounts. Existing visibility exclusions for zero-value statement amounts still apply. Not supported with state='declined'; omit amount_filter to search declined attempts. Reuse the same filters when paging.",
+      "properties": {
+       "basis": {
+        "description": "'settlement' matches the signed statement-currency amount (authorized amount while pending). Not supported with state='declined'. Original merchant-currency amounts are not searched. No FX conversion.",
+        "enum": [
+         "settlement"
+        ],
+        "type": "string"
+       },
+       "currency": {
+        "description": "ISO 4217 currency code for the chosen basis. Omit/null to compare the same nominal number across all currencies, not to assume USD or convert currencies. Returned amounts retain their currencies.",
+        "enum": [
+         "AED",
+         "AFN",
+         "ALL",
+         "AMD",
+         "ANG",
+         "AOA",
+         "ARS",
+         "AUD",
+         "AWG",
+         "AZN",
+         "BAM",
+         "BBD",
+         "BDT",
+         "BGN",
+         "BHD",
+         "BIF",
+         "BMD",
+         "BND",
+         "BOB",
+         "BOV",
+         "BRL",
+         "BSD",
+         "BTN",
+         "BWP",
+         "BYN",
+         "BZD",
+         "CAD",
+         "CDF",
+         "CHE",
+         "CHF",
+         "CHW",
+         "CLF",
+         "CLP",
+         "CNH",
+         "CNY",
+         "COP",
+         "COU",
+         "CRC",
+         "CUC",
+         "CUP",
+         "CVE",
+         "CZK",
+         "DJF",
+         "DKK",
+         "DOP",
+         "DZD",
+         "EGP",
+         "ERN",
+         "ETB",
+         "EUR",
+         "EURC",
+         "FJD",
+         "FKP",
+         "GBP",
+         "GEL",
+         "GHS",
+         "GIP",
+         "GMD",
+         "GNF",
+         "GTQ",
+         "GYD",
+         "HKD",
+         "HNL",
+         "HRK",
+         "HTG",
+         "HUF",
+         "IDR",
+         "ILS",
+         "INR",
+         "IQD",
+         "IRR",
+         "ISK",
+         "JMD",
+         "JOD",
+         "JPY",
+         "KES",
+         "KGS",
+         "KHR",
+         "KMF",
+         "KPW",
+         "KRW",
+         "KWD",
+         "KYD",
+         "KZT",
+         "LAK",
+         "LBP",
+         "LKR",
+         "LRD",
+         "LSL",
+         "LYD",
+         "MAD",
+         "MDL",
+         "MGA",
+         "MKD",
+         "MMK",
+         "MNT",
+         "MOP",
+         "MRU",
+         "MUR",
+         "MVR",
+         "MWK",
+         "MXN",
+         "MXV",
+         "MYR",
+         "MZN",
+         "NAD",
+         "NGN",
+         "NIO",
+         "NOK",
+         "NPR",
+         "NZD",
+         "OMR",
+         "OPEN_USD",
+         "PAB",
+         "PEN",
+         "PGK",
+         "PHP",
+         "PKR",
+         "PLN",
+         "PYG",
+         "QAR",
+         "RON",
+         "RSD",
+         "RUB",
+         "RWF",
+         "SAR",
+         "SBD",
+         "SCR",
+         "SDG",
+         "SEK",
+         "SGD",
+         "SHP",
+         "SLE",
+         "SLL",
+         "SOS",
+         "SRD",
+         "SSP",
+         "STN",
+         "SVC",
+         "SYP",
+         "SZL",
+         "THB",
+         "TJS",
+         "TMT",
+         "TND",
+         "TOP",
+         "TRY",
+         "TTD",
+         "TWD",
+         "TZS",
+         "UAH",
+         "UGX",
+         "USD",
+         "USDB",
+         "USDC",
+         "USDG",
+         "USDT",
+         "USN",
+         "UYI",
+         "UYU",
+         "UYW",
+         "UZS",
+         "VED",
+         "VES",
+         "VND",
+         "VUV",
+         "WST",
+         "XAD",
+         "XAF",
+         "XAG",
+         "XAU",
+         "XBA",
+         "XBB",
+         "XBC",
+         "XBD",
+         "XCD",
+         "XCG",
+         "XDR",
+         "XOF",
+         "XPD",
+         "XPF",
+         "XPT",
+         "XSU",
+         "XTS",
+         "XUA",
+         "XXX",
+         "YER",
+         "ZAR",
+         "ZMW",
+         "ZWG",
+         "ZWL"
+        ],
+        "type": "string"
+       },
+       "exact_amount": {
+        "description": "Exact signed amount in major currency units, preferably a decimal string (e.g. '12.34', not 1234 cents). Zero and negative refunds are supported. No rounding or tolerance. Mutually exclusive with min_amount/max_amount.",
+        "type": "number"
+       },
+       "max_amount": {
+        "description": "Inclusive signed upper bound in major units; omit/null for no upper bound.",
+        "type": "number"
+       },
+       "min_amount": {
+        "description": "Inclusive signed lower bound in major units; omit/null for no lower bound.",
+        "type": "number"
+       }
+      },
+      "required": [
+       "basis"
+      ],
+      "title": "amount_filter",
+      "type": "object"
+     },
+     "card_uuid": {
+      "description": "Restrict results to this exact card, within the selected transaction scope.",
+      "title": "card_uuid",
+      "type": "string"
+     },
+     "client_business_id": {
+      "description": "Public UUID of the selected client business from GetAuthorizedBusinesses. When set, the tool runs against that client business.",
+      "format": "uuid",
+      "title": "client_business_id",
+      "type": "string"
+     },
+     "details_to_include_in_response": {
+      "description": "Optional extra fields to populate per transaction. 'submitted_items' returns receipts, attendees, trip, and the selected accounting categories (tracking category selections such as GL category or department) — use it when verifying accounting coding or reconciling against the general ledger. Model-ranked coding and fund suggestions are generated only when page_size=1; page through transactions one at a time when those suggestions are needed.",
+      "items": {
+       "enum": [
+        "card_details",
+        "policy_assessment_for_reviewers",
+        "submitted_items",
+        "suggestions_for_transaction_items",
+        "transaction_documentation_and_missing_items"
+       ],
+       "type": "string"
+      },
+      "title": "details_to_include_in_response",
+      "type": "array"
+     },
+     "end_at": {
+      "description": "End of a transaction-time window, as an ISO 8601 datetime. Add Z or an offset for an exact UTC window (exports, reconciliation). Omit the offset for the user's local time (for example 'yesterday', 'last week'). Must be strictly later than start_at when both are supplied. End is exclusive; use the next midnight for a whole-day range. Both bounds must include an offset or both omit it.",
+      "title": "end_at",
+      "type": "string"
+     },
+     "filters": {
+      "description": "Structured filters by merchant, category, spend allocation, trip, or tracking category.",
+      "properties": {
+       "filters": {
+        "description": "Filter criteria, combined with AND.",
+        "items": {
+         "properties": {
+          "filter": {
+           "description": "Value to filter by. Fuzzy-matched for merchant, spend_allocation, trip, and tracking_category; matched by user name or email for marked_ready_by_user; exact for category.",
+           "type": "string"
+          },
+          "filter_type": {
+           "description": "Filter dimension. 'trip' is the event/conference name (e.g. 'ERP Conference'), not a city. 'tracking_category' filters by accounting coding option name/code and requires a connected accounting integration. 'marked_ready_by_user' returns transactions currently marked ready to sync whose latest ready mark was made by the matched person.",
+           "enum": [
+            "category",
+            "marked_ready_by_user",
+            "merchant",
+            "spend_allocation",
+            "tracking_category",
+            "trip"
+           ],
+           "type": "string"
+          }
+         },
+         "required": [
+          "filter",
+          "filter_type"
+         ],
+         "type": "object"
+        },
+        "type": "array"
+       }
+      },
+      "required": [
+       "filters"
+      ],
+      "title": "filters",
+      "type": "object"
+     },
+     "include_count": {
+      "default": true,
+      "description": "Include total_count in the response.",
+      "title": "include_count",
+      "type": "boolean"
+     },
+     "next_page_cursor": {
+      "description": "Copy next_page_cursor exactly from this tool's prior response. Reuse with the same search parameters.",
+      "title": "next_page_cursor",
+      "type": "string"
+     },
+     "only_missing_items": {
+      "default": false,
+      "description": "Set true to return only transactions with missing items, also called incomplete transactions or transactions with outstanding requirements, that require cardholder action. Leave false to apply no missing-items filter.",
+      "title": "only_missing_items",
+      "type": "boolean"
+     },
+     "page_size": {
+      "default": 50,
+      "description": "Max transactions per page (1-200).",
+      "maximum": 200,
+      "minimum": 1,
+      "title": "page_size",
+      "type": "integer"
+     },
+     "rationale": {
+      "description": "Briefly explain why you are calling this tool: what goal or workflow it serves and what you intend to do with the result.",
+      "maxLength": 1024,
+      "minLength": 1,
+      "title": "rationale",
+      "type": "string"
+     },
+     "reason_memo_merchant_or_user_name_text_search": {
+      "description": "Text search (>=3 chars) across merchant names, memos, and employee names. Does not match trips, attendees, or fund names.",
+      "title": "reason_memo_merchant_or_user_name_text_search",
+      "type": "string"
+     },
+     "sort": {
+      "description": "Sort order. Defaults to transaction_date desc.",
+      "properties": {
+       "direction": {
+        "enum": [
+         "asc",
+         "desc"
+        ],
+        "type": "string"
+       },
+       "sort_by": {
+        "enum": [
+         "merchant",
+         "transaction_date",
+         "user"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "direction",
+       "sort_by"
+      ],
+      "title": "sort",
+      "type": "object"
+     },
+     "start_at": {
+      "description": "Inclusive start of a transaction-time window, as an ISO 8601 datetime. Add Z or an offset for an exact UTC window (exports, reconciliation). Omit the offset for the user's local time (for example 'yesterday', 'last week'): 2026-11-01T00:00:00 is local midnight. Must be strictly earlier than end_at when both are supplied. Both bounds must include an offset or both omit it; do not guess an offset for local dates. Filters on transaction time, not accounting date, so it may not match accounting-period or month-end totals; use reporting for those.",
+      "title": "start_at",
+      "type": "string"
+     },
+     "state": {
+      "description": "Filter by state. Defaults to non-declined; 'all' returns every non-declined state but never declines; set 'declined' for declined/failed.",
+      "enum": [
+       "all",
+       "cleared",
+       "declined",
+       "pending"
+      ],
+      "title": "state",
+      "type": "string"
+     },
+     "transactions_to_retrieve": {
+      "description": "Which set of transactions to search.",
+      "enum": [
+       "all_transactions_across_entire_business",
+       "my_and_assisted_users_transactions",
+       "my_transactions",
+       "transactions_awaiting_my_approval",
+       "transactions_made_by_my_team",
+       "unsynced_transactions"
+      ],
+      "title": "transactions_to_retrieve",
+      "type": "string"
+     }
+    },
+    "required": [
+     "rationale",
+     "transactions_to_retrieve"
+    ],
+    "title": "ramp_get_transactionsArguments",
+    "type": "object"
+   },
+   "args": {
+    "rationale": "Capture payload shape of card transactions for connector test fixtures.",
+    "transactions_to_retrieve": "all_transactions_across_entire_business",
+    "page_size": 3
+   },
+   "response": {
+    "transactions": [
+     {
+      "transaction_uuid": "2b7a80d1-475d-4dbb-90dc-88f8d9a982ef",
+      "spent_by_user": "David Wallace",
+      "spent_by_user_uuid": "b6b46725-b181-454a-8094-f0e3e2f33e02",
+      "amount": "$431.41",
+      "amount_value": "431.41",
+      "amount_currency": "USD",
+      "original_amount": "608.98",
+      "original_currency": "CAD",
+      "state": "CLEARED",
+      "decline_reason": null,
+      "transaction_time": "2026-11-29T08:37:40+00:00",
+      "cleared_at": "2026-11-30T08:37:40+00:00",
+      "settlement_date": "2026-12-01",
+      "accounting_date": "2026-11-30T08:37:40+00:00",
+      "merchant_name": "Air Canada",
+      "merchant_category": "Airlines",
+      "reason_or_justification": "Flight to Toronto",
+      "spend_allocation_name": "Executive Travel",
+      "spend_allocation_id": "d9f0a422-6452-49ec-b610-aed6b86156a4",
+      "entity_uuid": "403eb1d0-9789-4fb1-92eb-07d770e0d069",
+      "entity_name": "Save Time Inc",
+      "receipt_uuids": null,
+      "trip_uuid": null,
+      "trip_name": null,
+      "card": null,
+      "accounting_categories": null,
+      "attendees": null,
+      "system_in_or_out_of_policy_assessment": null,
+      "suggested_memos": [],
+      "suggested_codings": [],
+      "suggested_funds": [],
+      "missing_items": null,
+      "transaction_link": "https://demo.ramp.com/business-overview/transactions/2b7a80d1-475d-4dbb-90dc-88f8d9a982ef",
+      "synced_at": null
+     },
+     {
+      "transaction_uuid": "8973bd63-fff3-4725-93bd-73f0603cabe9",
+      "spent_by_user": "Paola Noun",
+      "spent_by_user_uuid": "2c974fbf-a48e-43f1-8beb-d6a398e3a6a5",
+      "amount": "$276.76",
+      "amount_value": "276.76",
+      "amount_currency": "USD",
+      "original_amount": "276.76",
+      "original_currency": "USD",
+      "state": "CLEARED",
+      "decline_reason": null,
+      "transaction_time": "2026-11-15T08:38:36+00:00",
+      "cleared_at": "2026-11-16T08:38:36+00:00",
+      "settlement_date": "2026-11-17",
+      "accounting_date": "2026-11-16T08:38:36+00:00",
+      "merchant_name": "La Pecora Bianca",
+      "merchant_category": "Restaurants",
+      "reason_or_justification": "The best dinner ever",
+      "spend_allocation_name": "Everyday Expenses",
+      "spend_allocation_id": "21aaf8c3-9272-474b-8ab9-f29fd7b62db4",
+      "entity_uuid": "403eb1d0-9789-4fb1-92eb-07d770e0d069",
+      "entity_name": "Save Time Inc",
+      "receipt_uuids": null,
+      "trip_uuid": null,
+      "trip_name": null,
+      "card": null,
+      "accounting_categories": null,
+      "attendees": null,
+      "system_in_or_out_of_policy_assessment": null,
+      "suggested_memos": [],
+      "suggested_codings": [],
+      "suggested_funds": [],
+      "missing_items": null,
+      "transaction_link": "https://demo.ramp.com/business-overview/transactions/8973bd63-fff3-4725-93bd-73f0603cabe9",
+      "synced_at": null
+     },
+     {
+      "transaction_uuid": "17c03a6f-3a03-49d3-9543-bf5420be0214",
+      "spent_by_user": "Angela Martin",
+      "spent_by_user_uuid": "8d99a2a2-1ab4-4d56-9de6-feeb850086c3",
+      "amount": "$14.05",
+      "amount_value": "14.05",
+      "amount_currency": "USD",
+      "original_amount": "14.05",
+      "original_currency": "USD",
+      "state": "CLEARED",
+      "decline_reason": null,
+      "transaction_time": "2026-11-14T08:38:36+00:00",
+      "cleared_at": "2026-11-15T08:38:36+00:00",
+      "settlement_date": "2026-11-16",
+      "accounting_date": "2026-11-15T08:38:36+00:00",
+      "merchant_name": "Juice Press",
+      "merchant_category": "Restaurants",
+      "reason_or_justification": "Snack",
+      "spend_allocation_name": "Everyday Expenses",
+      "spend_allocation_id": "f7165968-5765-4c16-b3bd-5519f3f6afae",
+      "entity_uuid": "a628ef25-0982-4eff-8d93-2e26b162e175",
+      "entity_name": "Save Money Inc",
+      "receipt_uuids": null,
+      "trip_uuid": null,
+      "trip_name": null,
+      "card": null,
+      "accounting_categories": null,
+      "attendees": null,
+      "system_in_or_out_of_policy_assessment": null,
+      "suggested_memos": [],
+      "suggested_codings": [],
+      "suggested_funds": [],
+      "missing_items": null,
+      "transaction_link": "https://demo.ramp.com/business-overview/transactions/17c03a6f-3a03-49d3-9543-bf5420be0214",
+      "synced_at": null
+     }
+    ],
+    "total_count": 1334,
+    "next_page_cursor": "gAAAAA-redacted-cursor",
+    "note": null,
+    "applied_date_filter": null
+   },
+   "error": null
+  },
+  {
+   "name": "ramp_get_full_transaction_metadata",
+   "description": "View all details, memos, funds, and receipts for a specific transaction.\n\nRead the amount from `amount_decimal`, which is already in `currency`'s major unit\nand needs no arithmetic. Ignore `amount_cents`; it is the same amount in minor units,\nkept only for backwards compatibility.",
+   "input_schema": {
+    "properties": {
+     "client_business_id": {
+      "description": "Public UUID of the selected client business from GetAuthorizedBusinesses. When set, the tool runs against that client business.",
+      "format": "uuid",
+      "title": "client_business_id",
+      "type": "string"
+     },
+     "id": {
+      "description": "Transaction id (from tool calls or metadata)",
+      "format": "uuid",
+      "title": "id",
+      "type": "string"
+     },
+     "rationale": {
+      "description": "Briefly explain why you are calling this tool: what goal or workflow it serves and what you intend to do with the result.",
+      "maxLength": 1024,
+      "minLength": 1,
+      "title": "rationale",
+      "type": "string"
+     }
+    },
+    "required": [
+     "id",
+     "rationale"
+    ],
+    "title": "ramp_get_full_transaction_metadataArguments",
+    "type": "object"
+   },
+   "args": {
+    "id": "2b7a80d1-475d-4dbb-90dc-88f8d9a982ef",
+    "rationale": "Capture payload shape of full transaction metadata for connector test fixtures."
+   },
+   "response": {
+    "id": "2b7a80d1-475d-4dbb-90dc-88f8d9a982ef",
+    "amount_cents": 43141,
+    "amount_decimal": "431.41",
+    "currency": "USD",
+    "merchant_name": "Air Canada",
+    "memo": "Flight to Toronto",
+    "memo_source": null,
+    "created_at": "2026-11-29T08:37:40.340821",
+    "personal_repayment_state": null,
+    "tracking_categories": [],
+    "line_items": [],
+    "fund_name": "Executive Travel",
+    "user_name": "David Wallace",
+    "comments": {
+     "count": 0,
+     "comments": []
+    }
+   },
+   "error": null
+  },
+  {
+   "name": "ramp_list_bills",
+   "description": "List and filter bills with optional search, pagination, and status filters.\n\nReturns bills for the current user's business. When called with no parameters,\nreturns the most recent bills. Supports optional text search across vendor name,\ninvoice number, and payment ID.\n\nBills in Ramp have two stages: draft bills (created/uploaded but not yet\nsubmitted; use the draft-bill tools) and bills (submitted; they move through\napproval, then scheduling, then payment). A draft keeps the same ID after\nsubmission, but draft-only tools stop working on it once submitted.\n\nArchived bills are excluded unless include_archived is true.",
+   "input_schema": {
+    "properties": {
+     "client_business_id": {
+      "description": "Public UUID of the selected client business from GetAuthorizedBusinesses. When set, the tool runs against that client business.",
+      "format": "uuid",
+      "title": "client_business_id",
+      "type": "string"
+     },
+     "include_archived": {
+      "default": false,
+      "description": "Whether to include archived bills in results. Archived bills are excluded unless this is true. Set to true when the user asks about archived bills or asks what happened to a specific bill.",
+      "title": "include_archived",
+      "type": "boolean"
+     },
+     "include_paid": {
+      "default": true,
+      "description": "Whether to include paid bills in results. Set to false to see only unpaid bills.",
+      "title": "include_paid",
+      "type": "boolean"
+     },
+     "limit": {
+      "default": 10,
+      "description": "Maximum number of bills to return per page (1-50)",
+      "maximum": 50,
+      "minimum": 1,
+      "title": "limit",
+      "type": "integer"
+     },
+     "page_cursor": {
+      "description": "Pagination cursor from a previous response's next_page_cursor. The only valid string values are encrypted cursor tokens from a previous response (long strings starting with 'gAAAAA'). For the first page, for no more results, or for anything that is not one of those encrypted tokens, pass None (never the string 'None').",
+      "title": "page_cursor",
+      "type": "string"
+     },
+     "query": {
+      "description": "Optional text search filter (minimum 3 characters). Searches across vendor name, invoice number, and payment ID. Examples: 'UPS', 'INV-1722'. Will find partial matches. When omitted, returns all bills.",
+      "minLength": 3,
+      "title": "query",
+      "type": "string"
+     },
+     "rationale": {
+      "description": "Briefly explain why you are calling this tool: what goal or workflow it serves and what you intend to do with the result.",
+      "maxLength": 1024,
+      "minLength": 1,
+      "title": "rationale",
+      "type": "string"
+     }
+    },
+    "required": [
+     "rationale"
+    ],
+    "title": "ramp_list_billsArguments",
+    "type": "object"
+   },
+   "args": {
+    "rationale": "Capture payload shape of bills for connector test fixtures.",
+    "limit": 3
+   },
+   "response": {
+    "bills": [],
+    "total_found": 0,
+    "summary": "No bills found",
+    "next_page_cursor": null
+   },
+   "error": null
+  },
+  {
+   "name": "ramp_get_bill_details",
+   "description": "Get details for a bill already confirmed to be submitted; submitted bills only.\n\nRequires a bill UUID and known submitted status. A UUID alone does not\nestablish submission: a draft keeps the same UUID after submission.\nNot applicable to bills whose draft/submitted stage is unknown or to\nunsubmitted drafts.\n\nReturns bill metadata, payment status, and approval status. Submitted bills\ninclude bills awaiting approval, scheduling, or payment.",
+   "input_schema": {
+    "properties": {
+     "bill_id": {
+      "description": "UUID of a bill whose submitted status is confirmed (is_draft=false). A UUID appearing in a report or another tool result does not itself confirm submission. Does not accept draft or unknown-stage bill UUIDs.",
+      "title": "bill_id",
+      "type": "string"
+     },
+     "client_business_id": {
+      "description": "Public UUID of the selected client business from GetAuthorizedBusinesses. When set, the tool runs against that client business.",
+      "format": "uuid",
+      "title": "client_business_id",
+      "type": "string"
+     },
+     "rationale": {
+      "description": "Briefly explain why you are calling this tool: what goal or workflow it serves and what you intend to do with the result.",
+      "maxLength": 1024,
+      "minLength": 1,
+      "title": "rationale",
+      "type": "string"
+     }
+    },
+    "required": [
+     "bill_id",
+     "rationale"
+    ],
+    "title": "ramp_get_bill_detailsArguments",
+    "type": "object"
+   },
+   "args": null,
+   "response": null,
+   "error": "Not called: ramp_list_bills returned no bills, so no bill id was available."
+  },
+  {
+   "name": "ramp_get_bill_invoices",
+   "description": "Retrieve invoice file attachments (PDFs/images) for a submitted bill.\n\nReturns the source documents backing the bill: for each attachment, the\nfilename, type, and a time-limited download URL (the URL expires after\nabout 3 days). Draft bills are not supported: draft attachments are not\nretrievable through agent tools. get-draft-bill-details returns draft\nmetadata and a link to the draft page in the Ramp web app, where\nattachments can be viewed.\n\nBills in Ramp have two stages: draft bills (created/uploaded but not yet\nsubmitted; use the draft-bill tools) and bills (submitted; they move through\napproval, then scheduling, then payment). A draft keeps the same ID after\nsubmission, but draft-only tools stop working on it once submitted.",
+   "input_schema": {
+    "properties": {
+     "bill_id": {
+      "description": "The UUID of the bill to retrieve invoices for",
+      "title": "bill_id",
+      "type": "string"
+     },
+     "client_business_id": {
+      "description": "Public UUID of the selected client business from GetAuthorizedBusinesses. When set, the tool runs against that client business.",
+      "format": "uuid",
+      "title": "client_business_id",
+      "type": "string"
+     },
+     "rationale": {
+      "description": "Briefly explain why you are calling this tool: what goal or workflow it serves and what you intend to do with the result.",
+      "maxLength": 1024,
+      "minLength": 1,
+      "title": "rationale",
+      "type": "string"
+     }
+    },
+    "required": [
+     "bill_id",
+     "rationale"
+    ],
+    "title": "ramp_get_bill_invoicesArguments",
+    "type": "object"
+   },
+   "args": null,
+   "response": null,
+   "error": "Not called: ramp_list_bills returned no bills, so no bill id was available."
+  },
+  {
+   "name": "ramp_list_users",
+   "description": "List and search users across the entire business.\n\nReturns all users in the organization matching the given filters. Supports searching by\nname (partial match, case-insensitive), filtering by department or location, and pagination.\nResults include active and inactive users — check the is_inactive field to distinguish.\nThe role field is the primary role only: it does not include add-on roles such as\nAccounts Payable or evaluated bill, payment or card permissions. An Employee\nresult is not evidence that AP access is missing or that credentials are denied.\nDepartment and location UUID filters narrow the results.",
+   "input_schema": {
+    "properties": {
+     "client_business_id": {
+      "description": "Public UUID of the selected client business from GetAuthorizedBusinesses. When set, the tool runs against that client business.",
+      "format": "uuid",
+      "title": "client_business_id",
+      "type": "string"
+     },
+     "department_ids": {
+      "description": "Filter users by department UUIDs (from ListDepartments).",
+      "items": {
+       "type": "string"
+      },
+      "title": "department_ids",
+      "type": "array"
+     },
+     "include_agents": {
+      "default": false,
+      "description": "Include standalone agents in addition to human users.",
+      "title": "include_agents",
+      "type": "boolean"
+     },
+     "location_ids": {
+      "description": "Filter users by location UUIDs (from ListLocations).",
+      "items": {
+       "type": "string"
+      },
+      "title": "location_ids",
+      "type": "array"
+     },
+     "name_search": {
+      "description": "Search by user name (partial match, case-insensitive).",
+      "title": "name_search",
+      "type": "string"
+     },
+     "page_cursor": {
+      "description": "Pagination cursor for fetching additional pages.",
+      "title": "page_cursor",
+      "type": "string"
+     },
+     "page_size": {
+      "default": 20,
+      "description": "Number of users to return per page.",
+      "maximum": 100,
+      "title": "page_size",
+      "type": "integer"
+     },
+     "rationale": {
+      "description": "Briefly explain why you are calling this tool: what goal or workflow it serves and what you intend to do with the result.",
+      "maxLength": 1024,
+      "minLength": 1,
+      "title": "rationale",
+      "type": "string"
+     }
+    },
+    "required": [
+     "rationale"
+    ],
+    "title": "ramp_list_usersArguments",
+    "type": "object"
+   },
+   "args": {
+    "rationale": "Capture payload shape of users for connector test fixtures.",
+    "page_size": 3
+   },
+   "response": {
+    "users": [
+     {
+      "id": "e2e3afa2-b7a2-4a7d-97f1-49ea99e01a12",
+      "identity_type": "HUMAN",
+      "email": "cardholder_23@example.com",
+      "first_name": "Akshit",
+      "last_name": "Khurana",
+      "role": "BUSINESS_USER",
+      "department_name": "Implementations",
+      "location_name": "San Francisco",
+      "is_inactive": false,
+      "status": "USER_ACTIVE",
+      "has_active_card": true,
+      "is_assistant": false
+     },
+     {
+      "id": "71a78e6f-7d79-4a34-b4c3-ee268c837d79",
+      "identity_type": "HUMAN",
+      "email": "cardholder_16@example.com",
+      "first_name": "Andrew",
+      "last_name": "Suiter",
+      "role": "BUSINESS_USER",
+      "department_name": "Engineering",
+      "location_name": "New York City",
+      "is_inactive": false,
+      "status": "USER_ACTIVE",
+      "has_active_card": true,
+      "is_assistant": false
+     },
+     {
+      "id": "3ba2bfc3-e66c-428c-ae18-58bbbfb482d9",
+      "identity_type": "HUMAN",
+      "email": "cardholder_7@example.com",
+      "first_name": "Andy",
+      "last_name": "Bernard",
+      "role": "BUSINESS_USER",
+      "department_name": "Sales",
+      "location_name": "London",
+      "is_inactive": false,
+      "status": "USER_ACTIVE",
+      "has_active_card": true,
+      "is_assistant": false
+     }
+    ],
+    "next_page": "3ba2bfc3-e66c-428c-ae18-58bbbfb482d9"
+   },
+   "error": null
+  },
+  {
+   "name": "ramp_get_simplified_user_detail",
+   "description": "Get the current user's details.\n\nReturns multiple results for users that are part of multiple businesses.\nWhen authenticated via an agent key, also returns the active agent key identity.",
+   "input_schema": {
+    "properties": {
+     "client_business_id": {
+      "description": "Public UUID of the selected client business from GetAuthorizedBusinesses. When set, the tool runs against that client business.",
+      "format": "uuid",
+      "title": "client_business_id",
+      "type": "string"
+     },
+     "rationale": {
+      "description": "Briefly explain why you are calling this tool: what goal or workflow it serves and what you intend to do with the result.",
+      "maxLength": 1024,
+      "minLength": 1,
+      "title": "rationale",
+      "type": "string"
+     }
+    },
+    "required": [
+     "rationale"
+    ],
+    "title": "ramp_get_simplified_user_detailArguments",
+    "type": "object"
+   },
+   "args": {
+    "rationale": "Capture payload shape of current user detail for connector test fixtures."
+   },
+   "response": {
+    "users": [
+     {
+      "id": "b6b46725-b181-454a-8094-f0e3e2f33e02",
+      "business_id": "eba88a9c-8587-4136-a023-64c4e309ca52",
+      "first_name": "David",
+      "last_name": "Wallace",
+      "email": "account-owner@example.com",
+      "department": {
+       "name": "Executive",
+       "uuid": "443d12cc-f995-44ee-b020-39408bc91af9"
+      },
+      "location_name": "New York City"
+     }
+    ],
+    "agent_key": {
+     "id": "redacted",
+     "name": "redacted"
+    }
+   },
+   "error": null
+  },
+  {
+   "name": "ramp_get_org_chart",
+   "description": "Get org chart for a user, including reporting chain and direct reports.\n\nThis tool provides comprehensive org chart visibility including:\n- The user's position in the organization\n- Their direct reports (team members)\n- Their reporting chain (managers up the hierarchy)\n\nUse this tool whenever the user asks anything about their manager, team, or direct reports.",
+   "input_schema": {
+    "properties": {
+     "client_business_id": {
+      "description": "Public UUID of the selected client business from GetAuthorizedBusinesses. When set, the tool runs against that client business.",
+      "format": "uuid",
+      "title": "client_business_id",
+      "type": "string"
+     },
+     "rationale": {
+      "description": "Briefly explain why you are calling this tool: what goal or workflow it serves and what you intend to do with the result.",
+      "maxLength": 1024,
+      "minLength": 1,
+      "title": "rationale",
+      "type": "string"
+     },
+     "user_id": {
+      "description": "Ramp user UUID to get the org chart for. Omit this field or pass null to get the org chart for the current user.",
+      "title": "user_id",
+      "type": "string"
+     }
+    },
+    "required": [
+     "rationale"
+    ],
+    "title": "ramp_get_org_chartArguments",
+    "type": "object"
+   },
+   "args": {
+    "rationale": "Capture payload shape of org chart for connector test fixtures."
+   },
+   "response": {
+    "user": {
+     "id": "b6b46725-b181-454a-8094-f0e3e2f33e02",
+     "first_name": "David",
+     "last_name": "Wallace",
+     "email": "account-owner@example.com",
+     "profile_picture_url": null,
+     "is_inactive": false,
+     "is_manager": true,
+     "department_name": "Executive",
+     "location_name": "New York City"
+    },
+    "reporting_chain": [],
+    "direct_reports": [
+     {
+      "id": "783bc20c-08ca-4769-a2f3-6454fd17ee77",
+      "first_name": "Michael",
+      "last_name": "Scott",
+      "email": "admin_0@example.com",
+      "profile_picture_url": null,
+      "is_inactive": false,
+      "is_manager": true,
+      "department_name": null,
+      "location_name": null
+     },
+     {
+      "id": "2f48cda5-4485-4e03-ab12-c549c37f11d3",
+      "first_name": "Oscar",
+      "last_name": "Martinez",
+      "email": "admin_1@example.com",
+      "profile_picture_url": null,
+      "is_inactive": false,
+      "is_manager": true,
+      "department_name": null,
+      "location_name": null
+     },
+     {
+      "id": "7b143676-75fc-48bb-80cf-5656f1c839fc",
+      "first_name": "Jan",
+      "last_name": "Levinson",
+      "email": "admin_2@example.com",
+      "profile_picture_url": null,
+      "is_inactive": false,
+      "is_manager": true,
+      "department_name": null,
+      "location_name": null
+     }
+    ]
+   },
+   "error": null
+  },
+  {
+   "name": "ramp_roles",
+   "description": "List custom roles",
+   "input_schema": {
+    "properties": {},
+    "title": "ramp_rolesArguments",
+    "type": "object"
+   },
+   "args": {},
+   "response": {
+    "data": [
+     {
+      "id": "58d199f1-eb7d-4bb9-93b0-455ee9038b80",
+      "base_role": "CUSTOM",
+      "description": "Manages Procurement programs, requests, purchase orders, sourcing, and vendor contracts",
+      "name": "Procurement admin",
+      "product_capabilities": [
+       {
+        "name": "PROCUREMENT_ADMINISTRATE_PROGRAMS",
+        "access": null,
+        "description": "Edit any procurement program"
+       },
+       {
+        "name": "PROCUREMENT_ADMINISTRATE_REQUESTS",
+        "access": "global",
+        "description": "Edit all procurement requests"
+       },
+       {
+        "name": "PROCUREMENT_BULK_IMPORT_PURCHASE_ORDERS",
+        "access": null,
+        "description": "Bulk import purchase orders"
+       }
+      ],
+      "_truncated_from": 26
+     },
+     {
+      "id": "597d0cda-b6b0-48e0-a0b4-46d7665ebe2a",
+      "base_role": "CUSTOM",
+      "description": "Use and manage Router",
+      "name": "Router Admin",
+      "product_capabilities": [
+       {
+        "name": "ROUTER_ACCESS",
+        "access": null,
+        "description": "Use Router"
+       },
+       {
+        "name": "ROUTER_MANAGE_API_KEYS",
+        "access": "global",
+        "description": "Manage Router API keys"
+       },
+       {
+        "name": "ROUTER_MANAGE_BILLING",
+        "access": "global",
+        "description": "Manage Router billing"
+       }
+      ],
+      "_truncated_from": 6
+     },
+     {
+      "id": "be1299b9-4f9c-4e35-b3e4-a926020fee2d",
+      "base_role": "CUSTOM",
+      "description": "Use Router",
+      "name": "Router User",
+      "product_capabilities": [
+       {
+        "name": "ROUTER_ACCESS",
+        "access": null,
+        "description": "Use Router"
+       }
+      ]
+     }
+    ]
+   },
+   "error": null
+  },
+  {
+   "name": "ramp_departments",
+   "description": "List all departments in the company.\n\nReturns the departments available in the user's business, which can be\nused as inputs to workflows that require department references. Each\ndepartment includes organizational metadata: its owners (managers),\nactive member count, and managing external firm, if any.",
+   "input_schema": {
+    "properties": {
+     "client_business_id": {
+      "description": "Public UUID of the selected client business from GetAuthorizedBusinesses. When set, the tool runs against that client business.",
+      "format": "uuid",
+      "title": "client_business_id",
+      "type": "string"
+     },
+     "name_filter": {
+      "description": "Optional filter to search departments by name (case-insensitive partial match).",
+      "title": "name_filter",
+      "type": "string"
+     },
+     "rationale": {
+      "description": "Briefly explain why you are calling this tool: what goal or workflow it serves and what you intend to do with the result.",
+      "maxLength": 1024,
+      "minLength": 1,
+      "title": "rationale",
+      "type": "string"
+     }
+    },
+    "required": [
+     "rationale"
+    ],
+    "title": "ramp_departmentsArguments",
+    "type": "object"
+   },
+   "args": {
+    "rationale": "Capture payload shape of departments for connector test fixtures."
+   },
+   "response": {
+    "departments": [
+     {
+      "department_id": "aff948fe-ee68-4c41-830f-d1e614dfbe51",
+      "department_name": "Admin",
+      "owners": [],
+      "users_count": 0,
+      "managing_external_firm": null
+     },
+     {
+      "department_id": "f7407cf4-b007-4482-8b67-521e20ef21f2",
+      "department_name": "Customer Success",
+      "owners": [],
+      "users_count": 5,
+      "managing_external_firm": null
+     },
+     {
+      "department_id": "c1c47a4f-ab74-4f16-a574-7963e0d46a1a",
+      "department_name": "Engineering",
+      "owners": [],
+      "users_count": 7,
+      "managing_external_firm": null
+     }
+    ],
+    "_truncated_from": 13,
+    "total_count": 13,
+    "message": "Found 13 department(s)"
+   },
+   "error": null
+  },
+  {
+   "name": "ramp_get_approval_chain_details",
+   "description": "Fetch approval details for an approval instance or Blank Canvas execution.\n\nReturns the recorded chain for one approval instance, not the policy\ntemplate. It cannot answer policy-configuration or notification-delivery\nquestions. Pass the selected workflow_execution_uuid for a Blank Canvas target.\nBlank Canvas nodes retain separate recorded approvals; projected future nodes\nmay change, and the list does not imply sequential execution.",
+   "input_schema": {
+    "properties": {
+     "approval_instance_uuid": {
+      "format": "uuid",
+      "title": "approval_instance_uuid",
+      "type": "string"
+     },
+     "client_business_id": {
+      "description": "Public UUID of the selected client business from GetAuthorizedBusinesses. When set, the tool runs against that client business.",
+      "format": "uuid",
+      "title": "client_business_id",
+      "type": "string"
+     },
+     "rationale": {
+      "description": "Briefly explain why you are calling this tool: what goal or workflow it serves and what you intend to do with the result.",
+      "maxLength": 1024,
+      "minLength": 1,
+      "title": "rationale",
+      "type": "string"
+     },
+     "workflow_execution_uuid": {
+      "format": "uuid",
+      "title": "workflow_execution_uuid",
+      "type": "string"
+     }
+    },
+    "required": [
+     "rationale"
+    ],
+    "title": "ramp_get_approval_chain_detailsArguments",
+    "type": "object"
+   },
+   "args": {
+    "approval_instance_uuid": "2b7a80d1-475d-4dbb-90dc-88f8d9a982ef",
+    "rationale": "Capture payload shape of approval chain for a card transaction for connector test fixtures; trying the transaction uuid since no approval instance uuid is exposed."
+   },
+   "response": {
+    "error": true,
+    "message": "The requested approval was not found or is not accessible.",
+    "status_code": 400,
+    "error_code": "DEVELOPER_7078",
+    "error_id": "b2fa9ebb",
+    "additional_info": {
+     "mcp_error_code": "not_found"
+    }
+   },
+   "error": "The requested approval was not found or is not accessible. (Card attempt used the transaction uuid because no response exposes an approval_instance_uuid. Bill attempt not made: ramp_list_bills returned no bills.)"
+  },
+  {
+   "name": "ramp_get_receipt_details",
+   "description": "Get structured extraction data for one or more receipts the caller can read by receipt UUID: merchant, date, amounts, taxes, fees, discounts, line items, and travel, delivery, or hotel details when extracted. Existing receipt and expense permissions apply within the authenticated business. Coworker receipts require receipt keyword search to be enabled; otherwise only own receipts are returned. Raw OCR text is not included.",
+   "input_schema": {
+    "properties": {
+     "client_business_id": {
+      "description": "Public UUID of the selected client business from GetAuthorizedBusinesses. When set, the tool runs against that client business.",
+      "format": "uuid",
+      "title": "client_business_id",
+      "type": "string"
+     },
+     "rationale": {
+      "description": "Briefly explain why you are calling this tool: what goal or workflow it serves and what you intend to do with the result.",
+      "maxLength": 1024,
+      "minLength": 1,
+      "title": "rationale",
+      "type": "string"
+     },
+     "receipt_uuids": {
+      "description": "List of receipt UUIDs to retrieve details for.",
+      "items": {
+       "description": "Entity UUID or alias returned by tools.",
+       "type": "string"
+      },
+      "title": "receipt_uuids",
+      "type": "array"
+     }
+    },
+    "required": [
+     "rationale",
+     "receipt_uuids"
+    ],
+    "title": "ramp_get_receipt_detailsArguments",
+    "type": "object"
+   },
+   "args": null,
+   "response": null,
+   "error": "Not called: no receipt uuid was available (receipt_uuids was null on every listed transaction, full transaction metadata listed none, and ramp_search_receipts failed)."
+  },
+  {
+   "name": "ramp_search_receipts",
+   "description": "Search receipts by natural-language intent and/or OCR keywords, returning receipts and owners.\n\nOnly includes receipts attached to a transaction or reimbursement.\nRequires receipt keyword search to be enabled for the caller's business.\nCompany-wide discovery is limited to\nreceipts the caller can currently read under existing receipt/expense permissions.\nCombines independent keyword and semantic retrieval, not exact phrases or verified\ncategory classification. Falls back to OCR word matches if embedding is unavailable;\nretrieval_mode reports this even for empty results. Semantic relevance is provisional.\nSearch is bounded and index coverage may be incomplete; results are evidence,\nnot exhaustive spending analytics. Does not search bill/invoice documents.",
+   "input_schema": {
+    "properties": {
+     "client_business_id": {
+      "description": "Public UUID of the selected client business from GetAuthorizedBusinesses. When set, the tool runs against that client business.",
+      "format": "uuid",
+      "title": "client_business_id",
+      "type": "string"
+     },
+     "keywords": {
+      "description": "Up to 20 literal OCR search terms, 100 characters each. Any word can match. If query is omitted, these terms also provide semantic intent. Supply keywords or query (or both).",
+      "items": {
+       "maxLength": 100,
+       "minLength": 1,
+       "type": "string"
+      },
+      "maxItems": 20,
+      "title": "keywords",
+      "type": "array"
+     },
+     "offset": {
+      "default": 0,
+      "description": "Use next_offset with identical arguments for the next page; 0 starts a search. Pages cover only the top 100 candidates, not all receipts.",
+      "exclusiveMaximum": 100,
+      "minimum": 0,
+      "title": "offset",
+      "type": "integer"
+     },
+     "page_size": {
+      "default": 20,
+      "description": "Maximum receipts on this page, up to 50, in fused relevance order (OCR relevance in lexical fallback).",
+      "maximum": 50,
+      "minimum": 1,
+      "title": "page_size",
+      "type": "integer"
+     },
+     "query": {
+      "description": "Natural-language receipt search intent, e.g. coffee purchases or food items. Used for semantic retrieval. If keywords are absent, its words also drive OCR search and lexical fallback. With both, keywords drive OCR and query drives semantics; neither is a mandatory filter.",
+      "maxLength": 2000,
+      "minLength": 1,
+      "title": "query",
+      "type": "string"
+     },
+     "rationale": {
+      "description": "Briefly explain why you are calling this tool: what goal or workflow it serves and what you intend to do with the result.",
+      "maxLength": 1024,
+      "minLength": 1,
+      "title": "rationale",
+      "type": "string"
+     },
+     "received_after": {
+      "description": "Inclusive receipt upload/received timestamp, ISO 8601 with timezone. This is not the purchase date. Omit for no lower bound.",
+      "format": "date-time",
+      "title": "received_after",
+      "type": "string"
+     },
+     "received_before": {
+      "description": "Exclusive receipt upload/received timestamp, ISO 8601 with timezone. This is not the purchase date. Omit for no upper bound.",
+      "format": "date-time",
+      "title": "received_before",
+      "type": "string"
+     },
+     "scope": {
+      "default": "accessible",
+      "description": "accessible searches receipts you are permitted to read in the authenticated business (company-wide only with the required permissions); own narrows to receipts you own. Neither grants additional access.",
+      "enum": [
+       "accessible",
+       "own"
+      ],
+      "title": "scope",
+      "type": "string"
+     }
+    },
+    "required": [
+     "rationale"
+    ],
+    "title": "ramp_search_receiptsArguments",
+    "type": "object"
+   },
+   "args": {
+    "rationale": "Capture payload shape of receipt search for connector test fixtures.",
+    "query": "receipt",
+    "page_size": 3
+   },
+   "response": {
+    "error": true,
+    "message": "Receipt-content search is unavailable or this business has no receipt search index. This is not evidence of no matching receipts. No changes were made.",
+    "status_code": 400,
+    "error_code": "DEVELOPER_7078",
+    "error_id": "eeee19e4",
+    "additional_info": {
+     "mcp_error_code": "failed_precondition"
+    }
+   },
+   "error": "Receipt-content search is unavailable or this business has no receipt search index. This is not evidence of no matching receipts. No changes were made."
+  },
+  {
+   "name": "ramp_list_policies",
+   "description": "List workflow-backed submission, approval, and spend-request policies for the business, with each policy's UUID, kind, spend type, default status, and workflow availability. Returns policy metadata only, not written policy document text. Call first when the target policy UUID isn't known, then use get-policy-details or get-policy-workflow-body.",
+   "input_schema": {
+    "properties": {
+     "client_business_id": {
+      "description": "Public UUID of the selected client business from GetAuthorizedBusinesses. When set, the tool runs against that client business.",
+      "format": "uuid",
+      "title": "client_business_id",
+      "type": "string"
+     },
+     "rationale": {
+      "description": "Briefly explain why you are calling this tool: what goal or workflow it serves and what you intend to do with the result.",
+      "maxLength": 1024,
+      "minLength": 1,
+      "title": "rationale",
+      "type": "string"
+     }
+    },
+    "required": [
+     "rationale"
+    ],
+    "title": "ramp_list_policiesArguments",
+    "type": "object"
+   },
+   "args": {
+    "rationale": "Capture payload shape of policies for connector test fixtures."
+   },
+   "response": {
+    "policies": [
+     {
+      "policy_uuid": "8b6be667-5aa1-454a-a112-d9b2baf697d0",
+      "display_name": "General Expenses",
+      "kind": "submission_policy",
+      "spend_type": "COMBINED_SUBMISSION_POLICY",
+      "is_default": true,
+      "workflow_body_available": true
+     },
+     {
+      "policy_uuid": "0c17de90-29cb-48c4-b177-a280218225df",
+      "display_name": "Client Spend",
+      "kind": "submission_policy",
+      "spend_type": "COMBINED_SUBMISSION_POLICY",
+      "is_default": false,
+      "workflow_body_available": true
+     },
+     {
+      "policy_uuid": "0f1b719a-227f-4974-99d7-78d8370470c9",
+      "display_name": null,
+      "kind": "approval_policy",
+      "spend_type": "BILL_PAY",
+      "is_default": true,
+      "workflow_body_available": true
+     }
+    ],
+    "_truncated_from": 8,
+    "total_returned": 8,
+    "truncated": false
+   },
+   "error": null
+  },
+  {
+   "name": "ramp_get_policy_details",
+   "description": "Fetch detailed metadata for one workflow-backed policy by UUID, including display name, spend type, default status, and separation-of-duties configuration, plus whether policy changes require approval. Accepts either the policy UUID or the backing product workflow UUID returned by list-policies.",
+   "input_schema": {
+    "properties": {
+     "client_business_id": {
+      "description": "Public UUID of the selected client business from GetAuthorizedBusinesses. When set, the tool runs against that client business.",
+      "format": "uuid",
+      "title": "client_business_id",
+      "type": "string"
+     },
+     "kind": {
+      "description": "Which policy family to query. Must match the kind returned by ListPolicies for this UUID.",
+      "enum": [
+       "approval_policy",
+       "spend_request_policy",
+       "submission_policy"
+      ],
+      "title": "kind",
+      "type": "string"
+     },
+     "policy_uuid": {
+      "description": "UUID of the policy to fetch. Accepts either the policy's own UUID or the UUID of its backing ProductWorkflow (the workflow builder URL path param).",
+      "format": "uuid",
+      "title": "policy_uuid",
+      "type": "string"
+     },
+     "rationale": {
+      "description": "Briefly explain why you are calling this tool: what goal or workflow it serves and what you intend to do with the result.",
+      "maxLength": 1024,
+      "minLength": 1,
+      "title": "rationale",
+      "type": "string"
+     }
+    },
+    "required": [
+     "kind",
+     "policy_uuid",
+     "rationale"
+    ],
+    "title": "ramp_get_policy_detailsArguments",
+    "type": "object"
+   },
+   "args": {
+    "kind": "approval_policy",
+    "policy_uuid": "cc2a4341-0865-4020-a053-994155071681",
+    "rationale": "Capture payload shape of policy details for connector test fixtures."
+   },
+   "response": {
+    "policy_uuid": "cc2a4341-0865-4020-a053-994155071681",
+    "kind": "approval_policy",
+    "display_name": "Default Expense Approval Policy",
+    "spend_type": "POST_SPEND",
+    "description": "approval policy (POST_SPEND)",
+    "is_default": true,
+    "require_approval_for_policy_changes": false,
+    "product_workflow_uuid": "27f307b3-ec60-4001-a3ec-94069e1957f9",
+    "workflow_body_available": true,
+    "omni_policy_workflow_editor_supported_operations": [
+     "add_approval_step",
+     "replace_routing",
+     "set_no_approver_fallback"
+    ],
+    "_truncated_from": 9,
+    "allow_self_approvals": true,
+    "sod_fallback_absolute_group_uuid": null,
+    "can_update_separation_of_duties": true,
+    "blank_canvas_workflow_id": null
+   },
+   "error": null
+  },
+  {
+   "name": "ramp_accounts",
+   "description": "List bank accounts",
+   "input_schema": {
+    "properties": {
+     "connection_provider": {
+      "description": "Filter bank accounts by connection provider.",
+      "enum": [
+       "finicity",
+       "manual",
+       "plaid",
+       "ramp_brokerage",
+       "ramp_wallet",
+       "teller"
+      ],
+      "title": "connection_provider",
+      "type": "string"
+     },
+     "page_size": {
+      "description": "The number of results to be returned in each page. The value must be between 2 and 100. If not specified, the default value 20 will be used.",
+      "title": "page_size",
+      "type": "integer"
+     },
+     "rationale": {
+      "description": "Why this MCP tool call is needed.",
+      "title": "rationale",
+      "type": "string"
+     },
+     "start": {
+      "description": "The ID of the last entity of the previous page, used for pagination to get the next page.",
+      "title": "start",
+      "type": "string"
+     }
+    },
+    "required": [
+     "rationale"
+    ],
+    "title": "ramp_accountsArguments",
+    "type": "object"
+   },
+   "args": {
+    "rationale": "Capture payload shape of bank accounts for connector test fixtures.",
+    "page_size": 3
+   },
+   "response": {
+    "page": {
+     "next": null
+    },
+    "data": [
+     {
+      "has_ach_details": false,
+      "account_name": "Savings",
+      "account_number_last_four": "7777",
+      "id": "fb80e177-5e7a-482b-a4ce-223fea98d0e8",
+      "account_subtype": "savings",
+      "financial_institution_name": null,
+      "connection_provider": "manual"
+     },
+     {
+      "has_ach_details": false,
+      "account_name": "Savings",
+      "account_number_last_four": "4512",
+      "id": "7107868f-c7b4-4c40-99c8-e9ee98a95c89",
+      "account_subtype": "savings",
+      "financial_institution_name": null,
+      "connection_provider": "manual"
+     },
+     {
+      "has_ach_details": true,
+      "account_name": "Checking",
+      "account_number_last_four": "9752",
+      "id": "78bf5e5e-07e8-4072-be8d-27f087d474f3",
+      "account_subtype": "savings",
+      "financial_institution_name": "Test Bank",
+      "connection_provider": "manual"
+     }
+    ]
+   },
+   "error": null
+  },
+  {
+   "name": "ramp_get_tracking_categories",
+   "description": "Retrieve active accounting tracking category metadata for transaction coding, such\nas departments, classes or business units, locations, projects, customers, and cost\ncenters. On Advisor Console, discovery without a transaction returns authorized\nclients' fields grouped by business and provider connection, including missing\nintegrations. These groups do not establish cross-client field equivalence. If passing\ntransaction_uuid, use an actual TransactionCanonical UUID from context or a prior\nlookup; omit it rather than passing a placeholder or natural-language reference.",
+   "input_schema": {
+    "properties": {
+     "client_business_id": {
+      "description": "Public UUID of the selected client business from GetAuthorizedBusinesses. When set, the tool runs against that client business.",
+      "format": "uuid",
+      "title": "client_business_id",
+      "type": "string"
+     },
+     "include_hidden": {
+      "default": false,
+      "description": "Set to True to include hidden categories. By default, only visible categories are returned.",
+      "title": "include_hidden",
+      "type": "boolean"
+     },
+     "rationale": {
+      "description": "Briefly explain why you are calling this tool: what goal or workflow it serves and what you intend to do with the result.",
+      "maxLength": 1024,
+      "minLength": 1,
+      "title": "rationale",
+      "type": "string"
+     },
+     "transaction_uuid": {
+      "description": "Actual TransactionCanonical UUID of the transaction being coded, sourced from transaction context or a prior transaction lookup result. Must be a UUID string; omit this field if no transaction UUID is available. Never invent a placeholder or natural-language reference.",
+      "title": "transaction_uuid",
+      "type": "string"
+     }
+    },
+    "required": [
+     "rationale"
+    ],
+    "title": "ramp_get_tracking_categoriesArguments",
+    "type": "object"
+   },
+   "args": {
+    "rationale": "Capture payload shape of tracking categories for connector test fixtures."
+   },
+   "response": {
+    "error": true,
+    "message": "No accounting provider access was found for this business",
+    "status_code": 400,
+    "error_code": "DEVELOPER_7078",
+    "error_id": "863396cf",
+    "additional_info": {
+     "mcp_error_code": "failed_precondition"
+    }
+   },
+   "error": "No accounting provider access was found for this business"
+  },
+  {
+   "name": "ramp_list_business_entities",
+   "description": "List business entities in the current business.\n\nReturns each entity's ID, name, primary flag, and registration country.\nUse this to resolve the current business's legal entity by name or to find\na business entity ID. Pass name_filter when resolving entity references in\nrequests and attachments.",
+   "input_schema": {
+    "properties": {
+     "client_business_id": {
+      "description": "Public UUID of the selected client business from GetAuthorizedBusinesses. When set, the tool runs against that client business.",
+      "format": "uuid",
+      "title": "client_business_id",
+      "type": "string"
+     },
+     "name_filter": {
+      "description": "Optional filter to search business entities by name (case-insensitive partial match).",
+      "title": "name_filter",
+      "type": "string"
+     },
+     "rationale": {
+      "description": "Briefly explain why you are calling this tool: what goal or workflow it serves and what you intend to do with the result.",
+      "maxLength": 1024,
+      "minLength": 1,
+      "title": "rationale",
+      "type": "string"
+     }
+    },
+    "required": [
+     "rationale"
+    ],
+    "title": "ramp_list_business_entitiesArguments",
+    "type": "object"
+   },
+   "args": {
+    "rationale": "Capture payload shape of business entities for connector test fixtures."
+   },
+   "response": {
+    "business_entities": [
+     {
+      "business_entity_id": "403eb1d0-9789-4fb1-92eb-07d770e0d069",
+      "entity_name": "Save Time Inc",
+      "is_primary": true,
+      "registration_country_code": "US"
+     },
+     {
+      "business_entity_id": "a628ef25-0982-4eff-8d93-2e26b162e175",
+      "entity_name": "Save Money Inc",
+      "is_primary": false,
+      "registration_country_code": "US"
+     }
+    ],
+    "total_count": 2,
+    "message": "Found 2 business entit(ies)"
+   },
+   "error": null
+  },
+  {
+   "name": "ramp_get_transaction_missing_items",
+   "description": "Check what receipts, memos, or accounting items are missing from a specific transaction, and where it stands.",
+   "input_schema": {
+    "properties": {
+     "client_business_id": {
+      "description": "Public UUID of the selected client business from GetAuthorizedBusinesses. When set, the tool runs against that client business.",
+      "format": "uuid",
+      "title": "client_business_id",
+      "type": "string"
+     },
+     "id": {
+      "description": "Transaction UUID or transaction alias.",
+      "title": "id",
+      "type": "string"
+     },
+     "rationale": {
+      "description": "Briefly explain why you are calling this tool: what goal or workflow it serves and what you intend to do with the result.",
+      "maxLength": 1024,
+      "minLength": 1,
+      "title": "rationale",
+      "type": "string"
+     }
+    },
+    "required": [
+     "id",
+     "rationale"
+    ],
+    "title": "ramp_get_transaction_missing_itemsArguments",
+    "type": "object"
+   },
+   "args": {
+    "id": "2b7a80d1-475d-4dbb-90dc-88f8d9a982ef",
+    "rationale": "Capture payload shape of transaction missing items for connector test fixtures."
+   },
+   "response": {
+    "transaction_id": "2b7a80d1-475d-4dbb-90dc-88f8d9a982ef",
+    "missing_receipt": false,
+    "missing_memo": false,
+    "missing_accounting_items": [],
+    "receipt_upload_hint": null,
+    "status": null
+   },
+   "error": null
+  }
+ ]
+}

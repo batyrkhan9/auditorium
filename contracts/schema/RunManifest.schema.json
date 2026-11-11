@@ -28,6 +28,12 @@
           "title": "Mode",
           "type": "string"
         },
+        "synthetic": {
+          "default": false,
+          "description": "True when this source holds made-up data: our dataset, a vendor's demo account, a sandbox. Whoever implements the source sets it.",
+          "title": "Synthetic",
+          "type": "boolean"
+        },
         "system": {
           "$ref": "#/$defs/SourceSystem"
         }
@@ -58,6 +64,19 @@
       ],
       "default": null,
       "title": "Dataset Id"
+    },
+    "dataset_path": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "The resolved path of the dataset folder when the run started. Check dataset_id before trusting it: folders move. An absolute path names a user's home folder, which matters if a run folder is ever committed.",
+      "title": "Dataset Path"
     },
     "finished_at": {
       "anyOf": [
