@@ -100,21 +100,32 @@ Say this plainly; it is in the README too.
 ## The score
 
 Scored by a harness that holds the answer key; the sessions that built the agent
-never saw it. The latest scorecard in `evals/scorecards/` is for an **older**
-agent than the one on `main`:
+never saw it. The dataset has 40 planted mistakes among 800 checks.
+
+The agent on `main`, with the Claude reader on:
 
 | Check | Planted mistakes caught | Missed | False alarms | Left for a person |
 |---|---|---|---|---|
-| receipt | 9 of 10 | 0 | 5 | 17 |
-| approval | 12 of 12 | 0 | 1 | 0 |
-| ledger match | 10 of 10 | 0 | 0 | 20 |
-| period | 4 of 8 | 1 | 0 | 11 |
+| receipt | 9 of 10 | 0 | 0 | 5 |
+| approval | 12 of 12 | 0 | 0 | 0 |
+| ledger match | 10 of 10 | 0 | 0 | 0 |
+| period | 6 of 8 | 1 | 0 | 2 |
 
-All 3,083 pieces of evidence verified. Since then the agent stopped treating
-refunds as purchases, learned to tie a coded card-statement name to the books
-through the receipt, and gained the Claude reader. By its own count it now
-leaves 17 results for a person without Claude and 7 with it. **That version has
-not been scored.** Do not quote the new numbers as a score.
+37 of 40 caught, 1 missed, no false alarms, 7 results left for a person. All
+3,142 pieces of evidence verified. Without the Claude reader: 35 of 40 caught,
+the same single miss, no false alarms, 17 left for a person.
+
+**How to say it honestly.**
+
+- These numbers are from a local scoring run on 2026-11-11 and are **not yet the
+  published scorecard**. The files in `evals/scorecards/` are for an older agent
+  (35 caught, 6 false alarms, 48 left for a person). Replace this section when
+  the new scorecard is committed.
+- The agent was built without seeing the answers, but it was improved several
+  times using the totals from this same dataset. Say so if asked how the score
+  was reached. There is no second, untouched dataset.
+- "Left for a person" is neither a catch nor a false alarm. Two of the planted
+  mistakes are in that pile, not flagged: one receipt and one period.
 
 ## Questions we expect, and where the answer is written down
 
