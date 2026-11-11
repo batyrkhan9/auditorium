@@ -44,7 +44,7 @@ Click the Ridgeline result. Each piece of evidence shows the document page and
 the quoted line, or the record field and its value, and what it was verified
 against. Sign it off as a reviewer; the sign-off lands in the log.
 
-## 2. Sample request: the auditor picks transactions (1 minute)
+## 2. Sample request: the auditor picks transactions (2 minutes)
 
 ```bash
 uv run python -m auditorium_agent sample data/company \
@@ -56,6 +56,27 @@ approval, the policy rule, the ledger entry, and the bank statement line for
 paid bills. Two packets list a bank payment as missing. Point out that the
 request is written the way an auditor writes it, from the ledger, with no
 internal ids.
+
+Nothing in that request is something a coworker can hand over, so it drafts no
+messages. To show the follow-ups, run a second request whose picks include
+missing receipts and approvals:
+
+```bash
+uv run python -m auditorium_agent sample data/company \
+  --request docs/demo/sample-2026-03-followups.json --out runs/demo-followups
+uv run python -m auditorium_ui runs/demo-followups
+```
+
+Seven lines, seven packets, five drafts. Open **Drafts**: a Slack message to the
+cardholder asking for a missing receipt, an email to a bill's requester saying
+the attached invoice is for something else, and a request to the approver the
+policy names. Each is addressed to the person who can fix it and marked as a
+draft. The agent never sends anything; a person reads it and sends it. The two
+clean lines get no message.
+
+This second request lives in `docs/demo/`, not in the dataset, because it was
+picked for the demo from the agent's own results, not written by the dataset's
+auditor. See `decisions/2026-11-11-demo-followup-request.md`.
 
 ## 3. The proof nothing was made up (1 minute)
 
@@ -147,6 +168,8 @@ to come up:
 | What about false alarms? | Unclear cases are `needs_review`, not `fail`: tips, prepayments, work across the year end. | the receipt, period and refunds decisions in `agent/decisions/` |
 | Could a model answer change the result between runs? | Only the few results it is asked about, and its quotes are verified each time. The cap is 50 requests a run. | Claude reader decision |
 | What does "verified" mean on the screen? | It always says against what: the snapshot or the live sources. | `docs/CONTRACT.md`, "Verifying a run later" |
+| Why is no draft sent to the right approver when the wrong person approved? | A draft is written only for something a coworker can still hand over: a receipt, the right invoice, or proof of an approval given somewhere else. A wrong approval is a fact for the auditor; approving again after being picked for testing would not fix it. | `agent/src/auditorium_agent/drafts.py` |
+| Did you run the evals in Braintrust? | The harness can log to Braintrust, but the committed scorecards were scored locally, and each scorecard says so. The scores are the same either way. | `evals/scorecards/` |
 | Why are the card transactions not live from Ramp? | Ramp's API can create bills but not card transactions, so only the bills could be loaded. On those bills the requester, approvals and paid date come from the dataset, because Ramp cannot hold them. Each run says which records came from where. | README status table |
 
 ## If something goes wrong on the day
