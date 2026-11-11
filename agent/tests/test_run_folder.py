@@ -159,3 +159,43 @@ def test_each_kind_of_record_is_fetched_once_per_run(tmp_path):
     # Fingerprints, checks and snapshot all saw the one fetch.
     assert sources.fetches == {"transactions": 1, "ledger_entries": 1, "documents": 1}
     assert validate_run(tmp_path / "run") == []
+
+
+def test_an_accrual_is_found_on_its_line_when_the_total_is_no_help():
+    def journal(total, lines):
+        return LedgerEntry(
+            id="je",
+            source=SourceRef(system="qbo", record_type="JournalEntry", record_id="1"),
+            entry_type="journal_entry",
+            txn_date=date(2025, 12, 31),
+            total_cents=total,
+            lines=[
+                LedgerLine(account=a, account_type=t, side=s, amount_cents=c)
+                for a, t, s, c in lines
+            ],
+        )
+
+    one_vendor = [
+        ("Professional Fees", "Expense", "debit", 1_200_000),
+        ("Accrued Liabilities", "Other Current Liability", "credit", 1_200_000),
+    ]
+    # A total of zero, as a live read can return it: the debit line still shows the amount.
+    assert (
+        matching.accrued_amount_field(journal(0, one_vendor), 1_200_000) == "lines.0.amount_cents"
+    )
+    assert matching.accrual_size(journal(0, one_vendor)) == 1_200_000
+
+    # One journal entry accruing two vendors: the bill matches its own line, not the total.
+    bundled = [
+        ("Professional Fees", "Expense", "debit", 1_200_000),
+        ("Legal Fees", "Expense", "debit", 450_000),
+        ("Accrued Liabilities", "Other Current Liability", "credit", 1_650_000),
+    ]
+    assert (
+        matching.accrued_amount_field(journal(1_650_000, bundled), 450_000)
+        == "lines.1.amount_cents"
+    )
+    assert matching.accrued_amount_field(journal(1_650_000, bundled), 999) is None
+
+    # No lines at all: fall back to the total.
+    assert matching.accrued_amount_field(journal(450_000, []), 450_000) == "total_cents"
