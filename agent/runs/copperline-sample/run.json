@@ -1,8 +1,8 @@
 {
-  "run_id": "run_20261111_032213",
+  "run_id": "run_20261111_032806",
   "mode": "sample",
-  "started_at": "2026-11-11T03:22:13.630226Z",
-  "finished_at": "2026-11-11T03:22:13.886340Z",
+  "started_at": "2026-11-11T03:28:06.507912Z",
+  "finished_at": "2026-11-11T03:28:06.790125Z",
   "period_start": "2025-01-01",
   "period_end": "2025-12-31",
   "dataset_id": "copperline-fy2025-v1",
@@ -35,6 +35,6 @@
     }
   ],
   "models": [],
-  "git_commit": "a7a7154bffa3c69590abc4f30053a63cc3a8afa7",
+  "git_commit": "d9adb0b57050b4f905018c3cb5adf22819000a47",
   "contract_version": "0.2.0"
 }

@@ -65,7 +65,7 @@ def _assess(txn: SpendTransaction, document_id: str, books: Books, what: str):
     read_by = None
     by_books = False
     entry = books.matches[txn.id].entry
-    if shown and not name and entry is not None and entry.vendor_name:
+    if not name and entry is not None and entry.vendor_name:
         # The receipt does not use the card statement's name. If it names the business the
         # books record this very charge under, that ties it to the transaction just as well.
         name = find_name(lines, entry.vendor_name, None)
@@ -151,7 +151,8 @@ def _assess(txn: SpendTransaction, document_id: str, books: Books, what: str):
         return (
             CheckStatus.NEEDS_REVIEW,
             None,
-            f"The attached receipt is from {txn.vendor_name} but {states}, not the {amount} charged.",
+            f"The attached receipt is from {entry.vendor_name if by_books else txn.vendor_name} "
+            f"but {states}, not the {amount} charged.",
             "A tip, tax or currency conversion can make a card charge differ from the receipt. "
             "A person should confirm the difference is one of those.",
             evidence,
@@ -205,6 +206,16 @@ def check_receipt(txn: SpendTransaction, books: Books, run_id: str) -> CheckResu
     article = "An" if is_bill else "A"
     amount = _money(txn.amount_cents)
     policy = books.policy
+    if txn.amount_cents < 0:
+        # Money coming back. The receipt rule is about what the company spent.
+        return result(
+            CheckStatus.NOT_APPLICABLE,
+            f"This is a refund of {amount} from {txn.vendor_name}, not a purchase, so no "
+            f"{what} is required.",
+            "The receipt requirement applies to money spent. A negative amount is money "
+            "returned. Whether the books record the refund is the ledger_match check's job.",
+            [from_ramp("amount_cents", str(txn.amount_cents), "Negative: a refund or credit.")],
+        )
     threshold = policy.receipt_required_from_cents
     if is_bill:
         required = [from_ramp("kind", txn.kind.value, "A vendor bill always needs its invoice.")]

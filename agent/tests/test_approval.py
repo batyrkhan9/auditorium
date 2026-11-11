@@ -44,3 +44,21 @@ def test_record_evidence_reads_the_value_from_the_record():
     assert record_evidence("transaction", txn, "approvals.0.approver_id", "").value == "p_cfo"
     assert record_evidence("transaction", txn, "paid_date", "").value == "2025-03-10"
     assert record_evidence("transaction", txn, "amount_cents", "").value == "900000"
+
+
+def test_a_refund_is_not_held_to_the_approval_or_receipt_rules(tmp_path):
+    sources = LocalSources(SAMPLE)
+    manifest = sources.dataset.manifest
+    results = run_preflight(
+        sources,
+        tmp_path / "run",
+        fiscal_year_start=manifest.fiscal_year_start,
+        fiscal_year_end=manifest.fiscal_year_end,
+    )
+    by_check = {r.check.value: r for r in results if r.transaction_id.endswith("c_2010")}
+    # $650 back from an airline: over both thresholds as a purchase, but it is not one.
+    assert by_check["approval"].status.value == "not_applicable"
+    assert by_check["receipt"].status.value == "not_applicable"
+    assert "refund" in by_check["approval"].summary
+    # The books still have to record it.
+    assert by_check["ledger_match"].status.value == "pass"

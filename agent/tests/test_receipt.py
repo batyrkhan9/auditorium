@@ -27,6 +27,9 @@ def test_sample_results(tmp_path):
         "c_2005": ("needs_review", []),  # right restaurant, charge includes a tip
         "c_2007": ("needs_review", []),  # merchant coded on the statement; needs a reader
         "c_2009": ("not_applicable", []),  # under the threshold
+        "c_2010": ("not_applicable", []),  # a refund, not a purchase
+        # Statement says "SQ *LUCCA OAK"; the receipt is Trattoria Lucca's, before the tip.
+        "c_2011": ("needs_review", []),
         "b_1008": ("fail", ["receipt_mismatch"]),  # another vendor's invoice attached
     }
     assert len(found) == len(sources.transactions())

@@ -143,6 +143,16 @@ CASES = [
         key="c_2009", vendor="AMZN Mktp US", cents=4_210, day=date(2025, 6, 2),
         booked=date(2025, 6, 3), booked_vendor="Amazon", text=None,
     ),
+    dict(  # A refund: money back, with no receipt and no approval. Neither rule applies.
+        key="c_2010", vendor="Delta Air Lines", cents=-65_000, day=date(2025, 10, 20),
+        booked=date(2025, 10, 20), text=None,
+    ),
+    dict(  # Coded statement name, and the charge includes a tip the receipt does not show.
+        key="c_2011", vendor="SQ *LUCCA OAK", cents=11_500, day=date(2025, 3, 6),
+        booked=date(2025, 3, 6), booked_vendor="Trattoria Lucca",
+        text="Trattoria Lucca\nDate: March 6, 2025\nTable 4, 2 guests\nSubtotal: $91.74\n"
+        "Tax: $8.26\nTotal: $100.00\n",
+    ),
 ]  # fmt: skip
 
 BANK_STATEMENTS = {
