@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date
 from typing import TYPE_CHECKING
 
 from auditorium_contracts import (
     Document,
+    DocumentEvidence,
     LedgerEntry,
     LogAction,
     LogWriter,
@@ -22,8 +23,14 @@ from auditorium_contracts import (
     page_texts,
 )
 
-from .matching import Match, match_ledger
-from .receipt_reader import Line
+from .matching import (
+    VENDOR_BY_DOCUMENT,
+    VENDOR_BY_MODEL,
+    VENDOR_UNCLEAR,
+    Match,
+    match_ledger,
+)
+from .receipt_reader import Line, find_name, lines_of
 from .service_period import ServicePeriod
 
 if TYPE_CHECKING:  # reader.py imports the Anthropic SDK; only the type is needed here
@@ -64,7 +71,7 @@ class Books:
             ("documents", documents),
         ):
             log.append("agent", LogAction.SOURCE_CALL, detail={"call": call, "count": len(records)})
-        return cls(
+        books = cls(
             sources=sources,
             log=log,
             fiscal_year_start=fiscal_year_start,
@@ -78,6 +85,8 @@ class Books:
             matches=match_ledger(transactions, ledger),
             reader=reader,
         )
+        books._settle_unclear_vendors()
+        return books
 
     def _model_answer(self, purpose: str, document_id: str, pages: tuple[str, ...], found):
         """Log a model call, and keep its answer only if the line it quotes is in the document."""
@@ -160,3 +169,65 @@ class Books:
             detail={"call": "search", "system": system.value, "query": query},
         )
         return SearchEvidence(system=system, query=query, result_ids=result_ids)
+
+    def _settle_unclear_vendors(self) -> None:
+        """Where the books name a vendor differently from the card statement, try to settle it.
+
+        First from the transaction's own attached document: if the receipt names the
+        business the books record the charge under, two systems and a document agree,
+        and the statement's coded name is the odd one out. Only when no document helps
+        is the model reader asked whether the two names are one business.
+        """
+        for txn in self.transactions:
+            match = self.matches[txn.id]
+            if match.how != VENDOR_UNCLEAR:
+                continue
+            entry = match.entry
+            named = None
+            for document_id in txn.document_ids:
+                if document_id in self.documents and entry.vendor_name:
+                    line = find_name(
+                        lines_of(self.read_document(document_id)), entry.vendor_name, None
+                    )
+                    if line:
+                        named = DocumentEvidence(
+                            document_id=document_id,
+                            page=line.page,
+                            quote=line.text,
+                            note="The document attached to this charge names the business "
+                            "the books record it under.",
+                        )
+                        break
+            if named:
+                self.matches[txn.id] = replace(match, how=VENDOR_BY_DOCUMENT, support=(named,))
+            elif self.reader is not None:
+                model = self.ask_same_business(txn.id, entry.id, txn.vendor_name, entry.vendor_name)
+                if model:
+                    self.matches[txn.id] = replace(match, how=VENDOR_BY_MODEL, read_by=model)
+
+    def ask_same_business(
+        self, transaction_id: str, entry_id: str, statement_name: str, books_name: str | None
+    ) -> str | None:
+        """The model that judged the two names to be one business, or None if it did not."""
+        if self.reader is None or not books_name:
+            return None
+        same = self.reader.same_business(statement_name, books_name)
+        call = dict(getattr(self.reader, "last_call", {}))
+        model = call.get("served_by") or self.reader.model
+        failed = "error" in call
+        if not failed:
+            self.models_used.add(model)
+        self.log.append(
+            "agent",
+            LogAction.ERROR if failed else LogAction.MODEL_CALL,
+            actor_id=model,
+            subject_ids=[transaction_id, entry_id],
+            detail={
+                "purpose": "vendor_name",
+                "statement_name": statement_name,
+                "books_name": books_name,
+                "outcome": "failed" if failed else ("same business" if same else "not the same"),
+                **call,
+            },
+        )
+        return model if same else None

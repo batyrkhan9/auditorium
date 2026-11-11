@@ -33,6 +33,10 @@ class FakeReader:
         self.asked.append("merchant")
         return Line(1, "Blue Bottle Coffee") if "BLUEBTL" in vendor_name else None
 
+    def same_business(self, statement_name, books_name):
+        self.asked.append("same_business")
+        return (statement_name, books_name) == ("AMZN Mktp US", "Amazon")
+
 
 def run(tmp_path, reader):
     sources = LocalSources(SAMPLE)
@@ -68,9 +72,10 @@ def test_reader_is_asked_only_where_the_answer_matters(tmp_path):
     _, results, saved = run(tmp_path, reader)
     # Two bills are recorded just after year end with no dates the patterns can read, and one
     # receipt shows the right amount under another name. Nothing else reaches the model.
-    assert sorted(reader.asked) == ["merchant", "service_period", "service_period"]
+    # ...and one charge the books record under another name, with no receipt to settle it.
+    assert sorted(reader.asked) == ["merchant", "same_business", "service_period", "service_period"]
     calls = [event for event in saved.log if event.action.value == "model_call"]
-    assert len(calls) == 3
+    assert len(calls) == 4
     # The reader had nothing to say about Brightside, so it stays for a person.
     assert results["b_1004#period"].status.value == "needs_review"
 
@@ -156,3 +161,18 @@ def test_claude_reader_stops_at_its_call_limit():
         reader.service_period(("x",))
     assert reader.calls == 2  # three requests were never sent
     assert "call limit of 2 reached" in reader.last_call["error"]
+
+
+def test_vendor_names_with_no_document_are_put_to_the_reader(tmp_path):
+    sources, results, saved = run(tmp_path, FakeReader())
+    ledger = results["c_2009#ledger_match"]
+    assert ledger.status.value == "pass" and "fake-model" in ledger.rationale
+    # With the entry confirmed as this charge's, the period check can now run on it.
+    assert results["c_2009#period"].status.value == "pass"
+    call = next(e for e in saved.log if e.detail.get("purpose") == "vendor_name")
+    assert call.detail["outcome"] == "same business"
+    assert call.detail["statement_name"] == "AMZN Mktp US"
+    # The charge whose receipt names the business never reached the reader.
+    assert results["c_2008#ledger_match"].status.value == "pass"
+    assert "fake-model" not in results["c_2008#ledger_match"].rationale
+    assert validate_run(tmp_path / "run", sources) == []

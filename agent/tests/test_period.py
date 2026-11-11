@@ -29,6 +29,7 @@ def test_sample_statuses(tmp_path):
         "ramp:bill:b_1004": "needs_review",  # no service period, recorded just after year end
         "ramp:bill:b_1012": "needs_review",  # dates given in words; settled only with a reader
         "ramp:card:c_2002": "not_applicable",  # not in the books at all
+        "ramp:card:c_2009": "not_applicable",  # the books' entry is not confirmed as its own
     }
     # December work accrued in December, and a wrong amount in the books, are not period errors.
     assert statuses["ramp:bill:b_1002"] == statuses["ramp:bill:b_1006"] == "pass"

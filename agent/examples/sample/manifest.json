@@ -1,9 +1,10 @@
 {
   "dataset_id": "agent-sample",
   "company_name": "Larkspur Labs, Inc.",
-  "contract_version": "0.1.0",
+  "contract_version": "0.2.0",
   "fiscal_year_start": "2025-01-01",
   "fiscal_year_end": "2025-12-31",
   "coverage_end": "2026-02-28",
+  "synthetic": false,
   "description": "Hand-written sample for agent development. Not the scored dataset."
 }

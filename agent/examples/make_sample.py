@@ -134,6 +134,15 @@ CASES = [
         text="Blue Bottle Coffee\nOakland, Broadway\nSeptember 3, 2025\n"
         "Team offsite coffee and pastries\nTotal: $86.40\n",
     ),
+    dict(  # Statement code, but the receipt and the books both spell the business out.
+        key="c_2008", vendor="TST* HARBOR CAFE", cents=9_620, day=date(2025, 4, 17),
+        booked=date(2025, 4, 18), booked_vendor="Harbor Cafe",
+        text="Harbor Cafe\nReceipt\nApril 17, 2025\nClient lunch\nTotal: $96.20\n",
+    ),
+    dict(  # Statement code, books spell it out, and no receipt to tie them (under the threshold).
+        key="c_2009", vendor="AMZN Mktp US", cents=4_210, day=date(2025, 6, 2),
+        booked=date(2025, 6, 3), booked_vendor="Amazon", text=None,
+    ),
 ]  # fmt: skip
 
 BANK_STATEMENTS = {
@@ -245,7 +254,9 @@ def main():
                     entry_type="bill" if is_bill else "expense",
                     txn_date=case["booked"] + timedelta(days=copy),
                     # QuickBooks vendor names rarely match the card platform's exactly.
-                    vendor_name=vendor.replace(", Inc.", "").replace(" LLC", ""),
+                    vendor_name=case.get(
+                        "booked_vendor", vendor.replace(", Inc.", "").replace(" LLC", "")
+                    ),
                     doc_number=case.get("invoice"),
                     total_cents=case.get("booked_cents", case["cents"]),
                 )

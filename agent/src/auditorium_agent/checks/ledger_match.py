@@ -91,6 +91,26 @@ def check_ledger_match(txn: SpendTransaction, books: Books, run_id: str) -> Chec
             from_books(entry, "doc_number", entry.doc_number, "The same invoice number.")
         )
 
+    if match.how == matching.VENDOR_BY_DOCUMENT:
+        return result(
+            CheckStatus.PASS,
+            f"The books record this {amount} {what} once, under '{entry.vendor_name}', the "
+            f"name on its attached receipt. The card statement shows '{txn.vendor_name}'.",
+            "Amount and date agree between Ramp and the books. The vendor names differ, but "
+            "the receipt attached to the charge names the business the books use, so the "
+            "statement's name is a coded form of it.",
+            [*evidence, *match.support],
+        )
+    if match.how == matching.VENDOR_BY_MODEL:
+        return result(
+            CheckStatus.PASS,
+            f"The books record this {amount} {what} once, under '{entry.vendor_name}'. The "
+            f"card statement shows '{txn.vendor_name}'.",
+            f"Amount and date agree between Ramp and the books. No document was available to "
+            f"tie the two names together, so {match.read_by} was asked, and read them as the "
+            "same business. Both names are quoted above for a reviewer to judge.",
+            evidence,
+        )
     if match.how == matching.VENDOR_UNCLEAR:
         return result(
             CheckStatus.NEEDS_REVIEW,

@@ -63,6 +63,13 @@ def _assess(txn: SpendTransaction, document_id: str, books: Books, what: str):
     shown = find_amount(lines, txn.amount_cents)
     total = stated_total(lines)
     read_by = None
+    by_books = False
+    entry = books.matches[txn.id].entry
+    if shown and not name and entry is not None and entry.vendor_name:
+        # The receipt does not use the card statement's name. If it names the business the
+        # books record this very charge under, that ties it to the transaction just as well.
+        name = find_name(lines, entry.vendor_name, None)
+        by_books = name is not None
     if shown and not name:
         # The amount is right but the name is not the card statement's. Whether two names
         # mean one business is a judgement plain code cannot make, so ask the model reader.
@@ -70,7 +77,24 @@ def _assess(txn: SpendTransaction, document_id: str, books: Books, what: str):
         if asked:
             name, read_by = asked
     evidence = []
-    if name and read_by:
+    if name and by_books:
+        evidence.append(
+            _quote(
+                document_id,
+                name,
+                "Names the business. The books record this charge under the same name.",
+            )
+        )
+        evidence.append(
+            RecordEvidence(
+                record_type="ledger_entry",
+                record_id=entry.id,
+                field="vendor_name",
+                value=entry.vendor_name,
+                note="The vendor the books record this charge under.",
+            )
+        )
+    elif name and read_by:
         note = (
             f"Names the business. {read_by} read it as the same merchant as "
             f"'{txn.vendor_name}' on the card statement."
@@ -81,6 +105,16 @@ def _assess(txn: SpendTransaction, document_id: str, books: Books, what: str):
     if shown:
         evidence.append(_quote(document_id, shown, "Shows the amount of this transaction."))
 
+    if name and shown and by_books:
+        return (
+            CheckStatus.PASS,
+            None,
+            f"A {what} from {entry.vendor_name} for {amount} is attached. The card statement "
+            f"shows the same business as '{txn.vendor_name}'.",
+            f"The attached {what} shows the amount and names the business the books record "
+            "this charge under. The card statement's name is a coded form of it.",
+            evidence,
+        )
     if name and shown and read_by:
         return (
             CheckStatus.PASS,
