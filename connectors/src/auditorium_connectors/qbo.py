@@ -405,8 +405,9 @@ def map_entity(
         # A journal entry has no header vendor. When its lines name exactly one,
         # that is the vendor it was booked for.
         vendor = vendors.pop() if len(vendors) == 1 else None
-        if "TotalAmt" not in record:
-            total = sum(line.amount_cents for line in lines if line.side == "debit")
+        # QuickBooks sends TotalAmt 0 on every journal entry (seen live, #36), so
+        # the total is always the sum of the debit lines, never the header.
+        total = sum(line.amount_cents for line in lines if line.side == "debit")
 
     record_id = str(record["Id"])
     return LedgerEntry(

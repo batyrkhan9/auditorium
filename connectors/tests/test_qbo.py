@@ -107,7 +107,8 @@ JOURNAL = {
     "DocNumber": "ACCR-12",
     "PrivateNote": "Accrue December advisory\nauditorium-ref: qbo:JournalEntry:ds-1",
     "Adjustment": False,
-    "TotalAmt": 12000.0,
+    # QuickBooks really sends 0 here on every journal entry (#36).
+    "TotalAmt": 0,
     "Line": [
         {
             "Id": "0",
@@ -263,6 +264,13 @@ def test_journal_entry_maps_lines_vendor_and_strips_loader_ref_from_memo():
         ("Legal & Professional Fees", "debit"),
         ("Accrued Liabilities", "credit"),
     ]
+
+
+def test_journal_entry_total_is_its_debits_not_the_header():
+    # Live QuickBooks sends TotalAmt 0 on journal entries; a header of 0 must not win.
+    assert qbo.map_entity("JournalEntry", JOURNAL).total_cents == 1_200_000
+    without = {k: v for k, v in JOURNAL.items() if k != "TotalAmt"}
+    assert qbo.map_entity("JournalEntry", without).total_cents == 1_200_000
 
 
 def test_journal_entry_with_two_vendors_has_no_header_vendor():
