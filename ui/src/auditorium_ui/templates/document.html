@@ -1,19 +1,55 @@
 {% extends "base.html" %}
+{% from "_macros.html" import glyph, icon %}
 {% block title %}{{ document.id }} · {{ manifest.run_id }}{% endblock %}
+{% block styles %}
+.doclayout { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 18px; align-items: start; margin-top: 12px; }
+.docmeta { position: sticky; top: 14px; }
+.docmeta h1 { font-family: var(--mono); font-size: 15px; margin: 0; overflow-wrap: anywhere; }
+.docmeta dl.kv { grid-template-columns: 1fr; gap: 2px; margin: 0; }
+.docmeta dl.kv dt { margin-top: 10px; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; font-weight: 600; }
+.docmeta .hashline { font-family: var(--mono); font-size: 11.5px; overflow-wrap: anywhere; color: var(--ink-2); }
+.docmeta .open { display: inline-flex; gap: 6px; align-items: center; margin-top: 14px; font-weight: 500; }
+.sheet { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: 0 1px 2px rgba(16,19,23,.05), 0 8px 24px -12px rgba(16,19,23,.12); margin-bottom: 18px; }
+.sheet h2 { margin: 0; padding: 10px 18px; border-bottom: 1px solid var(--line); font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; display: flex; justify-content: space-between; }
+.sheet.focus h2 { color: var(--ink); }
+pre.page { margin: 0; white-space: pre-wrap; padding: 22px 26px 28px; font: 13px/1.65 var(--mono); color: var(--ink); overflow-wrap: anywhere; }
+@media (max-width: 900px) {
+  .doclayout { grid-template-columns: 1fr; }
+  .docmeta { position: static; }
+}
+{% endblock %}
 {% block content %}
-<p class="small"><a href="javascript:history.back()">&larr; Back</a></p>
-<h2 style="margin-top:8px">Document <code>{{ document.id }}</code></h2>
-<dl class="kv">
-  <dt>Type</dt><dd>{{ document.type.value }} ({{ document.origin }})</dd>
-  <dt>Source</dt><dd>{{ document.source.system.value }} {{ document.source.record_type }} <code>{{ document.source.record_id }}</code></dd>
-  <dt>File</dt><dd><code>{{ document.path }}</code> · {{ document.media_type }} · <a href="/document/file?id={{ document.id | q }}" target="_blank" rel="noopener">open original</a></dd>
-  <dt>sha256</dt><dd><code>{{ document.sha256 }}</code>
-    {% if hash_ok %}<span class="v verified">matches the file</span>{% else %}<span class="v failed">does not match the file</span>{% endif %}</dd>
-</dl>
-{% if read_error %}<div class="banner bad">Could not read the text of this file: {{ read_error }}</div>{% endif %}
-<p class="small muted">The text below is what the contract's text extraction reads, which is what quotes are checked against.</p>
-{% for parts in pages %}
-<h2 id="page-{{ loop.index }}">Page {{ loop.index }}{% if loop.index == focus %} <span class="small muted">(quoted)</span>{% endif %}</h2>
-<pre class="page">{% for text, hit in parts %}{% if hit %}<mark>{{ text }}</mark>{% else %}{{ text }}{% endif %}{% endfor %}</pre>
-{% endfor %}
+<a class="back" href="javascript:history.back()">{{ icon("left", 14) }} Back</a>
+<div class="doclayout">
+  <aside class="card card-pad docmeta" aria-label="About this document">
+    <span class="eyebrow">Document</span>
+    <h1>{{ document.id }}</h1>
+    <dl class="kv">
+      <dt>Type</dt><dd>{{ document.type.value }} ({{ document.origin }})</dd>
+      <dt>Source</dt><dd>{{ document.source.system.value }} {{ document.source.record_type }} <code>{{ document.source.record_id }}</code></dd>
+      <dt>File</dt><dd><code>{{ document.path }}</code><br><span class="muted small">{{ document.media_type }}</span></dd>
+      <dt>sha256</dt><dd><div class="hashline">{{ document.sha256 }}</div>
+        {% if hash_ok %}<span class="v verified">{{ glyph("pass") }}matches the file</span>{% else %}<span class="v failed">{{ glyph("fail") }}does not match the file</span>{% endif %}</dd>
+    </dl>
+    <a class="open" href="/document/file?id={{ document.id | q }}" target="_blank" rel="noopener">Open original {{ icon("external", 13) }}</a>
+    <p class="small muted" style="margin-bottom:0">The text on the right is what the contract's text extraction reads, which is what quotes are checked against.</p>
+  </aside>
+  <div>
+    {% if read_error %}<div class="banner bad">Could not read the text of this file: {{ read_error }}</div>{% endif %}
+    {% for parts in pages %}
+    <section class="sheet{{ ' focus' if loop.index == focus }}" id="page-{{ loop.index }}">
+      <h2><span>Page {{ loop.index }}{% if pages | length > 1 %} of {{ pages | length }}{% endif %}</span>{% if loop.index == focus %}<span class="small muted">(quoted)</span>{% endif %}</h2>
+      <pre class="page">{% for text, hit in parts %}{% if hit %}<mark>{{ text }}</mark>{% else %}{{ text }}{% endif %}{% endfor %}</pre>
+    </section>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(() => {
+  const hit = document.querySelector("pre.page mark");
+  if (hit) hit.scrollIntoView({ block: "center" });
+})();
+</script>
 {% endblock %}

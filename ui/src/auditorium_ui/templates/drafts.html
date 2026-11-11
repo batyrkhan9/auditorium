@@ -1,8 +1,15 @@
 {% extends "base.html" %}
 {% from "_macros.html" import draft_card %}
 {% block title %}Follow-up drafts · {{ manifest.run_id }}{% endblock %}
+{% block styles %}
+.drafts { max-width: 820px; }
+.empty-state { padding: 40px 20px; text-align: center; color: var(--muted); border: 1px dashed var(--line-2); border-radius: var(--radius); }
+.empty-state strong { display: block; color: var(--ink); margin-bottom: 4px; }
+{% endblock %}
 {% block content %}
-<h2>Follow-up drafts</h2>
+<div class="drafts">
+<h2 style="margin-top:4px">Follow-up drafts</h2>
 <div class="banner warn" role="note"><strong>Drafts only.</strong> The agent never sends a message, and this screen cannot send one. A person reads each draft and sends it themselves.</div>
-{% for d in run.drafts %}<div id="{{ d.id }}">{{ draft_card(d) }}</div>{% else %}<p class="muted">This run has no follow-up drafts.</p>{% endfor %}
+{% for d in run.drafts %}<div id="{{ d.id }}">{{ draft_card(d) }}</div>{% else %}<div class="empty-state"><strong>No follow-up drafts.</strong>This run has no follow-up drafts.</div>{% endfor %}
+</div>
 {% endblock %}

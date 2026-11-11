@@ -1,141 +1,300 @@
-<!doctype html>
+{% from "_macros.html" import icon, glyph_symbols %}<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
 <title>{% block title %}{{ manifest.run_id }}{% endblock %} · Auditorium</title>
+{# Pinned font files from jsDelivr. Without the network the system stack takes over. #}
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/ibm-plex-sans@5.2.8/latin-400.css" integrity="sha384-KAoV+iN2OQM4nX8cLQwXAmxUpLLXBew80mRTAMwu9s6Qc2HHFDByndI1icVmJ9Mb" crossorigin="anonymous">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/ibm-plex-sans@5.2.8/latin-500.css" integrity="sha384-52y4Whr2v4Zdfrr/tDzM2gvi5+yKwGbHPH406s95qGkmjfXhaNO+Gf2IGdtIIYnq" crossorigin="anonymous">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/ibm-plex-sans@5.2.8/latin-600.css" integrity="sha384-JyLG9ggsH+KTlK4Vm1MJQ3ImRVsZr00dz86Xq3GWAYPdswFE0QQzcZXLCbmgyRdg" crossorigin="anonymous">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/ibm-plex-mono@5.2.7/latin-400.css" integrity="sha384-gmcmgZJ3SePhkdTXTGuZ/8KFvswox1OAZgOI2fPRjJYwxwqZbjQbzM5Htb673EGZ" crossorigin="anonymous">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/ibm-plex-mono@5.2.7/latin-500.css" integrity="sha384-jJBRof6uIBCAFnrM/Riy3vKp83V7JHomeoJaXYfnmI8f6uWadY1l56XztI2WC4j4" crossorigin="anonymous">
 <style>
+/* ---- tokens ------------------------------------------------------------- */
 :root {
-  --ink: #1f2328; --muted: #59636e; --line: #d1d9e0; --soft: #f6f8fa; --bg: #ffffff;
-  --accent: #0b5cad;
-  --pass-bg: #dafbe1; --pass-ink: #0f5323;
-  --fail-bg: #ffebe9; --fail-ink: #a0111f;
-  --review-bg: #fff4d4; --review-ink: #6b4100;
-  --na-bg: #eef1f4; --na-ink: #4b535d;
+  --bg: #f4f5f7; --surface: #ffffff; --raised: #fafbfc; --sunken: #eef0f3;
+  --ink: #101317; --ink-2: #353c47; --muted: #66707d; --faint: #9aa2ad;
+  --line: #e1e4e9; --line-2: #ccd1d8;
+  --bar: #0d1014; --bar-ink: #e9ebee; --bar-muted: #8b939e; --bar-line: #23282f;
+  --accent: #2647c9; --accent-soft: #e9edfb; --focus: #2647c9;
+
+  --fail: #c42b1c; --fail-bg: #fdeceb; --fail-line: #f1b5af; --fail-solid: #c42b1c; --fail-on: #ffffff;
+  --review: #9a5b00; --review-bg: #fff5de; --review-line: #e8b14f;
+  --pass: #1d7a4b; --pass-bg: #e6f4ec; --pass-line: #a7d8bd;
+  --na: #7b8490; --na-bg: #f0f1f3; --na-line: #d7dbe0;
+  --synthetic: #5a3fb0; --synthetic-bg: #f1edfc; --synthetic-line: #cdbff2;
+  --live: #0f6b3e; --local: #6b4f00; --local-bg: #fbf3dc;
+
+  --sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --radius: 8px; --radius-sm: 5px;
+  --shadow: 0 1px 2px rgba(16, 19, 23, .05), 0 1px 1px rgba(16, 19, 23, .03);
+  --wrap: 1440px;
 }
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0c0e11; --surface: #14171c; --raised: #181c22; --sunken: #101317;
+    --ink: #e7e9ec; --ink-2: #c3c8cf; --muted: #8e97a3; --faint: #5e6671;
+    --line: #242930; --line-2: #333a43;
+    --bar: #08090b; --bar-ink: #e9ebee; --bar-muted: #7e8792; --bar-line: #1d2127;
+    --accent: #8ea6ff; --accent-soft: #1a2240; --focus: #8ea6ff;
+    --fail: #ff7a6b; --fail-bg: #351512; --fail-line: #6e2a23; --fail-solid: #e5483a; --fail-on: #ffffff;
+    --review: #f3b54a; --review-bg: #33260b; --review-line: #7a5714;
+    --pass: #5cc993; --pass-bg: #10291c; --pass-line: #1f5138;
+    --na: #87909b; --na-bg: #1b1f25; --na-line: #2c323a;
+    --synthetic: #b9a5ff; --synthetic-bg: #221b3d; --synthetic-line: #44377a;
+    --live: #5cc993; --local: #f3c768; --local-bg: #2e2510;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4);
+  }
+}
+
+/* ---- base --------------------------------------------------------------- */
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--ink);
-  font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
-a { color: var(--accent); }
-code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; }
-main { max-width: 1180px; margin: 0 auto; padding: 16px 24px 64px; }
-header.run { border-bottom: 1px solid var(--line); background: var(--soft); }
-header.run .inner { max-width: 1180px; margin: 0 auto; padding: 14px 24px 0; }
-header.run h1 { font-size: 18px; margin: 0 0 6px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-.meta { color: var(--muted); font-size: 13px; display: flex; gap: 16px; flex-wrap: wrap; }
-.sources { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0; }
-.source { border: 1px solid var(--line); border-radius: 6px; background: var(--bg); padding: 4px 8px; font-size: 13px; }
-.badge { display: inline-block; border-radius: 4px; padding: 1px 6px; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
-.badge.live { background: #0f5323; color: #fff; }
-.badge.local { background: var(--review-bg); color: var(--review-ink); border: 1px solid #d4a72c; }
-.badge.mode { background: var(--ink); color: #fff; }
-.badge.synthetic { background: #ede7ff; color: #3b2475; border: 1px solid #8463d6; }
-.badge.draft { background: var(--review-bg); color: var(--review-ink); border: 1px solid #d4a72c; }
-nav.tabs { display: flex; gap: 4px; margin-top: 6px; }
-nav.tabs a { padding: 8px 12px; text-decoration: none; color: var(--muted); border-bottom: 2px solid transparent; }
-nav.tabs a.on { color: var(--ink); border-bottom-color: var(--accent); font-weight: 600; }
-.banner { padding: 10px 14px; border-radius: 6px; margin: 12px 0; border: 1px solid; }
-.banner.demo { background: #ede7ff; border-color: #8463d6; color: #3b2475; font-weight: 600; }
-.banner.bad { background: var(--fail-bg); border-color: #e5a1a8; color: var(--fail-ink); }
-.banner.warn { background: var(--review-bg); border-color: #d4a72c; color: var(--review-ink); }
-.banner.ok { background: var(--pass-bg); border-color: #7fcf95; color: var(--pass-ink); }
-.status { display: inline-block; border-radius: 999px; padding: 1px 9px; font-size: 12px; font-weight: 600; white-space: nowrap; }
-.status.pass { background: var(--pass-bg); color: var(--pass-ink); }
-.status.fail { background: var(--fail-bg); color: var(--fail-ink); }
-.status.needs_review { background: var(--review-bg); color: var(--review-ink); }
-.status.not_applicable { background: var(--na-bg); color: var(--na-ink); }
-.v { font-size: 12px; font-weight: 600; white-space: nowrap; }
-.v.verified { color: var(--pass-ink); }
-.v.failed { color: var(--fail-ink); }
-.v.unchecked { color: var(--review-ink); }
-.v.live_unchecked { color: var(--na-ink); }
-.drift { color: var(--fail-ink); font-weight: 600; }
-table { border-collapse: collapse; width: 100%; }
-th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
-th { font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
-td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
-tr.group td { border-top: 2px solid var(--line); }
-h2 { font-size: 16px; margin: 28px 0 10px; }
-.cards { display: flex; gap: 10px; flex-wrap: wrap; margin: 12px 0; }
-.card { border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; min-width: 120px; }
-.card .n { font-size: 22px; font-weight: 700; }
-.card .l { font-size: 12px; color: var(--muted); }
-.evidence { border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; margin: 10px 0; }
-.evidence.failed { border-color: #e5a1a8; border-left: 4px solid var(--fail-ink); }
-.evidence.unchecked { border-left: 4px solid #d4a72c; }
-.evidence.live_unchecked { border-left: 4px solid var(--na-ink); }
-.evidence.verified { border-left: 4px solid #2da44e; }
-.evidence .head { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
-.evidence .kind { font-size: 12px; text-transform: uppercase; color: var(--muted); font-weight: 700; letter-spacing: .04em; }
-blockquote { margin: 8px 0; padding: 6px 12px; border-left: 3px solid var(--line); background: var(--soft); white-space: pre-wrap; }
-dl.kv { display: grid; grid-template-columns: max-content 1fr; gap: 2px 14px; margin: 6px 0; }
-dl.kv dt { color: var(--muted); font-size: 13px; }
-dl.kv dd { margin: 0; }
-pre.page { white-space: pre-wrap; background: var(--soft); border: 1px solid var(--line); border-radius: 6px; padding: 12px; }
-mark { background: #ffe58a; padding: 0 1px; }
-form.filters { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; margin: 10px 0; }
-label { font-size: 13px; color: var(--muted); display: flex; flex-direction: column; gap: 3px; }
-input, select, textarea, button { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; }
-button { background: var(--accent); color: #fff; border-color: var(--accent); cursor: pointer; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 var(--sans);
+  font-feature-settings: "tnum" 0; -webkit-font-smoothing: antialiased; }
+a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+a:hover { text-decoration-thickness: 2px; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 3px; }
+code, .mono { font-family: var(--mono); font-size: 12.5px; }
+.num, td.num, th.num { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
 .muted { color: var(--muted); }
-.small { font-size: 13px; }
-.draft { border: 2px dashed #d4a72c; border-radius: 8px; padding: 12px 16px; margin: 12px 0; background: #fffdf5; }
-.draft .body { white-space: pre-wrap; margin: 8px 0; }
+.small { font-size: 12.5px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.wrap { max-width: var(--wrap); margin: 0 auto; padding: 0 24px; }
+main { max-width: var(--wrap); margin: 0 auto; padding: 18px 24px 80px; }
+h1, h2, h3 { letter-spacing: -.01em; }
+h2 { font-size: 15px; font-weight: 600; margin: 32px 0 12px; }
+h3 { font-size: 13px; font-weight: 600; margin: 0 0 8px; }
+.eyebrow { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+
+/* ---- demo band ---------------------------------------------------------- */
+.demo-band { background: repeating-linear-gradient(-45deg, #f5c84c 0 12px, #e9b52f 12px 24px); color: #1d1600;
+  font-size: 12.5px; padding: 6px 0; border-bottom: 1px solid #b98a12; }
+.demo-band .wrap { display: flex; gap: 10px; align-items: baseline; }
+.demo-band strong { background: #1d1600; color: #f5c84c; padding: 1px 7px; border-radius: 3px; letter-spacing: .08em; font-size: 11px; flex: none; }
+
+/* ---- top bar ------------------------------------------------------------ */
+.topbar { background: var(--bar); color: var(--bar-ink); border-bottom: 1px solid var(--bar-line); }
+.topbar .wrap { display: flex; align-items: center; gap: 14px; min-height: 52px; flex-wrap: wrap; }
+.brand { display: flex; align-items: center; gap: 9px; color: var(--bar-ink); text-decoration: none; font-weight: 600; letter-spacing: -.01em; font-size: 15px; }
+.brand svg { flex: none; }
+.crumb-sep { color: var(--bar-muted); }
+.run-id { font-family: var(--mono); font-size: 13px; color: var(--bar-ink); }
+.mode-pill { font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; padding: 2px 7px;
+  border: 1px solid var(--bar-line); border-radius: 999px; color: var(--bar-muted); }
+.run-state { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--bar-muted); }
+.run-state .dot { width: 7px; height: 7px; border-radius: 50%; background: #3fbf7f; }
+.run-state.going .dot { background: #f3b54a; animation: pulse 1.6s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .35; } }
+nav.tabs { display: flex; gap: 2px; margin-left: auto; overflow-x: auto; }
+nav.tabs a { color: var(--bar-muted); text-decoration: none; padding: 15px 11px 13px; border-bottom: 2px solid transparent; white-space: nowrap; font-size: 13.5px; }
+nav.tabs a:hover { color: var(--bar-ink); }
+nav.tabs a.on { color: var(--bar-ink); border-bottom-color: var(--bar-ink); font-weight: 500; }
+nav.tabs .count { font-family: var(--mono); font-size: 11.5px; color: var(--bar-muted); margin-left: 4px; }
+
+/* ---- run header: what this run is and where its data came from ---------- */
+.runhead { background: var(--surface); border-bottom: 1px solid var(--line); }
+.runhead .wrap { padding-top: 14px; padding-bottom: 14px; }
+.meta { display: flex; gap: 6px 22px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); }
+.meta b { color: var(--ink-2); font-weight: 500; }
+.prov { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 10px; margin-top: 12px; }
+.prov-cell { border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; background: var(--raised); min-width: 0; }
+.prov-cell .eyebrow { margin-bottom: 6px; display: block; }
+.prov-cell p { margin: 6px 0 0; font-size: 12.5px; color: var(--ink-2); }
+.sources { display: flex; gap: 6px; flex-wrap: wrap; }
+.source { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); padding: 3px 4px 3px 8px; font-size: 12.5px; max-width: 100%; }
+.source strong { font-weight: 600; }
+.source .detail { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 220px; }
+.badge { display: inline-flex; align-items: center; gap: 4px; border-radius: 4px; padding: 1px 6px; font-size: 10.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; line-height: 16px; white-space: nowrap; }
+.badge.live { background: var(--pass-bg); color: var(--live); box-shadow: inset 0 0 0 1px var(--pass-line); }
+.badge.live::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.badge.local { background: var(--local-bg); color: var(--local); box-shadow: inset 0 0 0 1px var(--review-line); }
+.badge.synthetic { background: var(--synthetic-bg); color: var(--synthetic); box-shadow: inset 0 0 0 1px var(--synthetic-line); }
+.badge.draft { background: var(--review-bg); color: var(--review); box-shadow: inset 0 0 0 1px var(--review-line); }
+.basis { display: flex; gap: 10px; align-items: flex-start; }
+.basis .ico { flex: none; margin-top: 1px; }
+.basis strong { font-weight: 600; }
+.basis.ok .ico { color: var(--pass); }
+.basis.warn .ico { color: var(--review); }
+.basis code { word-break: break-all; }
+
+/* ---- notices (problems that need a person) ------------------------------ */
+.banner { display: block; padding: 10px 14px 10px 40px; border-radius: var(--radius); margin: 0 0 10px; border: 1px solid; position: relative; font-size: 13.5px; }
+.banner::before { position: absolute; left: 14px; top: 10px; width: 16px; height: 16px; border-radius: 50%; font: 600 11px/16px var(--sans); text-align: center; }
+.banner ul { margin: 6px 0 0; padding-left: 18px; }
+.banner.bad { background: var(--fail-bg); border-color: var(--fail-line); color: var(--ink); }
+.banner.bad::before { content: "!"; background: var(--fail-solid); color: var(--fail-on); }
+.banner.bad strong { color: var(--fail); }
+.banner.warn { background: var(--review-bg); border-color: var(--review-line); color: var(--ink); }
+.banner.warn::before { content: "?"; border: 1.5px dashed var(--review); color: var(--review); line-height: 13px; }
+.banner.warn strong { color: var(--review); }
+.banner.ok { background: var(--pass-bg); border-color: var(--pass-line); color: var(--ink); }
+.banner.ok::before { content: "\2713"; background: var(--pass); color: var(--surface); }
+.banner.info { background: var(--synthetic-bg); border-color: var(--synthetic-line); color: var(--ink); }
+.banner.info::before { content: "i"; background: var(--synthetic); color: var(--surface); font-style: italic; }
+
+/* ---- status: colour AND shape, so fail and needs_review never blur ------ */
+.status { display: inline-flex; align-items: center; gap: 5px; border-radius: 999px; padding: 1px 9px 1px 6px; font-size: 12px; font-weight: 500; white-space: nowrap; line-height: 18px; }
+.status svg { flex: none; }
+.status.pass { background: var(--pass-bg); color: var(--pass); }
+.status.fail { background: var(--fail-solid); color: var(--fail-on); font-weight: 600; }
+.status.needs_review { background: var(--review-bg); color: var(--review); box-shadow: inset 0 0 0 1px var(--review-line); font-weight: 600; }
+.status.not_applicable { background: var(--na-bg); color: var(--na); }
+.status.lg { font-size: 13px; padding: 3px 12px 3px 8px; }
+.v { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 500; white-space: nowrap; }
+.v.verified { color: var(--pass); }
+.v.failed { color: var(--fail); font-weight: 600; }
+.v.unchecked { color: var(--review); }
+.v.live_unchecked { color: var(--na); }
+.drift { color: var(--fail); font-weight: 600; }
+.chip { display: inline-block; font-family: var(--mono); font-size: 11.5px; padding: 0 6px; border-radius: 4px; background: var(--sunken); color: var(--ink-2); border: 1px solid var(--line); line-height: 18px; white-space: nowrap; }
+.chip.fail { background: var(--fail-bg); color: var(--fail); border-color: var(--fail-line); }
+
+/* ---- surfaces ----------------------------------------------------------- */
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+.card-pad { padding: 14px 16px; }
+.card > header { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+.card > header h2, .card > header h3 { margin: 0; font-size: 13.5px; }
+table { border-collapse: collapse; width: 100%; }
+th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .06em; background: var(--raised); }
+tbody tr:last-child td { border-bottom: 0; }
+dl.kv { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 16px; margin: 8px 0; }
+dl.kv dt { color: var(--muted); font-size: 12.5px; }
+dl.kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+blockquote { margin: 10px 0 4px; padding: 8px 12px; border-left: 3px solid var(--line-2); background: var(--sunken); white-space: pre-wrap; border-radius: 0 var(--radius-sm) var(--radius-sm) 0; font-size: 13.5px; }
+mark { background: #ffe066; color: #1b1500; padding: 1px 2px; border-radius: 2px; box-shadow: 0 0 0 2px #ffe066; }
 .hash { color: var(--muted); }
+.back { display: inline-flex; gap: 6px; align-items: center; font-size: 12.5px; color: var(--muted); text-decoration: none; }
+.back:hover { color: var(--ink); }
+
+/* ---- forms -------------------------------------------------------------- */
+label { font-size: 12px; color: var(--muted); display: flex; flex-direction: column; gap: 4px; font-weight: 500; }
+input, select, textarea, button { font: inherit; font-size: 13.5px; padding: 6px 10px; border: 1px solid var(--line-2); border-radius: 6px; background: var(--surface); color: var(--ink); min-height: 34px; }
+input:focus, select:focus, textarea:focus { outline: 2px solid var(--focus); outline-offset: -1px; border-color: transparent; }
+button { background: var(--ink); color: var(--surface); border-color: var(--ink); cursor: pointer; font-weight: 500; padding: 6px 14px; }
+button:hover { opacity: .88; }
+form.signform { display: grid; gap: 10px; }
+form.signform .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.seg { display: inline-flex; border: 1px solid var(--line-2); border-radius: 6px; overflow: hidden; }
+.seg label { flex-direction: row; }
+.seg input { position: absolute; opacity: 0; pointer-events: none; }
+.seg span { display: inline-block; padding: 6px 12px; font-size: 13px; color: var(--ink-2); cursor: pointer; border-right: 1px solid var(--line-2); min-height: 32px; }
+.seg label:last-child span { border-right: 0; }
+.seg input:checked + span { background: var(--ink); color: var(--surface); }
+.seg input:focus-visible + span { outline: 2px solid var(--focus); outline-offset: -2px; }
+
+/* ---- drafts ------------------------------------------------------------- */
+.draft { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); margin: 12px 0; overflow: hidden; box-shadow: var(--shadow); }
+.draft .draft-head { display: flex; gap: 8px; align-items: center; padding: 10px 14px; background: var(--review-bg); border-bottom: 1px dashed var(--review-line); flex-wrap: wrap; }
+.draft dl.kv { padding: 4px 14px; margin: 8px 0 0; }
+.draft .body { white-space: pre-wrap; margin: 6px 14px 12px; padding: 12px 14px; background: var(--raised); border: 1px solid var(--line); border-radius: var(--radius-sm); font-size: 13.5px; }
+.draft .foot { padding: 8px 14px 12px; }
+
+@media (max-width: 900px) {
+  .prov { grid-template-columns: 1fr; }
+  nav.tabs { margin-left: 0; width: 100%; }
+}
+@media (max-width: 640px) {
+  .wrap, main { padding-left: 16px; padding-right: 16px; }
+  .demo-band .wrap { flex-direction: column; gap: 4px; }
+  form.signform .row2 { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+{% block styles %}{% endblock %}
 </style>
 </head>
 <body>
-<header class="run">
-  <div class="inner">
-    <h1>
-      <span>Run <code>{{ manifest.run_id }}</code></span>
-      <span class="badge mode">{{ manifest.mode }}</span>
-    </h1>
-    <div class="meta">
-      <span>Period under audit: {{ manifest.period_start }} to {{ manifest.period_end }}</span>
-      <span>Started {{ manifest.started_at.strftime("%Y-%m-%d %H:%M UTC") }}{% if manifest.finished_at %}, finished {{ manifest.finished_at.strftime("%H:%M") }}{% else %}, not finished{% endif %}</span>
-      {% if manifest.dataset_id %}<span>Dataset <code>{{ manifest.dataset_id }}</code></span>{% endif %}
-      {% if manifest.sample_id %}<span>Sample <code>{{ manifest.sample_id }}</code></span>{% endif %}
-      {% if manifest.models %}<span>Models: {{ manifest.models | join(", ") }}</span>{% endif %}
-      <span>Contract {{ manifest.contract_version }}</span>
-    </div>
-    <div class="sources" aria-label="Sources used in this run">
-      {% for s in manifest.sources %}
-      <span class="source" data-system="{{ s.system.value }}" data-mode="{{ s.mode }}">
-        <strong>{{ s.system.value }}</strong>
-        <span class="badge {{ s.mode }}">{{ "Live" if s.mode == "live" else "Local" }}</span>
-        {% if s.synthetic %}<span class="badge synthetic" data-synthetic-source>Synthetic</span>{% endif %}
-        <span class="muted">{{ s.detail }}</span>
-      </span>
-      {% endfor %}
-    </div>
-    <nav class="tabs">
-      <a href="/" class="{{ 'on' if page == 'results' }}">Results</a>
-      {% if run.packets or manifest.mode == "sample" %}<a href="/packets" class="{{ 'on' if page == 'packets' }}">Evidence packets ({{ run.packets | length }})</a>{% endif %}
-      <a href="/drafts" class="{{ 'on' if page == 'drafts' }}">Follow-up drafts ({{ run.drafts | length }})</a>
-      <a href="/log" class="{{ 'on' if page == 'log' }}">Step log ({{ run.log | length }})</a>
+{{ glyph_symbols() }}
+{% if demo %}
+<div class="demo-band" role="note" data-demo><div class="wrap"><strong>Demo</strong><span>DEMO RUN. The results, log and drafts were made up by the screen's demo builder to show the screen, not produced by the agent. Every source is a local file. Nothing here is a real audit.</span></div></div>
+{% endif %}
+<header class="topbar">
+  <div class="wrap">
+    <a class="brand" href="/" aria-label="Auditorium, results">
+      <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><rect x="1" y="1" width="18" height="18" rx="4" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M5 7h10M5 10.5h6M5 14h4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M11.5 14.2l1.6 1.5 3-3.4" fill="none" stroke="#3fbf7f" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Auditorium
+    </a>
+    <span class="crumb-sep" aria-hidden="true">/</span>
+    <span class="run-id" title="Run id">{{ manifest.run_id }}</span>
+    <span class="mode-pill">{{ manifest.mode }}</span>
+    {% if manifest.finished_at %}
+    <span class="run-state"><span class="dot" aria-hidden="true"></span>Finished {{ manifest.finished_at.strftime("%Y-%m-%d %H:%M UTC") }}</span>
+    {% else %}
+    <span class="run-state going"><span class="dot" aria-hidden="true"></span>In progress</span>
+    {% endif %}
+    <nav class="tabs" aria-label="Run pages">
+      <a href="/" class="{{ 'on' if page == 'results' }}"{% if page == 'results' %} aria-current="page"{% endif %}>Results<span class="count">{{ run.results | length }}</span></a>
+      {% if run.packets or manifest.mode == "sample" %}<a href="/packets" class="{{ 'on' if page == 'packets' }}"{% if page == 'packets' %} aria-current="page"{% endif %}>Evidence packets<span class="count">{{ run.packets | length }}</span></a>{% endif %}
+      <a href="/drafts" class="{{ 'on' if page == 'drafts' }}"{% if page == 'drafts' %} aria-current="page"{% endif %}>Follow-up drafts<span class="count">{{ run.drafts | length }}</span></a>
+      <a href="/log" class="{{ 'on' if page == 'log' }}"{% if page == 'log' %} aria-current="page"{% endif %}>Step log<span class="count">{{ run.log | length }}</span></a>
     </nav>
   </div>
 </header>
+<section class="runhead" aria-label="About this run">
+  <div class="wrap">
+    <div class="meta">
+      <span>Period under audit <b>{{ manifest.period_start }} to {{ manifest.period_end }}</b></span>
+      <span>Started <b>{{ manifest.started_at.strftime("%Y-%m-%d %H:%M UTC") }}</b>{% if manifest.finished_at %}, finished <b>{{ manifest.finished_at.strftime("%H:%M") }}</b>{% else %}, <b>not finished</b>{% endif %}</span>
+      {% if manifest.dataset_id %}<span>Dataset <b class="mono">{{ manifest.dataset_id }}</b></span>{% endif %}
+      {% if manifest.sample_id %}<span>Sample <b class="mono">{{ manifest.sample_id }}</b></span>{% endif %}
+      {% if manifest.models %}<span>Models <b>{{ manifest.models | join(", ") }}</b></span>{% endif %}
+      <span>Contract <b>{{ manifest.contract_version }}</b></span>
+    </div>
+    <div class="prov">
+      <div class="prov-cell">
+        <span class="eyebrow">Sources: live or local</span>
+        <div class="sources" aria-label="Sources used in this run">
+          {% for s in manifest.sources %}
+          <span class="source" data-system="{{ s.system.value }}" data-mode="{{ s.mode }}">
+            <strong>{{ s.system.value }}</strong>
+            <span class="badge {{ s.mode }}">{{ "Live" if s.mode == "live" else "Local" }}</span>
+            {% if s.synthetic %}<span class="badge synthetic" data-synthetic-source>Synthetic</span>{% endif %}
+            <span class="detail" title="{{ s.detail }}">{{ s.detail }}</span>
+          </span>
+          {% endfor %}
+        </div>
+        {% if synthetic %}
+        <p role="note" data-synthetic="{{ synthetic | join(' ') }}"><strong>Synthetic data.</strong> {{ synthetic | length }} of {{ manifest.sources | length }} source(s) hold made-up records ({{ synthetic | join(", ") }}). No real company is described here.</p>
+        {% endif %}
+      </div>
+      <div class="prov-cell">
+        <span class="eyebrow">Evidence checked against</span>
+        {% if basis.kind == "snapshot" %}
+        <div class="basis ok" role="note" data-evidence="snapshot">{{ icon("shield") }}<div><strong>Evidence checked against the run's snapshot</strong> (<code>sources/</code>), which matches the fingerprints the run logged when it fetched the data. That shows the evidence matches what the run fetched. It does not show the fetch itself was honest; only the live sources can.</div></div>
+        {% elif basis.kind == "dataset" %}
+        <div class="basis ok" role="note" data-evidence="dataset">{{ icon("shield") }}<div><strong>Evidence checked against the local dataset</strong> <code>{{ basis.detail }}</code> (from {{ dataset_from }}). Every source of this run was local, so the dataset is what it read.</div></div>
+        {% elif basis.kind == "live" %}
+        <div class="basis warn" role="note" data-evidence="live-unchecked">{{ icon("dash") }}<div><strong>Live run: evidence not re-checked.</strong> At least one source was live and the run folder has no usable snapshot, so its records and documents need not exist in a local dataset. Evidence is shown as "Unchecked: live run" rather than compared with local files.</div></div>
+        {% else %}
+        <div class="basis warn" role="note" data-evidence="unchecked">{{ icon("dash") }}<div><strong>Evidence not checked.</strong> {{ basis.reason }} Quotes and record values were not compared with any source. Start with <code>--dataset &lt;dir&gt;</code> to check them and open documents.</div></div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</section>
 <main>
-  {% if demo %}
-  <div class="banner demo" role="note" data-demo>DEMO RUN. The results, log and drafts were made up by the screen's demo builder to show the screen, not produced by the agent. Every source is a local file. Nothing here is a real audit.</div>
-  {% endif %}
-  {% if synthetic %}
-  <div class="banner demo" role="note" data-synthetic="{{ synthetic | join(' ') }}"><strong>Synthetic data.</strong> {{ synthetic | length }} of {{ manifest.sources | length }} source(s) hold made-up records ({{ synthetic | join(", ") }}). No real company is described here.</div>
-  {% endif %}
   {% if log_damage %}
   <div class="banner bad" role="alert" data-log="damaged"><strong>The step log is damaged.</strong> {{ log_damage | join(" ") }} Sign-off is disabled.</div>
   {% endif %}
   {% if signoff_problems %}
   <div class="banner bad" role="alert" data-signoff-problems="{{ signoff_problems | length }}"><strong>{{ signoff_problems | length }} sign-off problem(s).</strong>
-    <ul style="margin:4px 0 0">{% for p in signoff_problems %}<li>{{ p }}</li>{% endfor %}</ul>
+    <ul>{% for p in signoff_problems %}<li>{{ p }}</li>{% endfor %}</ul>
   </div>
   {% endif %}
   {% if log_partial %}
   <div class="banner warn" role="status" data-run="in-progress"><strong>Run in progress: the step log could not be read fully.</strong> Its last line is still being written, so it is left out below. Reload to see it. Sign-off is disabled until the run has finished.</div>
   {% elif manifest.finished_at is none %}
   <div class="banner warn" role="status" data-run="in-progress"><strong>Run in progress.</strong> Results and the log may still change. Sign-off opens once the run has finished.</div>
+  {% endif %}
+  {% if invalid_results %}
+  <div class="banner bad" role="alert" data-results-invalid="{{ invalid_results | length }}"><strong>{{ invalid_results | length }} line(s) of results.jsonl are not valid results</strong> and are not shown. Run sign-off is disabled.
+    <ul>{% for p in invalid_results %}<li>{{ p }}</li>{% endfor %}</ul>
+  </div>
   {% endif %}
   {% if drift %}
   <div class="banner bad" role="alert" data-drift-count="{{ drift | length }}"><strong>{{ drift | length }} result(s) differ from the step log.</strong> Their status was changed after the agent logged it, so the log does not back what is shown. They are marked below.</div>
@@ -145,25 +304,17 @@ button { background: var(--accent); color: #fff; border-color: var(--accent); cu
   {% endif %}
   {% if snapshot_problems %}
   <div class="banner bad" role="alert" data-snapshot="untrusted"><strong>The run's snapshot was not used.</strong> It does not match the fingerprints the run logged when it fetched the data:
-    <ul style="margin:4px 0 0">{% for p in snapshot_problems %}<li>{{ p }}</li>{% endfor %}</ul>
+    <ul>{% for p in snapshot_problems %}<li>{{ p }}</li>{% endfor %}</ul>
   </div>
   {% endif %}
   {% if evidence_failed %}
   <div class="banner bad" role="alert"><strong>{{ evidence_failed }} evidence item(s) did not verify</strong> against the {{ basis.kind }}. A check whose evidence cannot be found is not a result. They are marked "Not verified" below.</div>
-  {% endif %}
-  {% if basis.kind == "snapshot" %}
-  <div class="banner ok" role="note" data-evidence="snapshot"><strong>Evidence checked against the run's snapshot</strong> (<code>sources/</code>), which matches the fingerprints the run logged when it fetched the data. That shows the evidence matches what the run fetched. It does not show the fetch itself was honest; only the live sources can.</div>
-  {% elif basis.kind == "dataset" %}
-  <div class="banner ok" role="note" data-evidence="dataset"><strong>Evidence checked against the local dataset</strong> <code>{{ basis.detail }}</code> (from {{ dataset_from }}). Every source of this run was local, so the dataset is what it read.</div>
-  {% elif basis.kind == "live" %}
-  <div class="banner warn" role="note" data-evidence="live-unchecked"><strong>Live run: evidence not re-checked.</strong> At least one source was live and the run folder has no usable snapshot, so its records and documents need not exist in a local dataset. Evidence is shown as "Unchecked: live run" rather than compared with local files.</div>
-  {% else %}
-  <div class="banner warn" role="note" data-evidence="unchecked"><strong>Evidence not checked.</strong> {{ basis.reason }} Quotes and record values were not compared with any source. Start with <code>--dataset &lt;dir&gt;</code> to check them and open documents.</div>
   {% endif %}
   {% if dataset_note and basis.kind != "none" %}
   <div class="banner warn" role="note" data-dataset-note>{{ dataset_note }}</div>
   {% endif %}
   {% block content %}{% endblock %}
 </main>
+{% block scripts %}{% endblock %}
 </body>
 </html>

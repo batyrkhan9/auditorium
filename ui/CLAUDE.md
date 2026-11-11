@@ -27,5 +27,10 @@ Demo runs have `demo-` run and dataset ids and show DEMO RUN; synthetic data sho
 its own banner. Sign-off is disabled until the run has finished.
 See `decisions/2026-11-10-viewer-on-contract-v0.2.md`.
 
+The results page is one row per transaction with a cell per check, filtered in
+the browser over rows the server rendered (the same query string filters on the
+server). Status is shown by colour and shape, so fail and needs_review never
+look alike. See `decisions/2026-11-10-transaction-grid.md`.
+
 Record decisions in `ui/decisions/YYYY-MM-DD-short-title.md`: what, what else was
 considered, why, what would change our mind. Root rules: ../CLAUDE.md.

@@ -1,6 +1,7 @@
 import json
 import re
 from pathlib import Path
+from urllib.parse import quote, unquote
 
 import auditorium_contracts as c
 import pytest
@@ -106,21 +107,68 @@ def test_results_page_shows_counts_and_labels(client):
     assert 'data-synthetic="ramp qbo bank company"' in page.text
     assert page.text.count("data-synthetic-source") == 4
     assert PREFLIGHT_RUN_ID in page.text
+    # One row per transaction, one cell per check: 5 transactions, 20 results.
+    assert visible_rows(page.text) == 5
     assert page.text.count("data-result=") == 20
     assert "Northwind Advisory LLC" in page.text and "$12,000.00" in page.text
     assert 'data-evidence="snapshot"' in page.text
     assert "verified against snapshot" in page.text
     assert "not verified" not in page.text.lower()
-    assert re.findall(
-        r'data-result="([^"]+)"[^>]*>(?:(?!</tr>).)*data-signoff-state="(\w+)"', page.text, re.S
-    ) == [(SIGNED, "pinned")]
+    assert re.findall(r'data-result="([^"]+)"[^>]*data-signoff-state="(\w+)"', page.text) == [
+        (SIGNED, "pinned")
+    ]
+
+
+def visible_rows(page: str) -> int:
+    """Rows the filter keeps. Every row is rendered; the others carry `hidden` first."""
+    return page.count("<tr data-tx=")
+
+
+def lit_cells(page: str) -> list[str]:
+    """Result cells in visible rows that the filter does not dim."""
+    rows = re.findall(r"<tr data-tx=.*?</tr>", page, re.S)
+    return [
+        cell
+        for row in rows
+        for cell in re.findall(
+            r'<a class="cell s-\w+(?: so[ \w-]*)?(?: drifted)?" data-result="([^"]+)"', row
+        )
+    ]
 
 
 def test_filters(client):
-    page = client.get("/", params={"status": "fail"})
-    assert page.text.count("data-result=") == 3
-    page = client.get("/", params={"status": "fail", "check": "period"})
-    assert re.findall(r'data-result="([^"]+)"', page.text) == [PITCH]
+    page = client.get("/", params={"status": "fail"}).text
+    assert visible_rows(page) == 3
+    assert page.count("data-result=") == 20  # hidden rows stay, for filtering in place
+    assert len(lit_cells(page)) == 3
+    page = client.get("/", params={"status": "fail", "check": "period"}).text
+    assert lit_cells(page) == [PITCH]
+    page = client.get("/", params={"status": "attention"}).text
+    assert visible_rows(page) == len(
+        {
+            r.split("#")[0]
+            for r in re.findall(
+                r'data-result="([^"]+)" [^>]*data-status="(?:fail|needs_review)"', page
+            )
+        }
+    )
+    assert visible_rows(client.get("/", params={"q": "northwind"}).text) == 1
+    empty = client.get("/", params={"q": "no such vendor"}).text
+    assert visible_rows(empty) == 0 and 'id="tx-empty">' in empty
+
+
+def test_rows_sort_with_exceptions_first(client):
+    page = client.get("/").text
+    worst = re.findall(r'<tr data-tx="[^"]+" class="w-(\w+)"', page)
+    order = {"fail": 0, "needs_review": 1, "pass": 2, "not_applicable": 3}
+    assert worst == sorted(worst, key=order.get) and worst[0] == "fail"
+    by_amount = client.get("/", params={"sort": "amount"}).text
+    amounts = [
+        int(a) for a in re.findall(r'<tr data-tx="[^"]+" [^>]*data-amount="(\d+)"', by_amount)
+    ]
+    assert amounts == sorted(amounts, reverse=True)
+    # An unknown filter value is ignored rather than hiding everything.
+    assert visible_rows(client.get("/", params={"status": "bogus", "check": "x"}).text) == 5
 
 
 def test_pitch_example_is_verified_against_the_snapshot(client):
@@ -624,6 +672,159 @@ def test_document_view_and_file_come_from_the_snapshot(client, demo):
 
 def test_unknown_result_is_404(client):
     assert client.get("/result", params={"id": "nope"}).status_code == 404
+
+
+def test_result_page_steps_through_exceptions_and_lists_sibling_checks(client):
+    listing = client.get("/").text
+    # Rows come exceptions first; within a row, cells are in check order.
+    cells = re.findall(r'data-result="([^"]+)"[^>]*data-status="(\w+)"', listing)
+    queue = [rid for rid, status in cells if status in ("fail", "needs_review")]
+    assert PITCH in queue
+    first = client.get("/result", params={"id": queue[0]}).text
+    assert f"Exception 1 of {len(queue)}" in first and 'rel="prev"' not in first
+    page = client.get("/result", params={"id": PITCH}).text
+    position = queue.index(PITCH)
+    assert f"Exception {position + 1} of {len(queue)}" in page
+    if position + 1 < len(queue):
+        assert f'href="/result?id={quote(queue[position + 1], safe="")}" rel="next"' in page
+    # The checks on the same transaction, this one marked as the current page.
+    siblings = re.findall(r'<a href="/result\?id=([^"]+)"( aria-current="page")?>', page)
+    assert len(siblings) == 4
+    assert [unquote(s) for s, current in siblings if current] == [PITCH]
+    # A clean result is not in the queue; it offers the first exception instead.
+    clean = next(rid for rid, status in cells if status == "pass")
+    assert "First exception" in client.get("/result", params={"id": clean}).text
+
+
+def test_pages_are_gzipped_for_large_runs(client):
+    response = client.get("/", headers={"Accept-Encoding": "gzip"})
+    assert response.headers.get("content-encoding") == "gzip"
+    assert response.headers["x-frame-options"] == "DENY"
+
+
+def test_reflected_input_next_to_the_csrf_token_is_never_compressed(client):
+    """BREACH: attacker-chosen `q` or `error` beside the token must not be gzipped."""
+    for params in ({"q": "northwind"}, {"error": "x"}):
+        response = client.get("/", params=params, headers={"Accept-Encoding": "gzip"})
+        assert 'name="csrf"' in response.text
+        assert "content-encoding" not in response.headers
+    detail = client.get(
+        "/result", params={"id": PITCH, "error": "x"}, headers={"Accept-Encoding": "gzip"}
+    )
+    assert "content-encoding" not in detail.headers
+
+
+def test_original_files_are_served_byte_for_byte(client, demo):
+    _, preflight, _ = demo
+    document = next(
+        d
+        for d in c.LocalSources(preflight / c.SOURCES_SNAPSHOT).documents()
+        if d.id == "doc_inv_2041"
+    )
+    on_disk = (preflight / c.SOURCES_SNAPSHOT / document.path).read_bytes()
+    response = client.get(
+        "/document/file", params={"id": document.id}, headers={"Accept-Encoding": "gzip"}
+    )
+    assert "content-encoding" not in response.headers
+    assert int(response.headers["content-length"]) == len(on_disk)
+    assert response.content == on_disk
+    assert c.sha256_file(preflight / c.SOURCES_SNAPSHOT / document.path) == document.sha256
+
+
+def _row(page: str, transaction_id: str) -> str:
+    return re.search(rf'<tr data-tx="{re.escape(transaction_id)}".*?</tr>', page, re.S).group(0)
+
+
+def test_signed_counts_only_sign_offs_that_still_cover_the_result(client, demo):
+    _, preflight, _ = demo
+    tx = SIGNED.split("#")[0]
+    page = client.get("/").text
+    assert "<b>1 / 20</b>" in page
+    assert "1 / 4" in _row(page, tx) and "stale" not in _row(page, tx)
+    edit_result(preflight, SIGNED, summary="Edited after the sign-off.")
+    page = client.get("/").text
+    row = _row(page, tx)
+    assert "0 / 4" in row and 'data-stale="1"' in row and "1 stale" in row
+    assert "<b>0 / 20</b>" in page and 'data-signed-stale="1"' in page
+
+
+def test_result_with_no_evidence_is_flagged_not_hidden(client, demo):
+    _, preflight, _ = demo
+    lines = (preflight / c.RESULTS).read_text().splitlines()
+    edited = []
+    for line in lines:
+        record = json.loads(line)
+        if record["id"] == PITCH:
+            record["evidence"] = []
+        edited.append(json.dumps(record))
+    (preflight / c.RESULTS).write_text("\n".join(edited) + "\n")
+    page = client.get("/").text
+    assert page.count("data-result=") == 20  # still listed
+    row = _row(page, PITCH.split("#")[0])
+    assert 'data-no-evidence="1"' in row and "1 with no evidence" in row
+    assert 'data-no-evidence-total="1"' in page
+    assert "data-results-invalid" not in page
+    detail = client.get("/result", params={"id": PITCH}).text
+    assert "data-no-evidence" in detail and "A check with no evidence is not a result" in detail
+
+
+def test_a_line_that_is_not_a_result_is_named_and_blocks_run_signoff(client, demo):
+    _, preflight, _ = demo
+    shown = run_form(client)
+    before = (preflight / c.LOG).read_bytes()
+    with (preflight / c.RESULTS).open("a") as handle:
+        handle.write('{"id": "broken"}\n')
+    page = client.get("/").text
+    assert 'data-results-invalid="1"' in page and "results.jsonl line 21" in page
+    assert 'data-run-signoff-form="invalid"' in page
+    response = client.post(
+        "/signoff-run",
+        data={"reviewer": "Reviewer", "decision": "accepted", **shown},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert "not valid results" in unquote(response.headers["location"])
+    assert (preflight / c.LOG).read_bytes() == before
+
+
+def test_evidence_counts_are_shown_separately_not_relabelled(client, demo):
+    _, preflight, _ = demo
+    pitch = next(r for r in c.load_run(preflight).results if r.id == PITCH)
+    wrong = c.DocumentEvidence(document_id="doc_inv_2041", page=1, quote="Not on the page")
+    edit_result(preflight, PITCH, evidence=[*pitch.evidence, wrong])
+    row = _row(client.get("/").text, PITCH.split("#")[0])
+    failed = re.search(r'data-ev="failed">.*?(\d+) not verified', row).group(1)
+    verified = re.search(r'data-ev="verified" title="(\d+) verified', row).group(1)
+    assert failed == "1" and int(verified) > 0
+
+
+def test_rows_count_verified_and_unchecked_evidence_apart():
+    """A row mixing verified and unchecked items counts each; neither relabels the total."""
+    from auditorium_ui.app import Verification, _transaction_rows
+
+    def result(check, n):
+        evidence = [c.DocumentEvidence(document_id="d", page=1, quote="q")] * n
+        return c.CheckResult(
+            id=f"t#{check}",
+            run_id="r",
+            transaction_id="t",
+            check=check,
+            status="pass",
+            summary="s",
+            rationale="r",
+            evidence=evidence,
+        )
+
+    results = [result("receipt", 2), result("approval", 1)]
+    verifications = {
+        "t#receipt": [Verification("verified", basis="dataset"), Verification("unchecked")],
+        "t#approval": [Verification("live_unchecked")],
+    }
+    run = type("R", (), {"results": results})()
+    ctx = {"run": run, "verifications": verifications, "transactions": {}, "signoff_state": {}}
+    (row,) = _transaction_rows(ctx)
+    assert (row.evidence_verified, row.evidence_unchecked, row.evidence_failed) == (1, 2, 0)
+    assert row.no_evidence == 0 and row.evidence_total == 3
 
 
 # -- the scored dataset on main ------------------------------------------------
