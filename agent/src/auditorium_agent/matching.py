@@ -168,7 +168,9 @@ def find_accruals(
             or not start <= entry.txn_date <= end
         ):
             continue
-        texts = [entry.vendor_name, entry.memo, *(line.description for line in entry.lines)]
+        texts = [entry.vendor_name, entry.memo]
+        for line in entry.lines:
+            texts += [line.description, line.vendor_name]
         if key and any(key in vendor_key(text) for text in texts if text):
             found.append(entry)
     return found

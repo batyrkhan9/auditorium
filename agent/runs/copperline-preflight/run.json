@@ -1,0 +1,39 @@
+{
+  "run_id": "run_20261111_014237",
+  "mode": "preflight",
+  "started_at": "2026-11-11T01:42:37.219834Z",
+  "finished_at": "2026-11-11T01:42:37.757602Z",
+  "period_start": "2025-01-01",
+  "period_end": "2025-12-31",
+  "dataset_id": "copperline-fy2025-v1",
+  "dataset_path": "/Users/macbook/auditorium/data/company",
+  "sources": [
+    {
+      "system": "ramp",
+      "mode": "local",
+      "detail": "dataset copperline-fy2025-v1",
+      "synthetic": true
+    },
+    {
+      "system": "qbo",
+      "mode": "local",
+      "detail": "dataset copperline-fy2025-v1",
+      "synthetic": true
+    },
+    {
+      "system": "bank",
+      "mode": "local",
+      "detail": "dataset copperline-fy2025-v1",
+      "synthetic": true
+    },
+    {
+      "system": "company",
+      "mode": "local",
+      "detail": "dataset copperline-fy2025-v1",
+      "synthetic": true
+    }
+  ],
+  "models": [],
+  "git_commit": "77016f3b47049d78bce0cf46022f0e9066f0253d",
+  "contract_version": "0.2.0"
+}

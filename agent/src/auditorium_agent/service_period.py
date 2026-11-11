@@ -25,6 +25,8 @@ _LABEL = re.compile(
 _LONG_DATE = re.compile(
     _MONTH + r"\s+(?P<day>\d{1,2})(?!\d)(?:st|nd|rd|th)?(?:,?\s+(?P<year>\d{4}))?", re.IGNORECASE
 )
+# A line that ends like this is the first half of a date range.
+_DANGLING = re.compile(r"(-|\u2013|\bto|\bthrough|\band|,)\s*$", re.IGNORECASE)
 _NUMERIC_DATE = re.compile(r"(?P<m>\d{1,2})/(?P<d>\d{1,2})/(?P<y>\d{4})")
 _MONTH_YEAR = re.compile(_MONTH + r"\s+(?P<year>\d{4})", re.IGNORECASE)
 
@@ -35,6 +37,7 @@ class ServicePeriod:
     end: date
     page: int  # 1-based
     quote: str  # the line it was read from, as it appears in the document
+    read_by: str | None = None  # the model that read the dates, when plain code could not
 
 
 def _dates_on(line: str) -> list[date]:
@@ -57,18 +60,25 @@ def _dates_on(line: str) -> list[date]:
 def find_service_period(pages: tuple[str, ...]) -> ServicePeriod | None:
     """The first labelled service period in the document, or None if none is stated."""
     for page_number, text in enumerate(pages, 1):
-        for line in text.splitlines():
+        lines = [line.strip() for line in text.splitlines()]
+        for index, line in enumerate(lines):
             if not _LABEL.search(line):
                 continue
-            try:
-                dates = _dates_on(line)
-            except ValueError:  # e.g. February 30
-                continue
-            if not dates:
+            following = lines[index + 1] if index + 1 < len(lines) else ""
+            # A PDF wraps long lines, so the dates can run on to the next line, or sit
+            # there entirely. Read the two together when this line stops mid-range.
+            for quote in (line, f"{line} {following}".strip()):
+                try:
+                    dates = _dates_on(quote)
+                except ValueError:  # e.g. February 30
+                    dates = []
+                if dates and not (quote == line and _DANGLING.search(line)):
+                    break
+            else:
                 continue
             start, end = min(dates), max(dates)
             if len(dates) == 2 and dates[0] > dates[1]:
                 # "December 15 - January 14, 2026": the start is in the year before.
                 start, end = dates[0].replace(year=dates[0].year - 1), dates[1]
-            return ServicePeriod(start=start, end=end, page=page_number, quote=line.strip())
+            return ServicePeriod(start=start, end=end, page=page_number, quote=quote)
     return None

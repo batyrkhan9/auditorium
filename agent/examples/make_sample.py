@@ -6,10 +6,12 @@ It exists so the agent can run before the real dataset does. Rebuild with:
     uv run python agent/examples/make_sample.py
 """
 
+import re
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import auditorium_contracts as c
+from fpdf import FPDF
 
 ROOT = Path(__file__).parent / "sample"
 BILL_TO = "Bill to: Larkspur Labs, Inc.\n"
@@ -29,9 +31,10 @@ CASES = [
     ),
     dict(  # December work recorded in January, but accrued on December 31.
         key="b_1002", vendor="Harlow & Finch LLP", cents=450_000, day=date(2026, 1, 10),
-        invoice="883", booked=date(2026, 1, 10),
+        invoice="883", booked=date(2026, 1, 10), paid=date(2026, 1, 24),
         text="Harlow & Finch LLP\nInvoice 883\nInvoice date: January 10, 2026\n" + BILL_TO
-        + "Legal services\nService period: 12/01/2025 - 12/31/2025\nAmount due: $4,500.00\n",
+        + "Legal services for the Series B financing and related corporate housekeeping. Service period: "
+        "December 1 - December 31, 2025\nAmount due: $4,500.00\n",
     ),
     dict(  # Clean. Same vendor and amount as b_1005: the pairing must keep them apart.
         key="b_1003", vendor="Cloudline Hosting, Inc.", cents=230_000, day=date(2025, 11, 30),
@@ -118,7 +121,75 @@ CASES = [
         text="Apple Store\nReceipt\nDate: February 11, 2025\nDisplay adapter and monitor\n"
         "Total: $1,150.00\n",
     ),
+    dict(  # December work billed in January, said in words no pattern catches. No accrual.
+        key="b_1012", vendor="Ironwood Design Studio", cents=360_000, day=date(2026, 1, 6),
+        invoice="2291", booked=date(2026, 1, 6),
+        text="Ironwood Design Studio\nInvoice 2291\nInvoice date: January 6, 2026\n" + BILL_TO
+        + "This invoice covers the design sprint we ran for you in the last two weeks of December 2025.\n"
+        "Total: $3,600.00\n",
+    ),
+    dict(  # The card statement codes the merchant; the receipt spells it out.
+        key="c_2007", vendor="SQ *BLUEBTL OAK", cents=8_640, day=date(2025, 9, 3),
+        booked=date(2025, 9, 3),
+        text="Blue Bottle Coffee\nOakland, Broadway\nSeptember 3, 2025\n"
+        "Team offsite coffee and pastries\nTotal: $86.40\n",
+    ),
 ]  # fmt: skip
+
+BANK_STATEMENTS = {
+    "2025-03": "First Harbor Bank\nStatement for March 2025\nLarkspur Labs, Inc. Operating account\n"
+    "03/10/2025  ACH debit  SABLE FREIGHT  9,000.00\n"
+    "03/28/2025  ACH debit  GUSTO PAYROLL  48,210.55\n",
+    # The Harlow & Finch bill was paid in January too, and is not on this statement.
+    "2026-01": "First Harbor Bank\nStatement for January 2026\nLarkspur Labs, Inc. Operating account\n"
+    "01/22/2026  ACH debit  NORTHWIND ADVISORY  12,000.00\n"
+    "01/30/2026  ACH debit  GUSTO PAYROLL  51,904.10\n",
+}
+
+# What an auditor would send: lines copied from the ledger, with no internal ids.
+SAMPLE_REQUEST = c.SampleRequest(
+    id="sample-1",
+    auditor="Hale & Whitlock LLP",
+    received_on=date(2026, 2, 16),
+    items=[
+        c.SampleItem(line=1, description="Northwind Advisory, consulting", vendor_name="Northwind Advisory", amount_cents=1_200_000, transaction_date=date(2026, 1, 8), reference="INV-2041"),
+        c.SampleItem(line=2, description="Hotel Kabuki", vendor_name="Hotel Kabuki", amount_cents=31_240, transaction_date=date(2025, 7, 22)),
+        c.SampleItem(line=3, description="Quillon Security, pen test", vendor_name="Quillon Security", amount_cents=820_000, reference="QS-88"),
+        c.SampleItem(line=4, description="Meridian Analytics", vendor_name="Meridian Analytics", amount_cents=640_000),
+        # The auditor copied the ledger's amount, which is not what Ramp has.
+        c.SampleItem(line=5, description="Pinecrest Staffing", vendor_name="Pinecrest Staffing", amount_cents=158_000, transaction_date=date(2025, 10, 20)),
+        c.SampleItem(line=6, description="Harlow & Finch, legal", vendor_name="Harlow & Finch", amount_cents=450_000, reference="883"),
+        # Two monthly bills fit this line.
+        c.SampleItem(line=7, description="Cloudline Hosting", vendor_name="Cloudline Hosting", amount_cents=230_000),
+        c.SampleItem(line=8, description="Zephyr Catering, offsite lunch", vendor_name="Zephyr Catering", amount_cents=41_500, transaction_date=date(2025, 8, 2)),
+    ],
+)  # fmt: skip
+
+
+def write_pdf(path: Path, text: str) -> Path:
+    """Lay the text out the way real invoices and statements are: a heading, amounts
+    right-aligned in their own column, statement rows as a table, long lines wrapped."""
+    pdf = FPDF(format="Letter")
+    pdf.set_creation_date(datetime(2026, 1, 1, tzinfo=UTC))  # so rebuilding gives the same bytes
+    pdf.add_page()
+    heading, *lines = text.splitlines()
+    pdf.set_font("Helvetica", "B", 16)
+    pdf.cell(0, 12, heading, new_x="LMARGIN", new_y="NEXT")
+    pdf.set_font("Helvetica", size=11)
+    for line in lines:
+        label, colon, value = line.partition(": ")
+        columns = re.split(r"\s{2,}", line)
+        if colon and re.fullmatch(r"\$[\d,]+\.\d{2}", value):
+            pdf.cell(130, 7, f"{label}:")
+            pdf.cell(0, 7, value, align="R", new_x="LMARGIN", new_y="NEXT")
+        elif len(columns) > 2:
+            for column, width in zip(columns[:-1], (28, 32, 80), strict=False):
+                pdf.cell(width, 7, column)
+            pdf.cell(0, 7, columns[-1], align="R", new_x="LMARGIN", new_y="NEXT")
+        else:
+            pdf.multi_cell(0, 7, line, new_x="LMARGIN", new_y="NEXT")
+    pdf.output(str(path))
+    return path
 
 
 def main():
@@ -131,16 +202,14 @@ def main():
             system="ramp", record_type="bill" if is_bill else "transaction", record_id=key
         )
         if case["text"]:
-            path = ROOT / "documents" / f"{key}.txt"
-            path.write_text(case["text"])
+            path = write_pdf(ROOT / "documents" / f"{key}.pdf", case["text"])
             documents.append(
                 c.Document(
                     id=f"doc_{key}",
                     type="invoice" if is_bill else "receipt",
                     source=source,
                     origin="external",
-                    path=f"documents/{key}.txt",
-                    media_type="text/plain",
+                    path=f"documents/{key}.pdf",
                     sha256=c.sha256_file(path),
                 )
             )
@@ -198,6 +267,20 @@ def main():
         )
     )
 
+    for month, text in BANK_STATEMENTS.items():
+        path = write_pdf(ROOT / "documents" / f"bank-{month}.pdf", text)
+        documents.append(
+            c.Document(
+                id=f"doc_bank_{month}",
+                type="bank_statement",
+                source=c.SourceRef(system="bank", record_type="statement", record_id=month),
+                origin="external",
+                path=f"documents/bank-{month}.pdf",
+                sha256=c.sha256_file(path),
+            )
+        )
+    c.write_json(ROOT / "samples" / f"{SAMPLE_REQUEST.id}.json", SAMPLE_REQUEST)
+
     c.write_json(
         ROOT / "manifest.json",
         c.DatasetManifest(
@@ -216,11 +299,29 @@ def main():
     c.write_jsonl(
         ROOT / "people.jsonl",
         [
-            c.Person(id="p_ceo", name="Maya Okafor", role="ceo"),
-            c.Person(id="p_cfo", name="Dana Reyes", role="cfo", manager_id="p_ceo"),
-            c.Person(id="p_mgr", name="Priya Nair", role="engineering manager", manager_id="p_ceo"),
-            c.Person(id="p_eng", name="Tom Alvarez", role="engineer", manager_id="p_mgr"),
-        ],
+            c.Person(id="p_ceo", name="Maya Okafor", role="ceo", email="maya@larkspur.example"),
+            c.Person(
+                id="p_cfo",
+                name="Dana Reyes",
+                role="cfo",
+                email="dana@larkspur.example",
+                manager_id="p_ceo",
+            ),
+            c.Person(
+                id="p_mgr",
+                name="Priya Nair",
+                role="engineering manager",
+                email="priya@larkspur.example",
+                manager_id="p_ceo",
+            ),
+            c.Person(
+                id="p_eng",
+                name="Tom Alvarez",
+                role="engineer",
+                email="tom@larkspur.example",
+                manager_id="p_mgr",
+            ),
+        ],  # fmt: skip
     )
     c.write_json(
         ROOT / "policy.json",

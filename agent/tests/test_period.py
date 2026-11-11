@@ -27,6 +27,7 @@ def test_sample_statuses(tmp_path):
     assert {txn: status for txn, status in statuses.items() if status != "pass"} == {
         "ramp:bill:b_1001": "fail",  # the pitch example
         "ramp:bill:b_1004": "needs_review",  # no service period, recorded just after year end
+        "ramp:bill:b_1012": "needs_review",  # dates given in words; settled only with a reader
         "ramp:card:c_2002": "not_applicable",  # not in the books at all
     }
     # December work accrued in December, and a wrong amount in the books, are not period errors.
@@ -67,3 +68,24 @@ def test_vendor_names_match_across_systems():
     assert same_vendor("Northwind Advisory LLC", "Northwind Advisory")
     assert same_vendor("Harlow & Finch LLP", "Harlow and Finch")
     assert not same_vendor("Cloudline Hosting", "Brightside Design Co.")
+
+
+def test_service_period_on_a_wrapped_line():
+    # What a PDF gives when a long line wraps: the range is split across two lines.
+    page = (
+        "Legal services for the financing and related matters. Service period: December 1 -\n"
+        "December 31, 2025\nAmount due: $4,500.00"
+    )
+    found = find_service_period((page,))
+    assert (found.start, found.end) == (date(2025, 12, 1), date(2025, 12, 31))
+    assert found.quote.endswith("December 1 - December 31, 2025")
+
+    # The label is at the end of one line and the dates are all on the next.
+    found = find_service_period(
+        ("Consulting engagement. Services rendered:\n12/01/2025 - 12/31/2025",)
+    )
+    assert (found.start, found.end) == (date(2025, 12, 1), date(2025, 12, 31))
+
+    # A complete range is not stretched by an unrelated date on the following line.
+    found = find_service_period(("Service period: 12/01/2025 - 12/15/2025\nDue date: 01/30/2026",))
+    assert found.end == date(2025, 12, 15)

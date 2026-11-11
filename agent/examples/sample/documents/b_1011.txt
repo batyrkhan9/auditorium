@@ -1,6 +1,0 @@
-Sable Freight
-Invoice SF-2207
-Invoice date: March 3, 2025
-Bill to: Larkspur Labs, Inc.
-Equipment shipping
-Total: $9,000.00

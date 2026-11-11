@@ -1,0 +1,3 @@
+# The snapshot of what a run fetched stays out of git (docs/CONTRACT.md). For these
+# committed runs the same data is in data/company.
+*/sources/

@@ -25,6 +25,7 @@ def test_sample_results(tmp_path):
         "c_2003": ("fail", ["receipt_missing"]),  # over the threshold, nothing attached
         "c_2004": ("not_applicable", []),  # under the threshold
         "c_2005": ("needs_review", []),  # right restaurant, charge includes a tip
+        "c_2007": ("needs_review", []),  # merchant coded on the statement; needs a reader
         "b_1008": ("fail", ["receipt_mismatch"]),  # another vendor's invoice attached
     }
     assert len(found) == len(sources.transactions())
