@@ -10,6 +10,12 @@ the real documents, and a log records every step.
 Built by Batyrkhan and Noriaki for the BBS x Ramp hackathon build round.
 Product brief: [docs/PRD.md](docs/PRD.md).
 
+## Demo
+
+https://github.com/user-attachments/assets/7a85267e-6823-423d-8f5c-2a4438e55699
+
+The walkthrough behind it: [docs/DEMO.md](docs/DEMO.md).
+
 ## Status
 
 Honest and current. Update it as things land.
