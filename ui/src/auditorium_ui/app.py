@@ -107,7 +107,11 @@ class TxRow:
     evidence_total: int = 0
     evidence_verified: int = 0
     evidence_failed: int = 0
-    signed: int = 0
+    evidence_unchecked: int = 0  # "unchecked" or "live_unchecked"
+    no_evidence: int = 0  # results with no evidence at all: not results
+    signed: int = 0  # latest sign-off pins the result as it is now
+    stale: int = 0  # latest sign-off pins a version that has since changed
+    unpinned: int = 0  # latest sign-off records no version, so coverage is unknown
     search: str = ""
 
     def matches(self, status: str, check: str) -> bool:
@@ -134,6 +138,11 @@ def _transaction_rows(ctx: dict) -> list[TxRow]:
         lead = ordered[0]
         states = [v.state for r in by_check.values() for v in ctx["verifications"][r.id]]
         tx = ctx["transactions"].get(tx_id)
+        signed = [
+            ctx["signoff_state"][r.id].state
+            for r in by_check.values()
+            if r.id in ctx["signoff_state"]
+        ]
         words = [
             tx_id,
             *(f"{r.summary} {' '.join(i.value for i in r.issue_codes)}" for r in by_check.values()),
@@ -159,7 +168,11 @@ def _transaction_rows(ctx: dict) -> list[TxRow]:
                 evidence_total=len(states),
                 evidence_verified=states.count("verified"),
                 evidence_failed=states.count("failed"),
-                signed=sum(r.id in ctx["signoff_state"] for r in by_check.values()),
+                evidence_unchecked=states.count("unchecked") + states.count("live_unchecked"),
+                no_evidence=sum(not r.evidence for r in by_check.values()),
+                signed=signed.count("pinned"),
+                stale=signed.count("changed"),
+                unpinned=signed.count("unpinned"),
                 search=" ".join(words).lower(),
             )
         )
@@ -246,6 +259,43 @@ class Loaded:
     partial: bool  # a half-written last line was left out
     damage: list[str]  # a line that is not an event; sign-off is refused
     file_hashes: dict[str, str]  # sha256 of results.jsonl and run.json as read
+    invalid_results: list[str] = field(default_factory=list)  # lines left out, and why
+
+
+# Stands in for an empty evidence list only while the rest of a result is validated.
+# It is replaced by the empty list straight after and is never shown or checked.
+_PLACEHOLDER = c.DocumentEvidence(document_id="-", page=1, quote="-")
+
+
+def _read_results(data: bytes) -> tuple[list[c.CheckResult], list[str]]:
+    """The results, and a problem line for each line that is not a valid result.
+
+    A result whose only fault is an empty evidence list is kept, with no evidence, so
+    the screen can flag it: a check with no evidence is not a result (PRD rule 1), and
+    hiding it would hide that. Any other invalid line is left out and named.
+    """
+    results: list[c.CheckResult] = []
+    invalid: list[str] = []
+    for number, line in enumerate(data.decode("utf-8").splitlines(), 1):
+        if not line.strip():
+            continue
+        try:
+            results.append(c.CheckResult.model_validate_json(line))
+            continue
+        except ValueError as error:
+            problem = (
+                f"results.jsonl line {number} is not a valid result ({error.__class__.__name__})"
+            )
+        try:
+            raw = json.loads(line)
+            if isinstance(raw, dict) and raw.get("evidence") == []:
+                checked = c.CheckResult.model_validate({**raw, "evidence": [_PLACEHOLDER]})
+                results.append(checked.model_copy(update={"evidence": []}))
+                continue
+        except ValueError:
+            pass
+        invalid.append(problem)
+    return results, invalid
 
 
 def _load_run(root: Path) -> Loaded:
@@ -261,14 +311,11 @@ def _load_run(root: Path) -> Loaded:
     manifest_bytes = (root / c.RUN_MANIFEST).read_bytes()
     results_bytes = (root / c.RESULTS).read_bytes()
     scorecard = root / c.SCORECARD
+    results, invalid = _read_results(results_bytes)
     run = c.Run(
         root=root,
         manifest=c.RunManifest.model_validate_json(manifest_bytes),
-        results=tuple(
-            c.CheckResult.model_validate_json(line)
-            for line in results_bytes.decode("utf-8").splitlines()
-            if line.strip()
-        ),
+        results=tuple(results),
         packets=optional(c.PACKETS, c.EvidencePacket),
         drafts=optional(c.DRAFTS, c.FollowUpDraft),
         log=tuple(log),
@@ -280,7 +327,7 @@ def _load_run(root: Path) -> Loaded:
         "results_sha256": hashlib.sha256(results_bytes).hexdigest(),
         "run_sha256": hashlib.sha256(manifest_bytes).hexdigest(),
     }
-    return Loaded(run, _verify_lines(lines), partial, damage, hashes)
+    return Loaded(run, _verify_lines(lines), partial, damage, hashes, invalid)
 
 
 def _snapshot_problems(log: tuple[c.LogEvent, ...], snapshot: c.LocalSources) -> list[str]:
@@ -382,6 +429,33 @@ class SecurityHeaders:
             await send(message)
 
         await self.app(scope, receive, send_with_headers)
+
+
+class SelectiveGZip:
+    """Gzip the run's HTML pages, which reach 700 KB on a real run, but never:
+
+    - original document files (`/document/file`): they are served byte for byte, as
+      the dataset holds them, so their sha256 and Content-Length stay checkable;
+    - a response to a request carrying `q` or `error`. Those values are reflected
+      into pages that also carry the sign-off CSRF token, and compressing attacker-
+      chosen text next to a secret leaks the secret through the length (BREACH).
+    """
+
+    def __init__(self, app):
+        self.app = app
+        self.gzip = GZipMiddleware(app, minimum_size=2048)
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http" and self.compressible(scope):
+            return await self.gzip(scope, receive, send)
+        return await self.app(scope, receive, send)
+
+    @staticmethod
+    def compressible(scope) -> bool:
+        if scope["path"].startswith("/document/file"):
+            return False
+        params = parse_qs(scope.get("query_string", b"").decode("latin-1"), keep_blank_values=True)
+        return not ({"q", "error"} & params.keys())
 
 
 def _money(cents: int | None) -> str:
@@ -606,6 +680,7 @@ class Viewer:
             "live": live,
             "drift": drift,
             "log_partial": loaded.partial,
+            "invalid_results": loaded.invalid_results,
             "in_progress": in_progress,
             "can_sign": not blocked,
             "can_sign_run": not blocked and finished_logged,
@@ -662,7 +737,11 @@ class Viewer:
             matrix=matrix,
             evidence_counts=evidence,
             evidence_total=sum(evidence.values()),
-            signed=len(ctx["signoff_state"]),
+            # Only sign-offs that still pin the result as it is count as signed.
+            signed=sum(s.state == "pinned" for s in ctx["signoff_state"].values()),
+            signed_stale=sum(s.state == "changed" for s in ctx["signoff_state"].values()),
+            signed_unpinned=sum(s.state == "unpinned" for s in ctx["signoff_state"].values()),
+            no_evidence=sum(not r.evidence for r in results),
             status=status,
             check=check,
             query=query,
@@ -831,6 +910,11 @@ class Viewer:
         reviewer, decision = form.get("reviewer", ""), form.get("decision", "")
         problem = self._signing_problem(loaded, reviewer, decision)
         finished = any(e.action is c.LogAction.RUN_FINISHED for e in loaded.run.log)
+        if problem is None and loaded.invalid_results:
+            problem = (
+                "results.jsonl holds lines that are not valid results, so the run cannot be "
+                "signed off as a whole."
+            )
         if problem is None and not finished:
             problem = "The log has no run_finished event yet, so the run cannot be signed off."
         if problem is None and any(
@@ -917,7 +1001,7 @@ class Viewer:
 
     def app(self) -> Starlette:
         return Starlette(
-            middleware=[Middleware(SecurityHeaders), Middleware(GZipMiddleware, minimum_size=2048)],
+            middleware=[Middleware(SecurityHeaders), Middleware(SelectiveGZip)],
             routes=[
                 Route("/", self.results),
                 Route("/result", self.result),

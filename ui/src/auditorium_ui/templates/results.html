@@ -90,6 +90,10 @@ a.cell.drifted { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--fail-soli
 .finding .clean { color: var(--muted); font-size: 12.5px; }
 .finding .more { font-size: 12px; color: var(--muted); white-space: nowrap; }
 td.evc { white-space: nowrap; }
+td.evc .v { display: flex; }
+td.signed .stale, td.signed .unpinned { display: block; font-size: 11.5px; }
+td.signed .stale { color: var(--fail); font-weight: 600; }
+td.signed .unpinned { color: var(--muted); }
 td.signed { white-space: nowrap; font-size: 12.5px; }
 td.signed .zero { color: var(--faint); }
 tr.empty td { text-align: center; padding: 40px 16px; color: var(--muted); }
@@ -153,7 +157,11 @@ tr.empty strong { display: block; color: var(--ink); font-size: 14px; margin-bot
     <div class="block">
       <div class="statline"><span class="muted">Results signed off</span><b>{{ signed }} / {{ total }}</b></div>
       <div class="meter"><span style="width: {{ (100 * signed / total) | round(1) if total else 0 }}%"></span></div>
+      {% if signed_stale or signed_unpinned %}<p class="small" style="margin:6px 0 0" data-signed-stale="{{ signed_stale }}">{% if signed_stale %}<span class="drift">{{ signed_stale }} stale</span>: signed off, then changed, so not counted.{% endif %}{% if signed_unpinned %} <span class="muted">{{ signed_unpinned }} unpinned: no version recorded, so not counted.</span>{% endif %}</p>{% endif %}
     </div>
+    {% if no_evidence %}
+    <div class="block"><p class="v failed" style="margin:0;white-space:normal" data-no-evidence-total="{{ no_evidence }}">{{ glyph("fail") }}{{ no_evidence }} result(s) carry no evidence. A check with no evidence is not a result.</p></div>
+    {% endif %}
     <div class="block">
       {% if basis.index is not none %}
       {% set ok = evidence_counts.get("verified", 0) %}
@@ -185,6 +193,8 @@ tr.empty strong { display: block; color: var(--ink); font-size: 14px; margin-bot
       <p class="v failed" data-run-signoff-form="damaged">Run sign-off is disabled because the step log is damaged.</p>
       {% elif chain %}
       <p class="v failed" data-run-signoff-form="broken">Run sign-off is disabled because the step log's chain is broken.</p>
+      {% elif invalid_results %}
+      <p class="v failed" style="white-space:normal" data-run-signoff-form="invalid">Run sign-off is disabled because results.jsonl holds lines that are not valid results.</p>
       {% elif in_progress or not finished_logged %}
       <p class="v unchecked" data-run-signoff-form="in-progress">Run in progress. The run can be signed off once it has finished and its log holds <code>run_finished</code>.</p>
       {% else %}
@@ -274,12 +284,13 @@ tr.empty strong { display: block; color: var(--ink); font-size: 14px; margin-bot
         {% endif %}
       </td>
       <td class="evc small">
-        {% if row.evidence_failed %}<span class="v failed">{{ glyph("fail") }}{{ row.evidence_failed }} not verified against {{ basis.kind }}</span>
-        {% elif row.evidence_verified == row.evidence_total and row.evidence_total %}<span class="v verified" title="{{ row.evidence_verified }} verified against {{ basis.kind }}">{{ glyph("pass") }}{{ row.evidence_verified }}<span class="sr"> verified against {{ basis.kind }}</span></span>
-        {% elif live %}<span class="v live_unchecked">{{ row.evidence_total }} unchecked (live run)</span>
-        {% else %}<span class="v unchecked">{{ row.evidence_total }} not checked</span>{% endif %}
+        {# Each count on its own: never fold verified and unchecked into one label. #}
+        {% if row.no_evidence %}<span class="v failed" data-no-evidence="{{ row.no_evidence }}">{{ glyph("fail") }}{{ row.no_evidence }} with no evidence</span>{% endif %}
+        {% if row.evidence_failed %}<span class="v failed" data-ev="failed">{{ glyph("fail") }}{{ row.evidence_failed }} not verified against {{ basis.kind }}</span>{% endif %}
+        {% if row.evidence_verified %}<span class="v verified" data-ev="verified" title="{{ row.evidence_verified }} verified against {{ basis.kind }}">{{ glyph("pass") }}{{ row.evidence_verified }}<span class="sr"> verified against {{ basis.kind }}</span></span>{% endif %}
+        {% if row.evidence_unchecked %}{% if live %}<span class="v live_unchecked" data-ev="unchecked">{{ row.evidence_unchecked }} unchecked (live run)</span>{% else %}<span class="v unchecked" data-ev="unchecked">{{ row.evidence_unchecked }} not checked</span>{% endif %}{% endif %}
       </td>
-      <td class="signed">{% if row.signed %}{{ row.signed }} / {{ row.results | length }}{% else %}<span class="zero">0 / {{ row.results | length }}</span>{% endif %}</td>
+      <td class="signed">{% if row.signed %}{{ row.signed }} / {{ row.results | length }}{% else %}<span class="zero">0 / {{ row.results | length }}</span>{% endif %}{% if row.stale %}<span class="stale" data-stale="{{ row.stale }}">{{ row.stale }} stale</span>{% endif %}{% if row.unpinned %}<span class="unpinned">{{ row.unpinned }} unpinned</span>{% endif %}</td>
     </tr>
     {% endfor %}
     <tr class="empty" id="tx-empty"{% if shown %} hidden{% endif %}><td colspan="{{ 5 + checks | length }}"><strong>No transactions match.</strong>Try another status or check, or <a href="/">clear the filters</a>.</td></tr>

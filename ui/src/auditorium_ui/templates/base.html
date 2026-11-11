@@ -7,11 +7,11 @@
 <title>{% block title %}{{ manifest.run_id }}{% endblock %} · Auditorium</title>
 {# Pinned font files from jsDelivr. Without the network the system stack takes over. #}
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/ibm-plex-sans@5.2.8/latin-400.css">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/ibm-plex-sans@5.2.8/latin-500.css">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/ibm-plex-sans@5.2.8/latin-600.css">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/ibm-plex-mono@5.2.7/latin-400.css">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/ibm-plex-mono@5.2.7/latin-500.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/ibm-plex-sans@5.2.8/latin-400.css" integrity="sha384-KAoV+iN2OQM4nX8cLQwXAmxUpLLXBew80mRTAMwu9s6Qc2HHFDByndI1icVmJ9Mb" crossorigin="anonymous">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/ibm-plex-sans@5.2.8/latin-500.css" integrity="sha384-52y4Whr2v4Zdfrr/tDzM2gvi5+yKwGbHPH406s95qGkmjfXhaNO+Gf2IGdtIIYnq" crossorigin="anonymous">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/ibm-plex-sans@5.2.8/latin-600.css" integrity="sha384-JyLG9ggsH+KTlK4Vm1MJQ3ImRVsZr00dz86Xq3GWAYPdswFE0QQzcZXLCbmgyRdg" crossorigin="anonymous">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/ibm-plex-mono@5.2.7/latin-400.css" integrity="sha384-gmcmgZJ3SePhkdTXTGuZ/8KFvswox1OAZgOI2fPRjJYwxwqZbjQbzM5Htb673EGZ" crossorigin="anonymous">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/ibm-plex-mono@5.2.7/latin-500.css" integrity="sha384-jJBRof6uIBCAFnrM/Riy3vKp83V7JHomeoJaXYfnmI8f6uWadY1l56XztI2WC4j4" crossorigin="anonymous">
 <style>
 /* ---- tokens ------------------------------------------------------------- */
 :root {
@@ -290,6 +290,11 @@ form.signform .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; 
   <div class="banner warn" role="status" data-run="in-progress"><strong>Run in progress: the step log could not be read fully.</strong> Its last line is still being written, so it is left out below. Reload to see it. Sign-off is disabled until the run has finished.</div>
   {% elif manifest.finished_at is none %}
   <div class="banner warn" role="status" data-run="in-progress"><strong>Run in progress.</strong> Results and the log may still change. Sign-off opens once the run has finished.</div>
+  {% endif %}
+  {% if invalid_results %}
+  <div class="banner bad" role="alert" data-results-invalid="{{ invalid_results | length }}"><strong>{{ invalid_results | length }} line(s) of results.jsonl are not valid results</strong> and are not shown. Run sign-off is disabled.
+    <ul>{% for p in invalid_results %}<li>{{ p }}</li>{% endfor %}</ul>
+  </div>
   {% endif %}
   {% if drift %}
   <div class="banner bad" role="alert" data-drift-count="{{ drift | length }}"><strong>{{ drift | length }} result(s) differ from the step log.</strong> Their status was changed after the agent logged it, so the log does not back what is shown. They are marked below.</div>
